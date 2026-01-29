@@ -1,52 +1,47 @@
 import type { CookieOptions, SendFileOptions } from "../types";
 import { existsSync, statSync } from "fs";
-import { join, extname, basename } from "path";
+import { join, extname, basename, resolve } from "path";
+import { getBaseMimeType } from "../utils/mime";
+
+export interface RenderOptions {
+  [key: string]: unknown;
+}
 
 type ResponseBody = string | ArrayBuffer | Uint8Array | Blob | null;
 
-const MIME_TYPES: Record<string, string> = {
-  ".html": "text/html",
-  ".htm": "text/html",
-  ".css": "text/css",
-  ".js": "application/javascript",
-  ".mjs": "application/javascript",
-  ".json": "application/json",
-  ".xml": "application/xml",
-  ".txt": "text/plain",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".gif": "image/gif",
-  ".svg": "image/svg+xml",
-  ".ico": "image/x-icon",
-  ".webp": "image/webp",
-  ".woff": "font/woff",
-  ".woff2": "font/woff2",
-  ".ttf": "font/ttf",
-  ".otf": "font/otf",
-  ".eot": "application/vnd.ms-fontobject",
-  ".pdf": "application/pdf",
-  ".zip": "application/zip",
-  ".gz": "application/gzip",
-  ".mp3": "audio/mpeg",
-  ".mp4": "video/mp4",
-  ".webm": "video/webm",
-  ".wav": "audio/wav",
-  ".ogg": "audio/ogg",
-};
-
-function getMimeType(filePath: string): string {
-  const ext = extname(filePath).toLowerCase();
-  return MIME_TYPES[ext] || "application/octet-stream";
+export interface AppContext {
+  get(setting: string): unknown;
+  getEngine(ext: string): ((path: string, options: Record<string, unknown>, callback: (err: Error | null, html?: string) => void) => void) | undefined;
+  locals: Record<string, unknown>;
 }
+
+export type FormatHandlers = {
+  [contentType: string]: (() => void) | undefined;
+};
 
 export class BunResponse {
   private _statusCode = 200;
   private _headers: Headers = new Headers();
   private _body: ResponseBody = null;
   private _sent = false;
+  private _app?: AppContext;
+  private _acceptHeader?: string;
+
+  // Streaming support
+  private _streaming = false;
+  private _streamController: ReadableStreamDefaultController<Uint8Array> | null = null;
+  private _streamPromise: Promise<ReadableStream<Uint8Array>> | null = null;
+  private _headersFlushed = false;
 
   locals: Record<string, unknown> = {};
+
+  setApp(app: AppContext): void {
+    this._app = app;
+  }
+
+  setAcceptHeader(accept: string | undefined): void {
+    this._acceptHeader = accept;
+  }
 
   get statusCode(): number {
     return this._statusCode;
@@ -84,6 +79,49 @@ export class BunResponse {
     return this;
   }
 
+  contentType(type: string): this {
+    return this.type(type);
+  }
+
+  vary(field: string | string[]): this {
+    const fields = Array.isArray(field) ? field : [field];
+    const existing = this._headers.get("Vary");
+
+    if (existing) {
+      const existingFields = existing.split(",").map((f) => f.trim().toLowerCase());
+      const newFields = fields.filter((f) => !existingFields.includes(f.toLowerCase()));
+      if (newFields.length > 0) {
+        this._headers.set("Vary", `${existing}, ${newFields.join(", ")}`);
+      }
+    } else {
+      this._headers.set("Vary", fields.join(", "));
+    }
+
+    return this;
+  }
+
+  location(url: string): this {
+    this._headers.set("Location", url);
+    return this;
+  }
+
+  links(links: Record<string, string>): this {
+    const linkHeader = Object.entries(links)
+      .map(([rel, url]) => `<${url}>; rel="${rel}"`)
+      .join(", ");
+    this._headers.set("Link", linkHeader);
+    return this;
+  }
+
+  attachment(filename?: string): this {
+    if (filename) {
+      this._headers.set("Content-Disposition", `attachment; filename="${filename}"`);
+    } else {
+      this._headers.set("Content-Disposition", "attachment");
+    }
+    return this;
+  }
+
   json(data: unknown): void {
     this._headers.set("Content-Type", "application/json");
     this._body = JSON.stringify(data);
@@ -110,6 +148,60 @@ export class BunResponse {
   sendStatus(code: number): void {
     this._statusCode = code;
     this._body = String(code);
+    this._sent = true;
+  }
+
+  format(handlers: FormatHandlers): void {
+    const accept = this._acceptHeader || "*/*";
+    const types = Object.keys(handlers).filter((k) => k !== "default");
+
+    // Map short types to full MIME types
+    const typeMap: Record<string, string> = {
+      html: "text/html",
+      text: "text/plain",
+      json: "application/json",
+      xml: "application/xml",
+    };
+
+    // Find the best matching type
+    for (const type of types) {
+      const mimeType = typeMap[type] || type;
+      if (accept.includes(mimeType) || accept.includes("*/*") || accept.includes(type)) {
+        const handler = handlers[type];
+        if (handler) {
+          this._headers.set("Content-Type", mimeType);
+          handler();
+          return;
+        }
+      }
+    }
+
+    // Check for specific MIME type matches
+    for (const type of types) {
+      const mimeType = typeMap[type] || type;
+      const acceptParts = accept.split(",").map((p) => p.trim().split(";")[0]);
+      for (const acceptType of acceptParts) {
+        if (acceptType === mimeType || acceptType === `${mimeType.split("/")[0]}/*`) {
+          const handler = handlers[type];
+          if (handler) {
+            this._headers.set("Content-Type", mimeType);
+            handler();
+            return;
+          }
+        }
+      }
+    }
+
+    // Fall back to default handler
+    const defaultHandler = handlers["default"];
+    if (defaultHandler) {
+      defaultHandler();
+      return;
+    }
+
+    // No acceptable format found
+    this._statusCode = 406;
+    this._body = "Not Acceptable";
     this._sent = true;
   }
 
@@ -191,7 +283,7 @@ export class BunResponse {
       return;
     }
 
-    const mimeType = getMimeType(fullPath);
+    const mimeType = getBaseMimeType(fullPath);
     this._headers.set("Content-Type", mimeType);
     this._headers.set("Content-Length", String(stat.size));
 
@@ -262,8 +354,152 @@ export class BunResponse {
     this.json({ error: message });
   }
 
+  /**
+   * Initialize streaming mode and return the stream for the response.
+   * Call this internally when write() is first called.
+   */
+  private _initStream(): void {
+    if (this._streaming) return;
+
+    this._streaming = true;
+
+    // Create the stream with a stored controller
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const self = this;
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        self._streamController = controller;
+      },
+    });
+
+    // Store the stream directly as a resolved promise
+    this._streamPromise = Promise.resolve(stream);
+  }
+
+  /**
+   * Write a chunk to the response stream (Express-compatible).
+   * This enables streaming responses for large data.
+   *
+   * @example
+   * app.get('/stream', (req, res) => {
+   *   res.set('Content-Type', 'text/plain');
+   *   res.write('Hello ');
+   *   res.write('World');
+   *   res.end('!');
+   * });
+   */
+  write(chunk: string | Uint8Array | ArrayBuffer): boolean {
+    if (this._sent && !this._streaming) {
+      return false;
+    }
+
+    this._initStream();
+
+    if (!this._streamController) {
+      return false;
+    }
+
+    let data: Uint8Array;
+    if (typeof chunk === "string") {
+      data = new TextEncoder().encode(chunk);
+    } else if (chunk instanceof ArrayBuffer) {
+      data = new Uint8Array(chunk);
+    } else {
+      data = chunk;
+    }
+
+    try {
+      this._streamController.enqueue(data);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * End the response stream (Express-compatible).
+   * Optionally write final data before closing.
+   *
+   * @example
+   * res.end(); // Just close
+   * res.end('Final chunk'); // Write and close
+   */
+  end(chunk?: string | Uint8Array | ArrayBuffer): void {
+    if (this._sent && !this._streaming) {
+      return;
+    }
+
+    if (this._streaming && this._streamController) {
+      // Write final chunk if provided
+      if (chunk !== undefined) {
+        this.write(chunk);
+      }
+      // Close the stream
+      try {
+        this._streamController.close();
+      } catch {
+        // Stream may already be closed
+      }
+      this._sent = true;
+    } else {
+      // Non-streaming mode - just set the body and mark as sent
+      if (chunk !== undefined) {
+        if (typeof chunk === "string") {
+          this._body = chunk;
+        } else if (chunk instanceof ArrayBuffer) {
+          this._body = chunk;
+        } else {
+          this._body = chunk;
+        }
+      }
+      this._sent = true;
+    }
+  }
+
+  /**
+   * Flush the response headers immediately (Express-compatible).
+   * Useful for SSE or when you want headers sent before body.
+   */
+  flushHeaders(): void {
+    this._headersFlushed = true;
+    // In streaming mode, headers are flushed when the response is created
+    // This flag indicates headers should be sent immediately
+  }
+
+  /**
+   * Check if response is in streaming mode
+   */
+  isStreaming(): boolean {
+    return this._streaming;
+  }
+
+  /**
+   * Get the stream promise for streaming responses
+   */
+  getStream(): Promise<ReadableStream<Uint8Array>> | null {
+    return this._streamPromise;
+  }
+
   toResponse(): Response {
+    // If streaming, we need to handle this differently
+    // The stream is already set up, but we return a placeholder
+    // The actual streaming response is handled by toStreamingResponse()
     return new Response(this._body, {
+      status: this._statusCode,
+      headers: this._headers,
+    });
+  }
+
+  /**
+   * Create a streaming response. Used internally by the router.
+   */
+  async toStreamingResponse(): Promise<Response> {
+    if (!this._streaming || !this._streamPromise) {
+      return this.toResponse();
+    }
+
+    const stream = await this._streamPromise;
+    return new Response(stream, {
       status: this._statusCode,
       headers: this._headers,
     });
@@ -275,5 +511,99 @@ export class BunResponse {
 
   isSent(): boolean {
     return this._sent;
+  }
+
+  async render(view: string, options?: RenderOptions, callback?: (err: Error | null, html?: string) => void): Promise<void> {
+    if (typeof options === "function") {
+      callback = options;
+      options = {};
+    }
+
+    const opts = options || {};
+
+    if (!this._app) {
+      const err = new Error("No app context available for render. Use BunWayApp instead of Router for template rendering.");
+      if (callback) {
+        callback(err);
+        return;
+      }
+      throw err;
+    }
+
+    const viewEngine = this._app.get("view engine") as string | undefined;
+    const viewsDir = this._app.get("views") as string || "./views";
+
+    // Determine file extension
+    let viewPath = view;
+    let ext = extname(view);
+
+    if (!ext && viewEngine) {
+      ext = `.${viewEngine}`;
+      viewPath = `${view}${ext}`;
+    }
+
+    if (!ext) {
+      const err = new Error("No view engine specified and no file extension provided");
+      if (callback) {
+        callback(err);
+        return;
+      }
+      throw err;
+    }
+
+    // Get the engine
+    const engine = this._app.getEngine(ext);
+    if (!engine) {
+      const err = new Error(`No engine registered for extension "${ext}"`);
+      if (callback) {
+        callback(err);
+        return;
+      }
+      throw err;
+    }
+
+    // Resolve view path
+    const fullPath = resolve(viewsDir, viewPath);
+
+    if (!existsSync(fullPath)) {
+      const err = new Error(`View "${view}" not found at ${fullPath}`);
+      if (callback) {
+        callback(err);
+        return;
+      }
+      throw err;
+    }
+
+    // Merge locals
+    const renderOptions: Record<string, unknown> = {
+      ...this._app.locals,
+      ...this.locals,
+      ...opts,
+    };
+
+    return new Promise((resolvePromise, rejectPromise) => {
+      engine(fullPath, renderOptions, (err, html) => {
+        if (err) {
+          if (callback) {
+            callback(err);
+            resolvePromise();
+            return;
+          }
+          rejectPromise(err);
+          return;
+        }
+
+        if (html) {
+          this._headers.set("Content-Type", "text/html");
+          this._body = html;
+          this._sent = true;
+        }
+
+        if (callback) {
+          callback(null, html);
+        }
+        resolvePromise();
+      });
+    });
   }
 }

@@ -7,6 +7,8 @@ import { compression } from "./middleware/compression";
 import { helmet } from "./middleware/helmet";
 import { rateLimit } from "./middleware/rate-limit";
 import { csrf } from "./middleware/csrf";
+import { session } from "./middleware/session";
+import { logger } from "./middleware/logger";
 
 interface BunwayFactory {
   (options?: BunWayOptions): BunWayApp;
@@ -20,6 +22,8 @@ interface BunwayFactory {
   helmet: typeof helmet;
   rateLimit: typeof rateLimit;
   csrf: typeof csrf;
+  session: typeof session;
+  logger: typeof logger;
 }
 
 const bunway = ((options?: BunWayOptions) => createBunway(options)) as BunwayFactory;
@@ -34,6 +38,8 @@ bunway.compression = compression;
 bunway.helmet = helmet;
 bunway.rateLimit = rateLimit;
 bunway.csrf = csrf;
+bunway.session = session;
+bunway.logger = logger;
 
 export default bunway;
 export { bunway };
@@ -53,6 +59,9 @@ export { compression } from "./middleware/compression";
 export { helmet } from "./middleware/helmet";
 export { rateLimit } from "./middleware/rate-limit";
 export { csrf } from "./middleware/csrf";
+export { session, MemoryStore, FileStore } from "./middleware/session";
+export { passport, Passport } from "./middleware/passport";
+export { logger } from "./middleware/logger";
 
 export type { Handler, ErrorHandler, NextFunction, RouterOptions, ListenOptions, CookieOptions, SendFileOptions } from "./types";
 export type { BunWayOptions } from "./core/app";
@@ -66,5 +75,12 @@ export type { CompressionOptions } from "./middleware/compression";
 export type { HelmetOptions } from "./middleware/helmet";
 export type { RateLimitOptions } from "./middleware/rate-limit";
 export type { CsrfOptions } from "./middleware/csrf";
+export type { SessionOptions, SessionStore, SessionData, Session, FileStoreOptions } from "./middleware/session";
+export type { AuthenticateOptions, Strategy, SerializeUserFn, DeserializeUserFn } from "./middleware/passport";
+export type { LoggerOptions, FormatFn, TokenFn, RequestMeta, TokenRegistry } from "./middleware/logger";
+export type { BunWayLogger } from "./types";
+
+// WebSocket types
+export type { WebSocketData, WebSocketHandlers, WebSocketRouteDefinition, BunWebSocket } from "./types";
 
 export { BUNWAY_DEFAULT_PORT } from "./types";

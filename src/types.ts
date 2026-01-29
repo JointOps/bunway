@@ -1,3 +1,4 @@
+import type { ServerWebSocket } from "bun";
 import type { BunRequest } from "./core/request";
 import type { BunResponse } from "./core/response";
 
@@ -49,3 +50,37 @@ export interface SendFileOptions {
 }
 
 export const BUNWAY_DEFAULT_PORT = 3000;
+
+// WebSocket Types
+export interface WebSocketData {
+  routePath: string;
+  params: Record<string, string>;
+  handlers: WebSocketHandlers;
+  req: BunRequest;
+}
+
+export type BunWebSocket = ServerWebSocket<WebSocketData>;
+
+export interface WebSocketHandlers {
+  open?: (ws: BunWebSocket) => void;
+  message?: (ws: BunWebSocket, message: string | Buffer) => void;
+  close?: (ws: BunWebSocket, code: number, reason: string) => void;
+  drain?: (ws: BunWebSocket) => void;
+}
+
+export interface WebSocketRouteDefinition {
+  path: string;
+  regex: RegExp;
+  keys: string[];
+  handlers: WebSocketHandlers;
+  middlewares: Handler[];
+}
+
+// Unified Logger Interface
+// Users provide their own logger implementation (Pino, Winston, console, etc.)
+export interface BunWayLogger {
+  info(message: string, meta?: Record<string, unknown>): void;
+  warn(message: string, meta?: Record<string, unknown>): void;
+  error(message: string, meta?: Record<string, unknown>): void;
+  debug?(message: string, meta?: Record<string, unknown>): void;
+}

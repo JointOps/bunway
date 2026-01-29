@@ -1,34 +1,8 @@
 import type { Handler } from "../types";
-import { createHmac, timingSafeEqual } from "crypto";
+import { sign, unsign } from "../utils/crypto";
 
 export interface CookieParserOptions {
   secret?: string | string[];
-}
-
-function sign(value: string, secret: string): string {
-  const signature = createHmac("sha256", secret).update(value).digest("base64url");
-  return `${value}.${signature}`;
-}
-
-function unsign(signedValue: string, secrets: string[]): string | false {
-  const idx = signedValue.lastIndexOf(".");
-  if (idx === -1) return false;
-
-  const value = signedValue.slice(0, idx);
-  const signature = signedValue.slice(idx + 1);
-
-  for (const secret of secrets) {
-    const expected = createHmac("sha256", secret).update(value).digest("base64url");
-    try {
-      if (timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
-        return value;
-      }
-    } catch {
-      continue;
-    }
-  }
-
-  return false;
 }
 
 export function cookieParser(options: CookieParserOptions = {}): Handler {
