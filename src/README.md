@@ -41,8 +41,8 @@ bun add bunway
 
 ## Learn more
 
-- Documentation: <https://bunwaylabs.github.io/bunway/>
-- GitHub: <https://github.com/bunwaylabs/bunway>
+- Documentation: <https://bunway.jointops.dev/>
+- GitHub: <https://github.com/JointOps/bunway>
 - npm package: <https://www.npmjs.com/package/bunway>
 
 ## License

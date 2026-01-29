@@ -1,235 +1,282 @@
-import { createAutoBodyParser } from "../middlewares/bodyParser";
-import {
-  DEFAULT_BODY_PARSER_OPTIONS,
-  resolveBodyParserOptions,
-  type BodyParserOptions,
-  type ResolvedBodyParserOptions,
-} from "../config";
-import { WayContext, type NextFunction } from "./context";
-import { buildHttpErrorResponse, HttpError, isHttpError } from "./errors";
-
-/**
- * Signature for bunWay middleware/handlers.
- * Matches express' `(ctx, next)` form but works with Fetch primitives.
- */
-export type Handler = (
-  ctx: WayContext,
-  next: NextFunction
-) => Promise<void | Response> | void | Response;
-
-interface Route {
-  method: string;
-  path: string;
-  regex: RegExp;
-  keys: string[];
-  handlers: Handler[];
-}
+import { BunRequest } from "./request";
+import { BunResponse } from "./response";
+import type { Handler, ErrorHandler, RouteDefinition, RouterOptions } from "../types";
+import { isHttpError } from "./errors";
 
 interface SubRouter {
   prefix: string;
   router: Router;
 }
 
-/** Optional configuration supplied when instantiating a Router. */
-export interface RouterOptions {
-  bodyParser?: BodyParserOptions;
+interface GroupOptions {
+  middleware?: Handler[];
 }
 
-/**
- * BunWay router implementation.
- *
- * Usage mirrors Express:
- * ```ts
- * const router = new Router();
- * router.use(cors());
- * router.get("/health", (ctx) => ctx.res.text("OK"));
- * router.post("/users", async (ctx) => ctx.res.created(await ctx.req.parseBody()));
- * ```
- *
- * Internally the router still works with {@link Request}/{@link Response}, which
- * means handlers can choose to return a native Response or use `ctx.res` helpers.
- * Middleware-supplied extras (CORS headers, etc.) are merged in the finalizer so
- * behaviour stays consistent regardless of handler style.
- */
+type GroupCallback = (router: Router) => void;
+
+type ParamHandler = (
+  req: BunRequest,
+  res: BunResponse,
+  next: (err?: unknown) => void,
+  value: string,
+  name: string
+) => void;
+
 export class Router {
-  private routes: Route[] = [];
+  private routes: RouteDefinition[] = [];
+  private middlewares: Handler[] = [];
+  private errorHandlers: ErrorHandler[] = [];
   private children: SubRouter[] = [];
-  private middlewares: Handler[] = []; // global middleware
-  private bodyParserConfig: ResolvedBodyParserOptions;
-  private autoBodyParser: Handler;
+  private routerOptions: RouterOptions;
+  private paramHandlers: Map<string, ParamHandler[]> = new Map();
 
-  constructor(options?: RouterOptions) {
-    this.bodyParserConfig = resolveBodyParserOptions(
-      options?.bodyParser,
-      DEFAULT_BODY_PARSER_OPTIONS
-    );
-    this.autoBodyParser = createAutoBodyParser((ctx) => ctx.req.getBodyParserConfig());
+  constructor(opts: RouterOptions = {}) {
+    this.routerOptions = opts;
   }
 
-  // Route registration
-  get(path: string, ...handlers: Handler[]) {
-    this.add("GET", path, handlers);
-  }
-  post(path: string, ...handlers: Handler[]) {
-    this.add("POST", path, handlers);
-  }
-  put(path: string, ...handlers: Handler[]) {
-    this.add("PUT", path, handlers);
-  }
-  delete(path: string, ...handlers: Handler[]) {
-    this.add("DELETE", path, handlers);
-  }
-  patch(path: string, ...handlers: Handler[]) {
-    this.add("PATCH", path, handlers);
-  }
-  options(path: string, ...handlers: Handler[]) {
-    this.add("OPTIONS", path, handlers);
+  param(name: string, handler: ParamHandler): this {
+    const handlers = this.paramHandlers.get(name) || [];
+    handlers.push(handler);
+    this.paramHandlers.set(name, handlers);
+    return this;
   }
 
-  // Overloaded use(): global middleware OR sub-router
-  use(handler: Handler): void;
-  use(prefix: string, router: Router): void;
-  use(a: string | Handler, b?: Router): void {
-    if (typeof a === "string" && b) {
-      this.children.push({ prefix: a, router: b });
-      return;
+  private pathToRegex(path: string): { regex: RegExp; keys: string[] } {
+    const keys: string[] = [];
+    const pattern = path
+      .replace(/\/:([^/]+)/g, (_, key) => {
+        keys.push(key);
+        return "/([^/]+)";
+      })
+      .replace(/\//g, "\\/");
+    return { regex: new RegExp(`^${pattern}$`), keys };
+  }
+
+  private addRoute(method: string, path: string, handlers: Handler[]): void {
+    const { regex, keys } = this.pathToRegex(path);
+    this.routes.push({ method, path, regex, keys, handlers });
+  }
+
+  get(path: string, ...handlers: Handler[]): this {
+    this.addRoute("GET", path, handlers);
+    return this;
+  }
+
+  post(path: string, ...handlers: Handler[]): this {
+    this.addRoute("POST", path, handlers);
+    return this;
+  }
+
+  put(path: string, ...handlers: Handler[]): this {
+    this.addRoute("PUT", path, handlers);
+    return this;
+  }
+
+  delete(path: string, ...handlers: Handler[]): this {
+    this.addRoute("DELETE", path, handlers);
+    return this;
+  }
+
+  patch(path: string, ...handlers: Handler[]): this {
+    this.addRoute("PATCH", path, handlers);
+    return this;
+  }
+
+  options(path: string, ...handlers: Handler[]): this {
+    this.addRoute("OPTIONS", path, handlers);
+    return this;
+  }
+
+  head(path: string, ...handlers: Handler[]): this {
+    this.addRoute("HEAD", path, handlers);
+    return this;
+  }
+
+  all(path: string, ...handlers: Handler[]): this {
+    const methods = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"];
+    for (const method of methods) {
+      this.addRoute(method, path, handlers);
     }
-    if (typeof a === "function") {
-      this.middlewares.push(a);
-      return;
+    return this;
+  }
+
+  use(handler: Handler): this;
+  use(path: string, router: Router): this;
+  use(path: string, ...handlers: Handler[]): this;
+  use(pathOrHandler: string | Handler, routerOrHandler?: Router | Handler, ...rest: Handler[]): this {
+    if (typeof pathOrHandler === "function") {
+      if (pathOrHandler.length === 4) {
+        this.errorHandlers.push(pathOrHandler as unknown as ErrorHandler);
+      } else {
+        this.middlewares.push(pathOrHandler);
+      }
+      return this;
     }
-    throw new Error("Invalid use() signature");
+
+    if (routerOrHandler instanceof Router) {
+      this.children.push({ prefix: pathOrHandler, router: routerOrHandler });
+      return this;
+    }
+
+    if (typeof routerOrHandler === "function") {
+      const handlers = [routerOrHandler, ...rest];
+      this.all(pathOrHandler, ...handlers);
+    }
+
+    return this;
   }
 
-  setBodyParser(options: BodyParserOptions): void {
-    this.bodyParserConfig = resolveBodyParserOptions(options, DEFAULT_BODY_PARSER_OPTIONS);
+  group(prefix: string, callbackOrOptions?: GroupCallback | GroupOptions, callback?: GroupCallback): this {
+    const subRouter = new Router(this.routerOptions);
+
+    if (typeof callbackOrOptions === "function") {
+      callbackOrOptions(subRouter);
+    } else if (callbackOrOptions && callback) {
+      if (callbackOrOptions.middleware) {
+        for (const mw of callbackOrOptions.middleware) {
+          subRouter.use(mw);
+        }
+      }
+      callback(subRouter);
+    }
+
+    this.children.push({ prefix, router: subRouter });
+    return this;
   }
 
-  configureBodyParser(options: BodyParserOptions): void {
-    this.bodyParserConfig = resolveBodyParserOptions(options, this.bodyParserConfig);
-  }
+  async handle(original: Request): Promise<Response> {
+    const req = new BunRequest(original);
+    const res = new BunResponse();
+    const method = original.method.toUpperCase();
+    const pathname = new URL(original.url).pathname;
 
-  /** Snapshot of the current resolved parser configuration. */
-  getBodyParserConfig(): ResolvedBodyParserOptions {
-    return this.bodyParserConfig;
-  }
-
-  async handle(req: Request): Promise<Response> {
-    const url = new URL(req.url);
-    const method = req.method.toUpperCase();
-    const pathname = url.pathname;
-
-    // 1) Sub-routers
     for (const { prefix, router } of this.children) {
       if (pathname.startsWith(prefix)) {
-        const newUrl = new URL(req.url);
+        const newUrl = new URL(original.url);
         newUrl.pathname = pathname.slice(prefix.length) || "/";
-        const newReq = new Request(newUrl.toString(), req); // TS-safe
-        return await router.handle(newReq);
+        return router.handle(new Request(newUrl.toString(), original));
       }
     }
 
-    // 2) Match routes
+    try {
+      await this.runPipeline([...this.middlewares], req, res);
+    } catch (err) {
+      return this.handleError(err, req, res);
+    }
+
+    if (res.isSent()) {
+      return res.toResponse();
+    }
+
     for (const route of this.routes) {
       if (route.method !== method) continue;
       const match = route.regex.exec(pathname);
       if (!match) continue;
 
-      // Params
       const params: Record<string, string> = {};
       route.keys.forEach((key, i) => {
-        params[key] = match[i + 1]!;
+        params[key] = match[i + 1] ?? "";
       });
+      req.params = params;
 
-      // Context
-      const ctx = new WayContext(req, { bodyParser: this.bodyParserConfig });
-      ctx.req.params = params;
-
-      // Pipeline: global middleware first, then route handlers
-      // Compose middleware in the same order express does.
-      const pipeline = [...this.middlewares, this.autoBodyParser, ...route.handlers];
-      let idx = 0;
-      let finalResponse: Response | null = null;
-
-      const next: NextFunction = async () => {
-        const handler = pipeline[idx++];
-        if (!handler) return;
-
-        const result = await handler(ctx, next);
-        if (result instanceof Response) {
-          finalResponse = result;
+      const paramMiddleware: Handler[] = [];
+      for (const [name, value] of Object.entries(params)) {
+        const handlers = this.paramHandlers.get(name);
+        if (handlers) {
+          for (const handler of handlers) {
+            paramMiddleware.push((r, s, n) => handler(r, s, n, value, name));
+          }
         }
-      };
-
-      try {
-        await next();
-      } catch (err) {
-        const errorResponse = resolveRouterError(err, ctx);
-        return finalizeResponse(ctx, errorResponse);
       }
 
-      return finalizeResponse(ctx, finalResponse);
+      const pipeline = [...paramMiddleware, ...route.handlers];
+
+      try {
+        await this.runPipeline(pipeline, req, res);
+      } catch (err) {
+        return this.handleError(err, req, res);
+      }
+
+      if (res.isSent()) {
+        return res.toResponse();
+      }
+
+      return new Response(null, { status: 200 });
     }
 
-    // 3) 404
     return new Response(JSON.stringify({ error: "Not Found" }), {
       status: 404,
       headers: { "Content-Type": "application/json" },
     });
   }
 
-  // Internals
-  private add(method: string, path: string, handlers: Handler[]) {
-    const { regex, keys } = this.pathToRegex(path);
-    this.routes.push({ method, path, regex, keys, handlers });
+  private async runPipeline(pipeline: Handler[], req: BunRequest, res: BunResponse): Promise<void> {
+    let idx = 0;
+
+    const next = async (err?: unknown): Promise<void> => {
+      if (err) throw err;
+      if (res.isSent()) return;
+
+      const handler = pipeline[idx++];
+      if (!handler) return;
+
+      await new Promise<void>((resolve, reject) => {
+        let resolved = false;
+        const done = (error?: unknown) => {
+          if (resolved) return;
+          resolved = true;
+          if (error) {
+            reject(error);
+          } else {
+            resolve();
+          }
+        };
+
+        try {
+          const result = handler(req, res, done) as unknown;
+          if (result && typeof (result as Promise<void>).then === "function") {
+            (result as Promise<void>).then(() => done()).catch(reject);
+          } else if (!resolved && res.isSent()) {
+            done();
+          }
+        } catch (e) {
+          reject(e);
+        }
+      });
+
+      if (!res.isSent()) {
+        await next();
+      }
+    };
+
+    await next();
   }
 
-  private pathToRegex(path: string): { regex: RegExp; keys: string[] } {
-    const keys: string[] = [];
-    const regexStr = path
-      .replace(/\/:([^/]+)/g, (_: string, key: string) => {
-        keys.push(key);
-        return "/([^/]+)";
-      })
-      .replace(/\//g, "\\/");
-    return { regex: new RegExp(`^${regexStr}$`), keys };
-  }
-}
-
-/**
- * Applies final adjustments (like middleware supplied headers) to the
- * response that will ultimately be returned to Bun.
- */
-function finalizeResponse(ctx: WayContext, explicit?: Response | null): Response {
-  let response = explicit ?? ctx.res.last ?? new Response(null, { status: 200 });
-
-  const extraHeaders = ctx.req.locals.__corsHeaders as Record<string, string> | undefined;
-  if (extraHeaders && Object.keys(extraHeaders).length > 0) {
-    const merged = new Headers(response.headers);
-    for (const [key, value] of Object.entries(extraHeaders)) {
-      merged.set(key, value);
+  private handleError(err: unknown, req: BunRequest, res: BunResponse): Response {
+    for (const handler of this.errorHandlers) {
+      try {
+        handler(err, req, res, () => {});
+        if (res.isSent()) {
+          return res.toResponse();
+        }
+      } catch {
+        continue;
+      }
     }
-    response = new Response(response.body, {
-      status: response.status,
-      headers: merged,
+
+    if (isHttpError(err)) {
+      const headers = new Headers(err.headers);
+      if (err.body !== undefined) {
+        headers.set("Content-Type", "application/json");
+        return new Response(JSON.stringify(err.body), { status: err.status, headers });
+      }
+      return new Response(err.message, { status: err.status, headers });
+    }
+
+    const message = err instanceof Error ? err.message : "Internal Server Error";
+    return new Response(JSON.stringify({ error: message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
     });
   }
-
-  return response;
-}
-
-/**
- * Converts thrown values into user-friendly HTTP responses.
- * Prefers HttpError instances created by middleware/handlers but will fall
- * back to a generic 500 response for unexpected errors.
- */
-function resolveRouterError(err: unknown, ctx: WayContext): Response {
-  if (isHttpError(err)) {
-    return buildHttpErrorResponse(ctx, err);
-  }
-  const error = err instanceof Error ? err : undefined;
-  const httpError = new HttpError(500, "Internal Server Error", {
-    cause: error,
-  });
-  return buildHttpErrorResponse(ctx, httpError);
 }
