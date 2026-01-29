@@ -7,6 +7,9 @@ export interface CompressionOptions {
   filter?: (contentType: string) => boolean;
 }
 
+// Symbol to mark response as already wrapped by compression
+const COMPRESSION_APPLIED = Symbol("compressionApplied");
+
 const COMPRESSIBLE_TYPES = [
   "text/",
   "application/json",
@@ -24,6 +27,13 @@ export function compression(options: CompressionOptions = {}): Handler {
   const { level = 6, threshold = 1024, filter = isCompressible } = options;
 
   return (req, res, next) => {
+    // Prevent double-wrapping if compression middleware is applied multiple times
+    if ((res as any)[COMPRESSION_APPLIED]) {
+      next();
+      return;
+    }
+    (res as any)[COMPRESSION_APPLIED] = true;
+
     const acceptEncoding = req.get("accept-encoding") || "";
     const supportsGzip = acceptEncoding.includes("gzip");
     const supportsDeflate = acceptEncoding.includes("deflate");

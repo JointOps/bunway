@@ -16,7 +16,14 @@ interface RateLimitEntry {
   resetTime: number;
 }
 
-export function rateLimit(options: RateLimitOptions = {}): Handler {
+export interface RateLimitHandler extends Handler {
+  /** Clear the cleanup interval and reset the store */
+  reset: () => void;
+  /** Get the current store size (for monitoring) */
+  readonly size: number;
+}
+
+export function rateLimit(options: RateLimitOptions = {}): RateLimitHandler {
   const {
     windowMs = 60 * 1000,
     max = 100,
@@ -30,7 +37,8 @@ export function rateLimit(options: RateLimitOptions = {}): Handler {
 
   const store = new Map<string, RateLimitEntry>();
 
-  setInterval(() => {
+  // Cleanup interval with unref() so it doesn't prevent process exit
+  const cleanupInterval = setInterval(() => {
     const now = Date.now();
     for (const [key, entry] of store.entries()) {
       if (entry.resetTime <= now) {
@@ -39,56 +47,74 @@ export function rateLimit(options: RateLimitOptions = {}): Handler {
     }
   }, windowMs);
 
-  return (req, res, next) => {
-    const reqInfo = { ip: req.ip, path: req.path, method: req.method };
+  // Allow the process to exit even if interval is running
+  if (cleanupInterval.unref) {
+    cleanupInterval.unref();
+  }
 
-    if (skip && skip(reqInfo)) {
-      next();
-      return;
-    }
+  const handler: RateLimitHandler = Object.assign(
+    (req: Parameters<Handler>[0], res: Parameters<Handler>[1], next: Parameters<Handler>[2]) => {
+      const reqInfo = { ip: req.ip, path: req.path, method: req.method };
 
-    const key = keyGenerator(reqInfo);
-    const now = Date.now();
-
-    let entry = store.get(key);
-
-    if (!entry || entry.resetTime <= now) {
-      entry = {
-        count: 0,
-        resetTime: now + windowMs,
-      };
-      store.set(key, entry);
-    }
-
-    entry.count++;
-
-    const remaining = Math.max(0, max - entry.count);
-    const resetSeconds = Math.ceil((entry.resetTime - now) / 1000);
-
-    if (headers) {
-      res.set("X-RateLimit-Limit", String(max));
-      res.set("X-RateLimit-Remaining", String(remaining));
-      res.set("X-RateLimit-Reset", String(resetSeconds));
-    }
-
-    if (entry.count > max) {
-      if (onLimitReached) {
-        onLimitReached(reqInfo);
+      if (skip && skip(reqInfo)) {
+        next();
+        return;
       }
+
+      const key = keyGenerator(reqInfo);
+      const now = Date.now();
+
+      let entry = store.get(key);
+
+      if (!entry || entry.resetTime <= now) {
+        entry = {
+          count: 0,
+          resetTime: now + windowMs,
+        };
+        store.set(key, entry);
+      }
+
+      entry.count++;
+
+      const remaining = Math.max(0, max - entry.count);
+      const resetSeconds = Math.ceil((entry.resetTime - now) / 1000);
 
       if (headers) {
-        res.set("Retry-After", String(resetSeconds));
+        res.set("X-RateLimit-Limit", String(max));
+        res.set("X-RateLimit-Remaining", String(remaining));
+        res.set("X-RateLimit-Reset", String(resetSeconds));
       }
 
-      res.status(statusCode);
-      if (typeof message === "string") {
-        res.json({ error: message });
-      } else {
-        res.json(message);
+      if (entry.count > max) {
+        if (onLimitReached) {
+          onLimitReached(reqInfo);
+        }
+
+        if (headers) {
+          res.set("Retry-After", String(resetSeconds));
+        }
+
+        res.status(statusCode);
+        if (typeof message === "string") {
+          res.json({ error: message });
+        } else {
+          res.json(message);
+        }
+        return;
       }
-      return;
+
+      next();
+    },
+    {
+      reset: () => {
+        clearInterval(cleanupInterval);
+        store.clear();
+      },
+      get size() {
+        return store.size;
+      },
     }
+  );
 
-    next();
-  };
+  return handler;
 }

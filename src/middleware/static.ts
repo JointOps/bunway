@@ -1,6 +1,37 @@
 import type { Handler } from "../types";
-import { existsSync, statSync } from "fs";
-import { join, extname } from "path";
+import { existsSync, statSync, realpathSync } from "fs";
+import { join, resolve } from "path";
+import { getMimeType, generateETag } from "../utils";
+
+/**
+ * Check if the resolved file path is safely within the root directory.
+ * Prevents path traversal attacks including encoded sequences.
+ */
+function isPathSafe(filePath: string, rootPath: string): boolean {
+  try {
+    // Normalize and resolve to absolute paths
+    const normalizedRoot = resolve(rootPath);
+    const normalizedFile = resolve(filePath);
+
+    // Check the file is within root (must start with root + separator or equal root)
+    if (!normalizedFile.startsWith(normalizedRoot + "/") && normalizedFile !== normalizedRoot) {
+      return false;
+    }
+
+    // If file exists, also verify via realpath to catch symlink attacks
+    if (existsSync(normalizedFile)) {
+      const realFile = realpathSync(normalizedFile);
+      const realRoot = realpathSync(normalizedRoot);
+      if (!realFile.startsWith(realRoot + "/") && realFile !== realRoot) {
+        return false;
+      }
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export interface StaticOptions {
   index?: string | string[] | false;
@@ -11,60 +42,6 @@ export interface StaticOptions {
   lastModified?: boolean;
   fallthrough?: boolean;
   extensions?: string[];
-}
-
-const MIME_TYPES: Record<string, string> = {
-  ".html": "text/html; charset=utf-8",
-  ".htm": "text/html; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".js": "application/javascript; charset=utf-8",
-  ".mjs": "application/javascript; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".xml": "application/xml; charset=utf-8",
-  ".txt": "text/plain; charset=utf-8",
-  ".md": "text/markdown; charset=utf-8",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".gif": "image/gif",
-  ".svg": "image/svg+xml",
-  ".ico": "image/x-icon",
-  ".webp": "image/webp",
-  ".avif": "image/avif",
-  ".woff": "font/woff",
-  ".woff2": "font/woff2",
-  ".ttf": "font/ttf",
-  ".otf": "font/otf",
-  ".eot": "application/vnd.ms-fontobject",
-  ".pdf": "application/pdf",
-  ".zip": "application/zip",
-  ".gz": "application/gzip",
-  ".tar": "application/x-tar",
-  ".mp3": "audio/mpeg",
-  ".mp4": "video/mp4",
-  ".webm": "video/webm",
-  ".wav": "audio/wav",
-  ".ogg": "audio/ogg",
-  ".wasm": "application/wasm",
-};
-
-function getMimeType(filePath: string): string {
-  const ext = extname(filePath).toLowerCase();
-  return MIME_TYPES[ext] || "application/octet-stream";
-}
-
-interface FileStat {
-  mtimeMs: number;
-  size: number;
-  mtime: Date;
-  isFile(): boolean;
-  isDirectory(): boolean;
-}
-
-function generateETag(stat: FileStat): string {
-  const mtime = stat.mtimeMs.toString(16);
-  const size = stat.size.toString(16);
-  return `W/"${size}-${mtime}"`;
 }
 
 export function serveStatic(root: string, options: StaticOptions = {}): Handler {
@@ -94,7 +71,11 @@ export function serveStatic(root: string, options: StaticOptions = {}): Handler 
 
     let urlPath = decodeURIComponent(req.path);
 
-    if (urlPath.includes("..")) {
+    // Construct initial file path
+    let filePath = join(rootPath, urlPath);
+
+    // Security: Verify path is within root directory (prevents traversal attacks)
+    if (!isPathSafe(filePath, rootPath)) {
       if (fallthrough) {
         next();
         return;
@@ -102,8 +83,6 @@ export function serveStatic(root: string, options: StaticOptions = {}): Handler 
       res.status(403).json({ error: "Forbidden" });
       return;
     }
-
-    let filePath = join(rootPath, urlPath);
     let stat: ReturnType<typeof statSync> | null = null;
 
     if (existsSync(filePath)) {
@@ -169,7 +148,7 @@ export function serveStatic(root: string, options: StaticOptions = {}): Handler 
     res.set("Content-Length", String(stat.size));
 
     if (etag) {
-      const etagValue = generateETag(stat);
+      const etagValue = generateETag(stat.size, stat.mtimeMs);
       res.set("ETag", etagValue);
 
       const ifNoneMatch = req.get("if-none-match");

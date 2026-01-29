@@ -1,6 +1,14 @@
+import type { Server as BunServer } from "bun";
 import { BunRequest } from "./request";
 import { BunResponse } from "./response";
-import type { Handler, ErrorHandler, RouteDefinition, RouterOptions } from "../types";
+import type {
+  Handler,
+  ErrorHandler,
+  RouteDefinition,
+  RouterOptions,
+  WebSocketHandlers,
+  WebSocketRouteDefinition,
+} from "../types";
 import { isHttpError } from "./errors";
 
 interface SubRouter {
@@ -23,15 +31,32 @@ type ParamHandler = (
 ) => void;
 
 export class Router {
-  private routes: RouteDefinition[] = [];
-  private middlewares: Handler[] = [];
-  private errorHandlers: ErrorHandler[] = [];
-  private children: SubRouter[] = [];
-  private routerOptions: RouterOptions;
-  private paramHandlers: Map<string, ParamHandler[]> = new Map();
+  protected routes: RouteDefinition[] = [];
+  protected middlewares: Handler[] = [];
+  protected errorHandlers: ErrorHandler[] = [];
+  protected children: SubRouter[] = [];
+  protected routerOptions: RouterOptions;
+  protected paramHandlers: Map<string, ParamHandler[]> = new Map();
+  protected wsRoutes: WebSocketRouteDefinition[] = [];
 
   constructor(opts: RouterOptions = {}) {
     this.routerOptions = opts;
+  }
+
+  protected getRoutes(): RouteDefinition[] {
+    return this.routes;
+  }
+
+  protected getMiddlewares(): Handler[] {
+    return this.middlewares;
+  }
+
+  protected getErrorHandlers(): ErrorHandler[] {
+    return this.errorHandlers;
+  }
+
+  protected getChildren(): SubRouter[] {
+    return this.children;
   }
 
   param(name: string, handler: ParamHandler): this {
@@ -154,9 +179,152 @@ export class Router {
     return this;
   }
 
-  async handle(original: Request): Promise<Response> {
+  ws(path: string, handlers: WebSocketHandlers): this;
+  ws(path: string, ...args: [...Handler[], WebSocketHandlers]): this;
+  ws(path: string, ...args: (Handler | WebSocketHandlers)[]): this {
+    const { regex, keys } = this.pathToRegex(path);
+
+    // Last argument is always WebSocketHandlers
+    const handlersObj = args[args.length - 1] as WebSocketHandlers;
+    // Everything before is middleware
+    const middlewares = args.slice(0, -1) as Handler[];
+
+    this.wsRoutes.push({
+      path,
+      regex,
+      keys,
+      handlers: handlersObj,
+      middlewares,
+    });
+
+    return this;
+  }
+
+  getWsRoutes(): WebSocketRouteDefinition[] {
+    return this.wsRoutes;
+  }
+
+  matchWebSocketRoute(pathname: string): { route: WebSocketRouteDefinition; params: Record<string, string> } | null {
+    for (const route of this.wsRoutes) {
+      const match = route.regex.exec(pathname);
+      if (match) {
+        const params: Record<string, string> = {};
+        route.keys.forEach((key, i) => {
+          params[key] = match[i + 1] ?? "";
+        });
+        return { route, params };
+      }
+    }
+
+    // Check child routers
+    for (const { prefix, router } of this.children) {
+      if (pathname.startsWith(prefix)) {
+        const childPathname = pathname.slice(prefix.length) || "/";
+        const childMatch = router.matchWebSocketRoute(childPathname);
+        if (childMatch) {
+          return childMatch;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Print all registered routes for debugging.
+   * Useful during development to see what routes are available.
+   *
+   * @example
+   * app.printRoutes();
+   * // Output:
+   * // GET     /
+   * // GET     /users
+   * // POST    /users
+   * // GET     /users/:id
+   * // WS      /chat
+   */
+  printRoutes(prefix = ""): void {
+    const methodColors: Record<string, string> = {
+      GET: "\x1b[32m",    // Green
+      POST: "\x1b[33m",   // Yellow
+      PUT: "\x1b[34m",    // Blue
+      DELETE: "\x1b[31m", // Red
+      PATCH: "\x1b[35m",  // Magenta
+      OPTIONS: "\x1b[36m",// Cyan
+      HEAD: "\x1b[90m",   // Gray
+      ALL: "\x1b[37m",    // White
+      WS: "\x1b[95m",     // Light Magenta
+    };
+    const reset = "\x1b[0m";
+    const dim = "\x1b[2m";
+
+    // Print HTTP routes
+    for (const route of this.routes) {
+      const color = methodColors[route.method] || reset;
+      const fullPath = prefix + route.path;
+      const method = route.method.padEnd(7);
+      console.log(`${color}${method}${reset} ${fullPath}`);
+    }
+
+    // Print WebSocket routes
+    for (const route of this.wsRoutes) {
+      const color = methodColors.WS;
+      const fullPath = prefix + route.path;
+      console.log(`${color}WS     ${reset} ${fullPath}`);
+    }
+
+    // Print child router routes
+    for (const { prefix: childPrefix, router } of this.children) {
+      console.log(`${dim}── Router: ${prefix}${childPrefix}${reset}`);
+      router.printRoutes(prefix + childPrefix);
+    }
+  }
+
+  /**
+   * Get all registered routes as an array (for programmatic access).
+   *
+   * @example
+   * const routes = app.getRegisteredRoutes();
+   * // [{ method: 'GET', path: '/', ... }, ...]
+   */
+  getRegisteredRoutes(prefix = ""): Array<{ method: string; path: string; fullPath: string }> {
+    const result: Array<{ method: string; path: string; fullPath: string }> = [];
+
+    // HTTP routes
+    for (const route of this.routes) {
+      result.push({
+        method: route.method,
+        path: route.path,
+        fullPath: prefix + route.path,
+      });
+    }
+
+    // WebSocket routes
+    for (const route of this.wsRoutes) {
+      result.push({
+        method: "WS",
+        path: route.path,
+        fullPath: prefix + route.path,
+      });
+    }
+
+    // Child router routes
+    for (const { prefix: childPrefix, router } of this.children) {
+      result.push(...router.getRegisteredRoutes(prefix + childPrefix));
+    }
+
+    return result;
+  }
+
+  async handle(original: Request, server?: BunServer<unknown>): Promise<Response> {
     const req = new BunRequest(original);
     const res = new BunResponse();
+
+    // Set socket IP if server is provided
+    if (server?.requestIP) {
+      const socketAddr = server.requestIP(original);
+      req.setSocketIp(socketAddr?.address ?? null);
+    }
     const method = original.method.toUpperCase();
     const pathname = new URL(original.url).pathname;
 
@@ -175,6 +343,10 @@ export class Router {
     }
 
     if (res.isSent()) {
+      // Handle streaming responses
+      if (res.isStreaming()) {
+        return res.toStreamingResponse();
+      }
       return res.toResponse();
     }
 
@@ -188,6 +360,7 @@ export class Router {
         params[key] = match[i + 1] ?? "";
       });
       req.params = params;
+      req.route = { path: route.path, method: route.method };
 
       const paramMiddleware: Handler[] = [];
       for (const [name, value] of Object.entries(params)) {
@@ -208,16 +381,47 @@ export class Router {
       }
 
       if (res.isSent()) {
+        // Handle streaming responses
+        if (res.isStreaming()) {
+          return res.toStreamingResponse();
+        }
         return res.toResponse();
       }
 
       return new Response(null, { status: 200 });
     }
 
-    return new Response(JSON.stringify({ error: "Not Found" }), {
-      status: 404,
-      headers: { "Content-Type": "application/json" },
-    });
+    // Check if route exists with different method (405 Method Not Allowed)
+    const pathMatches = this.routes.filter((r) => r.regex.exec(pathname));
+    if (pathMatches.length > 0) {
+      const allowedMethods = pathMatches.map((r) => r.method).join(", ");
+      return new Response(
+        JSON.stringify({
+          error: "Method Not Allowed",
+          message: `${method} is not allowed for ${pathname}`,
+          allowedMethods,
+        }),
+        {
+          status: 405,
+          headers: {
+            "Content-Type": "application/json",
+            Allow: allowedMethods,
+          },
+        }
+      );
+    }
+
+    // True 404 - path doesn't exist
+    return new Response(
+      JSON.stringify({
+        error: "Not Found",
+        message: `Cannot ${method} ${pathname}`,
+      }),
+      {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
   }
 
   private async runPipeline(pipeline: Handler[], req: BunRequest, res: BunResponse): Promise<void> {

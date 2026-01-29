@@ -1,4 +1,5 @@
 import type { Handler } from "../types";
+import { generateToken, timingSafeCompare } from "../utils/crypto";
 
 export interface CsrfOptions {
   cookie?: {
@@ -12,13 +13,6 @@ export interface CsrfOptions {
   headerName?: string;
   bodyField?: string;
   tokenLength?: number;
-}
-
-function generateToken(length: number): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  const array = new Uint8Array(length);
-  crypto.getRandomValues(array);
-  return Array.from(array, (byte) => chars[byte % chars.length]).join("");
 }
 
 export function csrf(options: CsrfOptions = {}): Handler {
@@ -62,7 +56,8 @@ export function csrf(options: CsrfOptions = {}): Handler {
 
     const submittedToken = headerToken || bodyToken;
 
-    if (!submittedToken || submittedToken !== token) {
+    // Use timing-safe comparison to prevent timing attacks
+    if (!submittedToken || typeof submittedToken !== "string" || !timingSafeCompare(submittedToken, token)) {
       res.status(403).json({ error: "Invalid CSRF token" });
       return;
     }
