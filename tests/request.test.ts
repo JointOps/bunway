@@ -29,6 +29,16 @@ describe("BunRequest", () => {
       expect(req.query.get("age")).toBe("30");
     });
 
+    it("exposes originalUrl with path and query", () => {
+      const req = createRequest("http://localhost/users/123?sort=asc&limit=10");
+      expect(req.originalUrl).toBe("/users/123?sort=asc&limit=10");
+    });
+
+    it("exposes originalUrl without query string", () => {
+      const req = createRequest("http://localhost/users/123");
+      expect(req.originalUrl).toBe("/users/123");
+    });
+
     it("exposes hostname", () => {
       const req = createRequest("http://example.com:8080/test");
       expect(req.hostname).toBe("example.com");
@@ -52,6 +62,14 @@ describe("BunRequest", () => {
     it("returns undefined for missing headers", () => {
       const req = createRequest("http://localhost/test");
       expect(req.get("x-custom")).toBeUndefined();
+    });
+
+    it("provides header() alias for get()", () => {
+      const req = createRequest("http://localhost/test", {
+        headers: { "X-Custom-Header": "custom-value" },
+      });
+      expect(req.header("x-custom-header")).toBe("custom-value");
+      expect(req.header("x-custom-header")).toBe(req.get("x-custom-header"));
     });
   });
 

@@ -43,12 +43,22 @@ export class Router {
 
   private pathToRegex(path: string): { regex: RegExp; keys: string[] } {
     const keys: string[] = [];
+    let wildcardIndex = 0;
+
     const pattern = path
-      .replace(/\/:([^/]+)/g, (_, key) => {
-        keys.push(key);
+      .replace(/\/(\*(\w*)|:(\w+)(\?)?)/g, (_, _full, wildcardName, paramName, optional) => {
+        if (wildcardName !== undefined) {
+          keys.push(wildcardName || String(wildcardIndex++));
+          return "/(.*)";
+        }
+        keys.push(paramName);
+        if (optional) {
+          return "(?:/([^/]+))?";
+        }
         return "/([^/]+)";
       })
       .replace(/\//g, "\\/");
+
     return { regex: new RegExp(`^${pattern}$`), keys };
   }
 

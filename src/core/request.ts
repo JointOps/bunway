@@ -33,6 +33,11 @@ export class BunRequest {
     return this._url.pathname;
   }
 
+  get originalUrl(): string {
+    const search = this._url.search;
+    return this._url.pathname + search;
+  }
+
   get query(): URLSearchParams {
     return this._url.searchParams;
   }
@@ -142,6 +147,10 @@ export class BunRequest {
 
   get(header: string): string | undefined {
     return this._original.headers.get(header) ?? undefined;
+  }
+
+  header(name: string): string | undefined {
+    return this.get(name);
   }
 
   is(...types: string[]): string | false {
