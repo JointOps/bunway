@@ -62,8 +62,9 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "typedoc": "^0.25.13",
+    "autocannon": "^8.0.0",
     "prettier": "^3.8.1",
+    "typedoc": "^0.25.13",
     "vitepress": "^1.6.4"
   },
   "peerDependencies": {
