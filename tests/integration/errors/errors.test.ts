@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { HttpError, isHttpError } from "../src";
+import { HttpError, isHttpError } from "../../../src";
 
 describe("HttpError", () => {
   it("creates error with status and message", () => {

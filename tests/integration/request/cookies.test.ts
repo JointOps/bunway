@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import bunway, { cookieParser, signCookie, unsignCookie } from "../src";
-import { buildRequest } from "./testUtils";
+import bunway, { cookieParser, signCookie, unsignCookie } from "../../../src";
+import { buildRequest } from "../../utils/testUtils";
 
 describe("req.cookies", () => {
   it("parses cookies from request header", async () => {

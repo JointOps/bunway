@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { BunRequest } from "../src";
+import { BunRequest } from "../../../src";
 
 function createRequest(url: string, init?: RequestInit): BunRequest {
   return new BunRequest(new Request(url, init));
@@ -152,6 +152,59 @@ describe("BunRequest", () => {
       const req = createRequest("http://localhost/test");
       req.locals.user = { id: 1 };
       expect(req.locals.user).toEqual({ id: 1 });
+    });
+  });
+
+  describe("subdomains", () => {
+    it("extracts subdomains from hostname", () => {
+      const req = createRequest("http://foo.bar.example.com/test");
+      expect(req.subdomains).toEqual(["bar", "foo"]);
+    });
+
+    it("returns empty array for localhost", () => {
+      const req = createRequest("http://localhost/test");
+      expect(req.subdomains).toEqual([]);
+    });
+
+    it("returns empty array for IP addresses", () => {
+      const req = createRequest("http://192.168.1.1/test");
+      expect(req.subdomains).toEqual([]);
+    });
+
+    it("returns empty array for simple domain", () => {
+      const req = createRequest("http://example.com/test");
+      expect(req.subdomains).toEqual([]);
+    });
+
+    it("handles single subdomain", () => {
+      const req = createRequest("http://api.example.com/test");
+      expect(req.subdomains).toEqual(["api"]);
+    });
+  });
+
+  describe("baseUrl", () => {
+    it("defaults to empty string", () => {
+      const req = createRequest("http://localhost/test");
+      expect(req.baseUrl).toBe("");
+    });
+
+    it("can be set", () => {
+      const req = createRequest("http://localhost/api/users");
+      req.baseUrl = "/api";
+      expect(req.baseUrl).toBe("/api");
+    });
+  });
+
+  describe("route", () => {
+    it("defaults to null", () => {
+      const req = createRequest("http://localhost/test");
+      expect(req.route).toBeNull();
+    });
+
+    it("can be set", () => {
+      const req = createRequest("http://localhost/users/123");
+      req.route = { path: "/users/:id", method: "GET" };
+      expect(req.route).toEqual({ path: "/users/:id", method: "GET" });
     });
   });
 });

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import bunway, { json } from "../src";
-import { buildRequest } from "./testUtils";
+import bunway, { json } from "../../../src";
+import { buildRequest } from "../../utils/testUtils";
 
 describe("bunway app", () => {
   let serveSpy: ReturnType<typeof vi.spyOn> | null = null;

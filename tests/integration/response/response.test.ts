@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { BunResponse } from "../src";
+import { BunResponse } from "../../../src";
 
 describe("BunResponse", () => {
   describe("status", () => {

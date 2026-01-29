@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { Router } from "../src";
-import { buildRequest } from "./testUtils";
+import { Router } from "../../../src";
+import { buildRequest } from "../../utils/testUtils";
 
 describe("Router", () => {
   describe("HTTP methods", () => {

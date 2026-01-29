@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { Router, csrf, cookieParser, json } from "../src";
+import { Router, csrf, cookieParser, json } from "../../../src";
 
 function buildRequest(
   path: string,
