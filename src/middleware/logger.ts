@@ -244,8 +244,10 @@ export function logger(
 
       let line = formatFn(tokens, req, res, meta);
 
-      // Add color for dev format in TTY
+      // Add color for dev format in TTY (only when writing to stdout, not custom streams)
+      const isUsingStdout = !stream && !useAppLogger;
       if (
+        isUsingStdout &&
         process.stdout.isTTY &&
         (format === "dev" || format === undefined)
       ) {
