@@ -21,10 +21,10 @@ ENDPOINTS=("/json" "/plaintext" "/route50/123" "/middleware")
 declare -A FRAMEWORKS
 FRAMEWORKS=(
     ["bunway"]="bun ${SERVERS_DIR}/bunway.ts"
-    ["express"]="node ${SERVERS_DIR}/express.js"
+    ["express"]="node ${SERVERS_DIR}/express.cjs"
     ["elysia"]="bun ${SERVERS_DIR}/elysia.ts"
     ["hono"]="bun ${SERVERS_DIR}/hono.ts"
-    ["fastify"]="node ${SERVERS_DIR}/fastify.js"
+    ["fastify"]="node ${SERVERS_DIR}/fastify.cjs"
 )
 
 # Create results directory

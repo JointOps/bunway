@@ -63,6 +63,10 @@
   "devDependencies": {
     "@types/bun": "latest",
     "autocannon": "^8.0.0",
+    "elysia": "^1.4.22",
+    "express": "^5.2.1",
+    "fastify": "^5.7.2",
+    "hono": "^4.11.7",
     "prettier": "^3.8.1",
     "typedoc": "^0.25.13",
     "vitepress": "^1.6.4"

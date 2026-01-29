@@ -58,19 +58,21 @@ k6 run benchmark/scenarios/soak-test.js
 # bunWay
 bun benchmark/servers/bunway.ts
 
-# Express (requires: npm install express)
-node benchmark/servers/express.js
+# Express
+node benchmark/servers/express.cjs
 
-# Elysia (requires: bun add elysia)
+# Elysia
 bun benchmark/servers/elysia.ts
 
-# Hono (requires: bun add hono)
+# Hono
 bun benchmark/servers/hono.ts
 
-# Fastify (requires: npm install fastify)
-node benchmark/servers/fastify.js
+# Fastify
+node benchmark/servers/fastify.cjs
 ```
 
 ## Results
 
 Results are saved to `benchmark/results/` as JSON files.
+
+See [COMPARISON.md](results/COMPARISON.md) for detailed analysis and framework comparison.
