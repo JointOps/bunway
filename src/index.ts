@@ -6,6 +6,7 @@ import { cookieParser } from "./middleware/cookie-parser";
 import { compression } from "./middleware/compression";
 import { helmet } from "./middleware/helmet";
 import { rateLimit } from "./middleware/rate-limit";
+import { csrf } from "./middleware/csrf";
 
 interface BunwayFactory {
   (options?: BunWayOptions): BunWayApp;
@@ -18,6 +19,7 @@ interface BunwayFactory {
   compression: typeof compression;
   helmet: typeof helmet;
   rateLimit: typeof rateLimit;
+  csrf: typeof csrf;
 }
 
 const bunway = ((options?: BunWayOptions) => createBunway(options)) as BunwayFactory;
@@ -31,6 +33,7 @@ bunway.cookieParser = cookieParser;
 bunway.compression = compression;
 bunway.helmet = helmet;
 bunway.rateLimit = rateLimit;
+bunway.csrf = csrf;
 
 export default bunway;
 export { bunway };
@@ -49,6 +52,7 @@ export { cookieParser, signCookie, unsignCookie } from "./middleware/cookie-pars
 export { compression } from "./middleware/compression";
 export { helmet } from "./middleware/helmet";
 export { rateLimit } from "./middleware/rate-limit";
+export { csrf } from "./middleware/csrf";
 
 export type { Handler, ErrorHandler, NextFunction, RouterOptions, ListenOptions, CookieOptions, SendFileOptions } from "./types";
 export type { BunWayOptions } from "./core/app";
@@ -61,5 +65,6 @@ export type { CookieParserOptions } from "./middleware/cookie-parser";
 export type { CompressionOptions } from "./middleware/compression";
 export type { HelmetOptions } from "./middleware/helmet";
 export type { RateLimitOptions } from "./middleware/rate-limit";
+export type { CsrfOptions } from "./middleware/csrf";
 
 export { BUNWAY_DEFAULT_PORT } from "./types";
