@@ -2,7 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/bunway.svg?logo=npm&label=npm)](https://www.npmjs.com/package/bunway)
 [![bun only](https://img.shields.io/badge/runtime-bun%201.1+-1e7c73?logo=bun&logoColor=white)](https://bun.sh)
-[![docs](https://img.shields.io/badge/docs-The%20Bun%20way-3fc5b7)](https://bunwaylabs.github.io/bunway/)
+[![docs](https://img.shields.io/badge/docs-The%20Bun%20way-3fc5b7)](https://bunway.jointops.dev/)
 [![license](https://img.shields.io/badge/license-MIT-lightgrey.svg)](./LICENSE)
 
 **Run everything. The Bun way.** bunWay is a Bun-native router & middleware toolkit with Express ergonomics. If you switched to Bun for speed but miss the familiar `(req, res, next)` flow, bunWay keeps you home—no Node polyfills, just Fetch-friendly APIs.
@@ -12,7 +12,7 @@
 ## Quick links
 
 - 🚀 [Install](#getting-started-usage)
-- 📚 [Docs](https://bunwaylabs.github.io/bunway/)
+- 📚 [Docs](https://bunway.jointops.dev/)
 - 🛣️ [Roadmap snapshot](#roadmap-snapshot)
 - 🤝 [Contributing](#contributing)
 - 🧪 [Tests & scripts](#project-setup-contributors)
@@ -32,7 +32,7 @@
 - Response finalizer merges middleware header bags onto raw `Response` values
 - Bun-native test suite covering routes, errors, CORS, and payload limits
 
-See the [Roadmap & Contributions](https://bunwaylabs.github.io/bunway/community/build-together.html) for upcoming phases (cookies, sessions, streaming, security, observability, …).
+See the [Roadmap & Contributions](https://bunway.jointops.dev/community/build-together.html) for upcoming phases (cookies, sessions, streaming, security, observability, …).
 
 ## Getting started (usage)
 
@@ -64,12 +64,12 @@ app.listen({ port: 7070 }, () => {
 });
 ```
 
-For deep usage docs visit <a href="https://bunwaylabs.github.io/bunway/">bunWay Docs</a>.
+For deep usage docs visit <a href="https://bunway.jointops.dev/">bunWay Docs</a>.
 
 <details>
 <summary><strong>What’s new?</strong></summary>
 
-- Latest release notes live on the [GitHub Releases tab](https://github.com/bunwaylabs/bunway/releases).
+- Latest release notes live on the [GitHub Releases tab](https://github.com/JointOps/bunway/releases).
 - Want an early peek? Check the `docs/community/build-together.md` roadmap for in-flight work.
 
 </details>
@@ -113,11 +113,11 @@ Scripts (Bun-native unless noted):
 
 ## Documentation
 
-- Guide overview: <a href="https://bunwaylabs.github.io/bunway/guide/overview.html">why bunWay exists</a>
-- Quick start: <a href="https://bunwaylabs.github.io/bunway/guide/getting-started.html">ship your first Bun server</a>
-- Middleware reference: <a href="https://bunwaylabs.github.io/bunway/middleware/index.html">body parsing, CORS, error handling</a>
-- API reference: <a href="https://bunwaylabs.github.io/bunway/api/index.html">TypeDoc, always up to date</a>
-- Roadmap: <a href="https://bunwaylabs.github.io/bunway/community/build-together.html">Build Together</a>
+- Guide overview: <a href="https://bunway.jointops.dev/guide/overview.html">why bunWay exists</a>
+- Quick start: <a href="https://bunway.jointops.dev/guide/getting-started.html">ship your first Bun server</a>
+- Middleware reference: <a href="https://bunway.jointops.dev/middleware/index.html">body parsing, CORS, error handling</a>
+- API reference: <a href="https://bunway.jointops.dev/api/index.html">TypeDoc, always up to date</a>
+- Roadmap: <a href="https://bunway.jointops.dev/community/build-together.html">Build Together</a>
 
 ### Roadmap snapshot
 
@@ -140,7 +140,7 @@ bunWay belongs to the community—anyone can use it, shape it, and help prove Bu
 4. **Test & document** – add Bun tests, update TypeDoc comments, expand VitePress guides.
 5. **Keep it fun** – bunWay is a playground. Share ideas, experiment, and help fellow Bun developers feel at home.
 
-Guidelines, scripts, and workflow tips live in <a href="https://bunwaylabs.github.io/bunway/community/build-together.html">Community Roadmap</a>.
+Guidelines, scripts, and workflow tips live in <a href="https://bunway.jointops.dev/community/build-together.html">Community Roadmap</a>.
 
 ## License
 
@@ -149,7 +149,7 @@ MIT © bunWay contributors
 
 ## Learn more
 
-- Documentation: <a href="https://bunwaylabs.github.io/bunway/">bunWay Docs</a>
-- GitHub: <a href="https://github.com/bunwaylabs/bunway">bunwaylabs/bunway</a>
+- Documentation: <a href="https://bunway.jointops.dev/">bunWay Docs</a>
+- GitHub: <a href="https://github.com/JointOps/bunway">JointOps/bunway</a>
 - npm package: <a href="https://www.npmjs.com/package/bunway">bunway on npm</a>
-- Discussions & support: <a href="https://github.com/orgs/bunwaylabs/discussions">bunWayLabs Discussions</a>
+- Discussions & support: <a href="https://github.com/JointOps/bunway/discussions">GitHub Discussions</a>

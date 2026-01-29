@@ -112,7 +112,7 @@ The Bun test runner resets global state between files. Keep fixtures explicit an
 :::
 
 ::: tip Project scaffolding
-Looking for repo layout, scripts, and contributor workflow? See the repository [README](https://github.com/bunwaylabs/bunway#readme) for setup details beyond runtime usage.
+Looking for repo layout, scripts, and contributor workflow? See the repository [README](https://github.com/JointOps/bunway#readme) for setup details beyond runtime usage.
 :::
 
 Continue exploring the [Middleware guides](/middleware/index) or dig into the [API reference](/api/index.html).

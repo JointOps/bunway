@@ -1,7 +1,16 @@
 import { promises as fs } from "fs";
 import { join } from "path";
 
+// Read version from VERSION file (source of truth)
+const version = (await fs.readFile("VERSION", "utf8")).trim();
 const rootPkg = JSON.parse(await fs.readFile("package.json", "utf8"));
+
+// Ensure package.json is in sync with VERSION
+if (rootPkg.version !== version) {
+  rootPkg.version = version;
+  await fs.writeFile("package.json", JSON.stringify(rootPkg, null, 2) + "\n");
+  console.log(`Synced package.json version to ${version}`);
+}
 
 const distDir = "dist";
 const srcDir = "src";

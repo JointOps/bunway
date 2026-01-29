@@ -82,4 +82,4 @@ Drop the snippet into `bun run` and see Bun-native routing in action.
 
 ## Ready to run everything the Bun way?
 
-Start with the [Getting Started guide](/guide/getting-started), then star us on [GitHub](https://github.com/bunwaylabs/bunway) and help shape the toolkit.
+Start with the [Getting Started guide](/guide/getting-started), then star us on [GitHub](https://github.com/JointOps/bunway) and help shape the toolkit.
