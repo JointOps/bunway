@@ -44,20 +44,14 @@ jobs:
   test:
     name: Test (${{ matrix.os }}, Bun ${{ matrix.bun-version }})
     runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.experimental || false }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
         bun-version: [latest]
-        experimental: [false]
         include:
           - os: ubuntu-latest
             bun-version: canary
-            experimental: false
-          - os: windows-latest
-            bun-version: latest
-            experimental: true
 
     steps:
       - uses: actions/checkout@v4
