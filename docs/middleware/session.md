@@ -105,15 +105,41 @@ app.use(session({
   secret: 'my-secret',
   store
 }));
-
-// Store methods
-store.clear();    // Clear all sessions
-store.size;       // Number of sessions
 ```
+
+#### MemoryStore API
+
+| Method/Property | Type | Description |
+|-----------------|------|-------------|
+| `get(sid)` | `Promise<SessionData \| null>` | Retrieve session by ID |
+| `set(sid, data, maxAge?)` | `Promise<void>` | Store session data |
+| `destroy(sid)` | `Promise<void>` | Delete a session |
+| `touch(sid, data)` | `Promise<void>` | Update session expiration |
+| `clear()` | `void` | Clear all sessions |
+| `size` | `number` | Number of active sessions |
+
+```ts
+// Direct store usage
+const store = new MemoryStore();
+
+await store.set('sess123', { userId: 1 }, 3600000);
+const data = await store.get('sess123');
+console.log(store.size);  // 1
+store.clear();
+```
+
+::: warning Production Use
+MemoryStore is not suitable for production:
+- Data lost on server restart
+- Memory grows unbounded with many sessions
+- Not shared across multiple server instances
+
+Use FileStore or a custom Redis/database store in production.
+:::
 
 ### FileStore
 
-Persist sessions to the filesystem.
+Persist sessions to the filesystem. Good for single-server production deployments.
 
 ```ts
 import { session, FileStore } from 'bunway';
@@ -127,11 +153,41 @@ app.use(session({
   secret: 'my-secret',
   store
 }));
-
-// Store methods
-await store.clear();           // Clear all sessions
-await store.length();          // Number of sessions
 ```
+
+#### FileStoreOptions
+
+```ts
+interface FileStoreOptions {
+  path: string;    // Required: directory for session files
+  ttl?: number;    // Default TTL in ms (default: 86400000 = 24h)
+}
+```
+
+#### FileStore API
+
+| Method | Type | Description |
+|--------|------|-------------|
+| `get(sid)` | `Promise<SessionData \| null>` | Retrieve session by ID |
+| `set(sid, data, maxAge?)` | `Promise<void>` | Store session data |
+| `destroy(sid)` | `Promise<void>` | Delete a session |
+| `touch(sid, data)` | `Promise<void>` | Update session expiration |
+| `clear()` | `Promise<void>` | Clear all session files |
+| `length()` | `Promise<number>` | Count session files |
+
+```ts
+// Direct store usage
+const store = new FileStore({ path: './sessions' });
+
+await store.set('sess123', { userId: 1 });
+const data = await store.get('sess123');
+const count = await store.length();
+await store.clear();
+```
+
+::: tip Security
+FileStore sanitizes session IDs to prevent directory traversal attacks. Only alphanumeric characters and hyphens are allowed in file names.
+:::
 
 ### Custom Store
 

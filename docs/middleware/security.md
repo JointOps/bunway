@@ -149,10 +149,10 @@ await fetch('/api/data', {
 
 ## Rate Limiting
 
-Limit request rates to prevent abuse.
+Protect your app from abuse with rate limiting.
 
 ```ts
-import { bunway, rateLimit } from 'bunway';
+import bunway, { rateLimit } from 'bunway';
 
 const app = bunway();
 
@@ -162,82 +162,12 @@ app.use(rateLimit({
 }));
 ```
 
-### Response Headers
+bunWay provides two rate limiting options:
 
-Rate limit info is included in response headers:
+- **Built-in `rateLimit()`** - Simple, zero-config, Express-compatible
+- **[hitlimit-bun](https://github.com/JointOps/hitlimit-bun)** - Advanced rate limiting with Redis support, sliding window, and more
 
-```
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 95
-X-RateLimit-Reset: 60
-Retry-After: 60  (only when limited)
-```
-
-### Options
-
-```ts
-interface RateLimitOptions {
-  windowMs?: number;    // Time window in ms (default: 60000)
-  max?: number;         // Max requests per window (default: 100)
-  message?: string | object;  // Error message
-  statusCode?: number;  // Error status (default: 429)
-  headers?: boolean;    // Include rate limit headers (default: true)
-  keyGenerator?: (req) => string;  // Custom key function
-  skip?: (req) => boolean;         // Skip certain requests
-  onLimitReached?: (req) => void;  // Callback when limit hit
-}
-```
-
-### Custom Key
-
-Rate limit by different criteria:
-
-```ts
-// By user ID instead of IP
-app.use(rateLimit({
-  max: 100,
-  keyGenerator: (req) => req.session?.userId || req.ip
-}));
-
-// By API key
-app.use(rateLimit({
-  max: 1000,
-  keyGenerator: (req) => req.get('x-api-key') || req.ip
-}));
-```
-
-### Skip Certain Requests
-
-```ts
-app.use(rateLimit({
-  max: 100,
-  skip: (req) => {
-    // Skip health checks
-    if (req.path === '/health') return true;
-    // Skip authenticated admins
-    if (req.session?.isAdmin) return true;
-    return false;
-  }
-}));
-```
-
-### Per-Route Limits
-
-```ts
-const apiLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 100
-});
-
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,  // 15 minutes
-  max: 5,
-  message: { error: 'Too many login attempts' }
-});
-
-app.use('/api/', apiLimiter);
-app.use('/auth/login', authLimiter);
-```
+[Full Rate Limiting Documentation →](rate-limit.md)
 
 ## Compression
 

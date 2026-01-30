@@ -17,9 +17,10 @@ bunWay ships with a complete set of Express-compatible middleware—no npm hunti
 | [`cors()`](cors.md) | `cors` | Handle CORS headers and preflight |
 | [`helmet()`](security.md) | `helmet` | Set security headers |
 | [`session()`](session.md) | `express-session` | Session management with stores |
+| [`passport()`](auth.md) | `passport` | Authentication strategies |
 | [`logger()`](logger.md) | `morgan` | Request logging with formats |
 | [`csrf()`](security.md#csrf-protection) | `csurf` | CSRF protection |
-| [`rateLimit()`](security.md#rate-limiting) | `express-rate-limit` | Rate limiting |
+| [`rateLimit()`](rate-limit.md) | `express-rate-limit` | Rate limiting |
 | [`serveStatic()`](static.md) | `express.static()` | Serve static files |
 | [`cookieParser()`](cookies.md) | `cookie-parser` | Parse and sign cookies |
 | [`compression()`](security.md#compression) | `compression` | Gzip/deflate responses |
@@ -68,6 +69,32 @@ app.get('/profile', (req, res) => {
 ```
 
 [Full documentation →](session.md)
+
+### Authentication
+
+```ts
+import { passport, session } from 'bunway';
+
+app.use(session({ secret: 'my-secret' }));
+app.use(passport.initialize());
+app.use(passport.session());
+
+passport.use({
+  name: 'local',
+  authenticate(req) {
+    const user = findUser(req.body.email, req.body.password);
+    if (user) this.success(user);
+    else this.fail('Invalid credentials');
+  }
+});
+
+app.post('/login', passport.authenticate('local', {
+  successRedirect: '/dashboard',
+  failureRedirect: '/login'
+}));
+```
+
+[Full documentation →](auth.md)
 
 ### Logging
 

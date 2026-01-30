@@ -1,11 +1,15 @@
 ---
 title: CORS Middleware
-description: Configure bunWay’s Bun-native CORS middleware to handle simple and preflight requests with granular origin policies.
+description: Configure bunWay's Bun-native CORS middleware to handle simple and preflight requests with granular origin policies.
 ---
 
 # CORS Middleware
 
-`cors()` brings fine-grained CORS control to bunway while keeping everything Bun-native. The middleware examines the incoming Origin/Access-Control headers, decides whether to allow the request, and records headers so the router can merge them even when you return a raw `Response` object.
+`cors()` brings fine-grained CORS control to bunway while keeping everything Bun-native. The middleware examines the incoming Origin/Access-Control headers, decides whether to allow the request, and sets the appropriate response headers.
+
+::: tip Coming from Express?
+This works just like the `cors` npm package. Same options, same patterns.
+:::
 
 ## Basic usage
 
@@ -31,14 +35,18 @@ When `credentials: true`, bunway automatically reflects the request origin inste
 
 - `string` – match exact origin
 - `RegExp` – pattern match
-- `(origin, ctx) => string | false` – custom logic (return the origin to allow, `false` to block)
+- `(origin, req) => string | false` – custom logic (return the origin to allow, `false` to block)
 - Arrays combine multiple strings/regexes
 
 ```ts
 app.use(
   cors({
-    origin: (origin) => (origin?.startsWith("http://localhost") ? origin : false),
-    allowPrivateNetwork: true,
+    origin: (origin, req) => {
+      // Custom logic with access to the request
+      if (origin?.startsWith("http://localhost")) return origin;
+      if (req.get("X-Internal-Request")) return origin;
+      return false;
+    },
   })
 );
 ```
@@ -52,23 +60,23 @@ Preflight (`OPTIONS`) requests are answered automatically with:
 - `Access-Control-Allow-Headers` (explicit list or echo request header)
 - `Access-Control-Allow-Credentials` when `credentials: true`
 - `Access-Control-Max-Age` (default 600 seconds)
-- `Access-Control-Allow-Private-Network` when `allowPrivateNetwork: true`
 
-The middleware also ensures the proper `Vary` headers (`Origin`, `Access-Control-Request-*`) are set to keep caches honest.
+The middleware also ensures the proper `Vary` header is set to keep caches honest.
 
 ## Header merging
 
-All generated headers are stored in `ctx.req.locals.__corsHeaders`. bunway’s router finalizer merges these onto the final `Response`, even if your handler returns a native `Response` object:
+CORS headers are set directly on the response. bunway's router finalizer preserves these headers even if your handler returns a native `Response` object:
 
 ```ts
 app.get("/raw", () => new Response("raw", { status: 202 }));
+// CORS headers still applied!
 ```
 
 ## Options reference
 
 :::details CORS Options reference
 
-- **`origin`**: `"*"` \| `true` \| `string` \| `RegExp` \| `(string \| RegExp)[]` \| `(origin, ctx) => string \| false`
+- **`origin`**: `"*"` | `true` | `string` | `RegExp` | `(string | RegExp)[]` | `(origin, req) => string | false`
   - Decide which origins are allowed. Returning `false` blocks the request; when `credentials: true`, bunWay reflects the approved origin instead of `"*"`.
 - **`credentials`**: `boolean` (default `false`)
   - Allow credentialed requests. bunWay automatically prevents `"*"` when enabled.
@@ -80,8 +88,8 @@ app.get("/raw", () => new Response("raw", { status: 202 }));
   - Populate `Access-Control-Expose-Headers`.
 - **`maxAge`**: `number` (default `600`)
   - Cache duration (seconds) for successful preflight responses.
-- **`allowPrivateNetwork`**: `boolean` (default `false`)
-  - Opt into `Access-Control-Allow-Private-Network`.
+- **`preflightContinue`**: `boolean` (default `false`)
+  - Pass preflight requests to the next handler instead of responding immediately.
 
 :::
 
@@ -96,4 +104,4 @@ Audit CORS settings regularly. Accidentally allowing `*` with credentials or for
 
 - Combine with `errorHandler()` to log disallowed origins or unexpected headers.
 
-For type details see `CORSOptions` in the [API Reference](/api/index.html).
+For type details see `CorsOptions` in the [API Reference](/api/index.html).
