@@ -302,13 +302,12 @@ That's it. You're running on Bun.
 
 ## What's Different?
 
-A few small differences to be aware of:
+Just two things:
 
 1. **Import style**: ES modules only (no `require()`)
 2. **Runtime**: Bun, not Node.js
-3. **Context wrapper**: Some APIs use `ctx.req` and `ctx.res` pattern (but Express-style `(req, res, next)` works too)
 
-Everything else? Identical.
+That's it. The handler signature is identical: `(req, res, next)`.
 
 ---
 

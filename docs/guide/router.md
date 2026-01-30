@@ -1,64 +1,81 @@
 ---
 title: Router Deep Dive
-description: Learn how bunWay’s router composes middleware, sub-routers, and native Fetch responses while staying true to Bun.
+description: Learn how bunWay's router composes middleware, sub-routers, and native Fetch responses while staying true to Bun.
 ---
 
 # Router Deep Dive
 
-bunway’s router borrows Express’ ergonomics while staying true to Bun’s Fetch APIs. This page explains the lifecycle so you can compose middleware, sub-routers, and custom responses with confidence.
+bunway's router uses Express-style ergonomics while staying true to Bun's Fetch APIs. This page explains the lifecycle so you can compose middleware, sub-routers, and custom responses with confidence.
+
+::: tip Coming from Express?
+If you've used Express routing, you already know bunway routing. The patterns are identical.
+:::
 
 ## Anatomy of a request
 
 1. **Match** – incoming requests match routes by HTTP method + path (supporting `:params`).
 2. **Pipeline** – global middleware → auto body parser → route-specific middleware/handlers.
-3. **Execution** – each handler receives `(ctx, next)`. Call `await next()` to continue the chain.
-4. **Finalization** – the router chooses the final `Response` (explicit return, `ctx.res.last`, or default 200) and merges header bags (e.g., CORS) before returning.
+3. **Execution** – each handler receives `(req, res, next)`. Call `next()` to continue the chain.
+4. **Finalization** – the router chooses the final `Response` (explicit return, `res.last`, or default 200) and merges header bags (e.g., CORS) before returning.
 
 ## Registering routes
 
-Define routes using the familiar HTTP verb helpers. Each handler receives the Bun-native context object, giving you immediate access to parameters, query strings, locals, and body parsing utilities.
+Define routes using familiar HTTP verb helpers. Each handler receives the Express-compatible `(req, res, next)` signature:
 
 ```ts
 const app = bunway();
 
-app.get("/health", (ctx) => ctx.res.text("OK"));
-app.post("/users", async (ctx) => ctx.res.created(await ctx.req.parseBody()));
-app.patch("/users/:id", async (ctx) => {
-  const id = ctx.req.param("id");
-  const updates = await ctx.req.parseBody();
-  return ctx.res.json(await updateUser(id, updates));
+app.get("/health", (req, res) => res.text("OK"));
+app.post("/users", async (req, res) => res.created(await req.parseBody()));
+app.patch("/users/:id", async (req, res) => {
+  const id = req.param("id");
+  const updates = await req.parseBody();
+  return res.json(await updateUser(id, updates));
 });
 ```
 
 ### Multiple handlers
 
-Chain middleware the same way you would in Express. Each handler can perform work, populate `ctx.req.locals`, and decide whether to continue by calling `await next()`.
+Chain middleware the same way you would in Express:
 
 ```ts
-app.get("/users/:id", authMiddleware, loadUser, (ctx) => ctx.res.json(ctx.req.locals.user));
+app.get("/users/:id", authMiddleware, loadUser, (req, res) => {
+  res.json(req.locals.user);
+});
 ```
 
-`next()` is promise-based—await it if you need to run code after downstream handlers complete.
+Each handler can perform work, populate `req.locals`, and call `next()` to continue:
+
+```ts
+const authMiddleware = (req, res, next) => {
+  const token = req.get("Authorization");
+  if (!token) return res.unauthorized();
+  req.locals.user = verifyToken(token);
+  next();
+};
+```
 
 ## Middleware ordering
 
-Global middleware runs in the order registered, followed by route-specific middleware. This makes it easy to compose logging, authentication, and other cross-cutting concerns.
+Global middleware runs in the order registered, followed by route-specific middleware:
 
 ```ts
 app.use(cors()); // global
 app.use(json()); // global
 app.use(loggingMiddleware); // global
 
-app.get("/secure", authMiddleware, (ctx) => ctx.res.ok(ctx.req.locals.user));
+app.get("/secure", authMiddleware, (req, res) => {
+  res.ok(req.locals.user);
+});
 ```
 
 - Global middleware runs before route-specific middleware.
-- `ctx.req.isBodyParsed()` lets you skip redundant parsing.
+- `req.isBodyParsed()` lets you skip redundant parsing.
 - Middleware can return `Response` to short-circuit the pipeline (e.g., auth failures).
 
 ## Sub-routers
 
-Group related endpoints into sub-routers for better organization. bunway rewrites the request URL so nested routers see paths relative to their mount point.
+Group related endpoints into sub-routers for better organization:
 
 ```ts
 import { Router } from "bunway";
@@ -73,12 +90,12 @@ app.use("/api", api);
 Sub-routers inherit parent middleware and can register their own `router.use()` handlers.
 
 ::: tip Sub-router inheritance
-Middleware registered on the parent app runs before sub-router handlers. Add router-specific middleware (auth, logging) inside the router for scoped behaviour.
+Middleware registered on the parent app runs before sub-router handlers. Add router-specific middleware inside the router for scoped behaviour.
 :::
 
 ### Nested routers
 
-Routers can be nested multiple levels deep. This lets large applications expose modular areas (e.g., `/api/admin`) without losing composability.
+Routers can be nested multiple levels deep:
 
 ```ts
 const admin = new Router();
@@ -86,6 +103,7 @@ admin.use(requireAdmin);
 admin.get("/stats", getStats);
 
 api.use("/admin", admin);
+// Full path: /api/admin/stats
 ```
 
 ::: tip Returning native responses
@@ -100,6 +118,8 @@ Handlers can always return `Response` objects straight from Fetch APIs—bunWay 
 - Unhandled errors fall back to a safe 500 JSON payload.
 
 ```ts
+import { HttpError } from "bunway";
+
 app.get("/secret", () => {
   throw new HttpError(403, "Forbidden");
 });
@@ -118,11 +138,11 @@ Content-Type: application/json
 Customize by adding a catch-all route at the end:
 
 ```ts
-app.use((ctx) => ctx.res.status(404).json({ error: "Route not found" }));
+app.use((req, res) => res.status(404).json({ error: "Route not found" }));
 ```
 
 ::: warning Catch-all
-Be sure to register catch-all handlers last—bunway processes middleware in order, so earlier routes or middleware can short-circuit the response.
+Be sure to register catch-all handlers last—bunway processes middleware in order, so earlier routes can short-circuit the response.
 :::
 
 ## Body parser defaults
@@ -138,58 +158,63 @@ const router = new Router({
 });
 ```
 
-Handlers can override parsing dynamically with `ctx.req.applyBodyParserOverrides()`.
+Handlers can override parsing dynamically with `req.applyBodyParserOverrides()`.
 
-## Recipes — run everything, the Bun way
+## Recipes
 
-### Friendly request logger
+### Request logger
 
 ```ts
-app.use(async (ctx, next) => {
+app.use(async (req, res, next) => {
   const start = performance.now();
   await next();
   const ms = (performance.now() - start).toFixed(1);
-  console.log(`${ctx.req.method} ${ctx.req.path} → ${ctx.res.statusCode} (${ms}ms)`);
+  console.log(`${req.method} ${req.path} → ${res.statusCode} (${ms}ms)`);
 });
 ```
 
-Flip logging on or off with environment variables (e.g., `BUNWAY_LOG_REQUESTS=true`) to keep production output tidy.
+Or use the built-in logger:
+
+```ts
+import { logger } from "bunway";
+app.use(logger("dev"));
+```
 
 ### Admin-only sub-router
 
 ```ts
+import { Router, HttpError } from "bunway";
+
 const admin = new Router();
-// bring HttpError in from "bunway" to reuse friendly responses
-admin.use(async (ctx, next) => {
-  if (ctx.req.headers.get("authorization") !== "super-secret") {
+
+admin.use((req, res, next) => {
+  if (req.get("Authorization") !== "super-secret") {
     throw new HttpError(401, "Admin authorization required");
   }
-  await next();
+  next();
 });
 
-admin.get("/stats", (ctx) => ctx.res.json({ uptime: process.uptime() }));
+admin.get("/stats", (req, res) => {
+  res.json({ uptime: process.uptime() });
+});
 
 app.use("/admin", admin);
 ```
 
-### Per-request format switch
+### Per-request body parser override
 
 ```ts
-app.post("/webhook", async (ctx) => {
-  ctx.req.applyBodyParserOverrides({ text: { enabled: true }, json: { enabled: false } });
-  const payload = await ctx.req.parseBody();
-  return ctx.res.ok({ received: payload });
+app.post("/webhook", async (req, res) => {
+  req.applyBodyParserOverrides({ text: { enabled: true }, json: { enabled: false } });
+  const payload = await req.parseBody();
+  return res.ok({ received: payload });
 });
 ```
 
-::: note Configuration tip
-Combine these recipes with `app.use(bunway.bodyParser({ text: { enabled: true } }))` to set defaults before per-request overrides kick in.
-:::
-
 ## Advanced patterns
 
-- **Streaming**: work directly with `await ctx.req.rawBody()` or `ctx.req.original.body` for streams.
-- **Locals**: share data across middleware via `ctx.req.locals` (e.g., `ctx.req.locals.user = user`).
+- **Streaming**: work directly with `await req.rawBody()` or `req.original.body` for streams.
+- **Locals**: share data across middleware via `req.locals` (e.g., `req.locals.user = user`).
 - **Async cleanup**: run code after `await next()` to implement logging, timers, or metrics.
 
 ---
