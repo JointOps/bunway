@@ -60,6 +60,7 @@ export default defineConfig({
           { text: "Coming from Express", link: "/guide/express-migration" },
           { text: "Core Primitives", link: "/guide/core-primitives" },
           { text: "Router", link: "/guide/router" },
+          { text: "WebSockets", link: "/guide/websockets" },
         ],
       },
       {
@@ -69,8 +70,10 @@ export default defineConfig({
           { text: "Body Parsing", link: "/middleware/body-parsing" },
           { text: "CORS", link: "/middleware/cors" },
           { text: "Session", link: "/middleware/session" },
+          { text: "Authentication", link: "/middleware/auth" },
           { text: "Logger", link: "/middleware/logger" },
           { text: "Security", link: "/middleware/security" },
+          { text: "Rate Limiting", link: "/middleware/rate-limit" },
           { text: "Static Files", link: "/middleware/static" },
           { text: "Cookies", link: "/middleware/cookies" },
           { text: "Error Handling", link: "/middleware/error-handler" },
