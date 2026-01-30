@@ -55,6 +55,9 @@ pre code {
   overflow: hidden;
   border: 1px solid rgba(63, 197, 183, 0.25);
   border-radius: 12px;
+  width: max-content;
+  max-width: 100%;
+  display: table;
 }
 
 .vp-doc th,
@@ -208,24 +211,331 @@ html.dark .timeline::before {
   background: linear-gradient(180deg, rgba(63, 197, 183, 0.5), rgba(30, 124, 115, 0.25));
 }
 
-.VPHomeHero {
-  position: relative;
+/* ============================================
+   LANDING PAGE - Custom Navbar & No Scroll Fix
+   ============================================ */
+
+/* Hide VitePress default navbar on landing page */
+.landing-page .VPNav {
+  display: none !important;
+}
+
+/* Remove scroll when content fits viewport */
+.landing-page {
+  height: 100vh;
   overflow: hidden;
 }
 
-.VPHomeHero::before {
-  content: "";
-  position: absolute;
-  inset: -20% -40% 40% -40%;
-  background: radial-gradient(circle at top, rgba(63, 197, 183, 0.45), transparent 60%),
-    radial-gradient(circle at 20% 50%, rgba(46, 147, 134, 0.25), transparent 55%),
-    radial-gradient(circle at 80% 30%, rgba(30, 124, 115, 0.35), transparent 60%);
-  filter: blur(70px);
-  pointer-events: none;
+.landing-page .VPContent {
+  height: 100vh;
+  overflow: hidden;
 }
 
-.VPHomeHero .text {
+/* ============================================
+   HERO SECTION - Clean, Premium Design
+   ============================================ */
+
+.VPHome {
   position: relative;
+  overflow: hidden;
+  background: #000 !important;
+  height: 100vh !important;
+  min-height: 100vh !important;
+}
+
+/* Single, elegant gradient glow at top */
+.VPHome::before {
+  content: "";
+  position: absolute;
+  top: -200px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1200px;
+  height: 600px;
+  background: conic-gradient(
+    from 180deg at 50% 50%,
+    rgba(63, 197, 183, 0) 0deg,
+    rgba(63, 197, 183, 0.4) 60deg,
+    rgba(34, 211, 238, 0.3) 120deg,
+    rgba(139, 92, 246, 0.3) 180deg,
+    rgba(34, 211, 238, 0.3) 240deg,
+    rgba(63, 197, 183, 0.4) 300deg,
+    rgba(63, 197, 183, 0) 360deg
+  );
+  filter: blur(100px);
+  opacity: 0.6;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Subtle noise texture for depth */
+.VPHome::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.VPHomeHero {
+  position: relative;
+  padding: 120px 24px 48px !important;
+  min-height: auto !important;
+  z-index: 1;
+}
+
+/* Account for fixed navbar on landing page */
+.landing-page .VPHomeHero {
+  padding-top: 100px !important;
+}
+
+/* Ensure VPHome fills viewport without scroll */
+.landing-page .VPHome {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100vh !important;
+  overflow: hidden !important;
+}
+
+.landing-page .VPHomeHero {
+  flex: none !important;
+}
+
+/* Force center everything in hero */
+.VPHero,
+.VPHero .container,
+.VPHero .main {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  text-align: center !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+.VPHero .main .name,
+.VPHero .main .clip,
+.VPHero .main .text,
+.VPHero .main .tagline {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  text-align: center !important;
+}
+
+/* Hide the image */
+.VPHero .image,
+.VPHomeHero .image {
+  display: none !important;
+}
+
+/* Name: "The fastest way" - Clean white */
+.VPHero .name {
+  font-size: clamp(48px, 10vw, 72px) !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.04em !important;
+  line-height: 1.1 !important;
+  color: #fff !important;
+  background: none !important;
+  -webkit-text-fill-color: inherit !important;
+}
+
+/* Text: "to Express" - Vibrant gradient */
+.VPHero .text {
+  font-size: clamp(48px, 10vw, 72px) !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.04em !important;
+  line-height: 1.1 !important;
+  margin-top: -4px !important;
+  background: linear-gradient(
+    135deg,
+    #3fc5b7 0%,
+    #22d3ee 25%,
+    #a78bfa 50%,
+    #f472b6 75%,
+    #3fc5b7 100%
+  ) !important;
+  background-size: 200% auto !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+  animation: shimmer 3s linear infinite !important;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: 200% center;
+  }
+}
+
+/* Tagline - Subtle and readable */
+.VPHero .tagline {
+  max-width: 500px !important;
+  margin: 24px auto 0 !important;
+  font-size: 18px !important;
+  font-weight: 400 !important;
+  line-height: 1.7 !important;
+  color: rgba(255, 255, 255, 0.6) !important;
+  letter-spacing: -0.01em !important;
+}
+
+/* Action buttons container */
+.VPHero .actions {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  margin-top: 28px !important;
+  gap: 12px !important;
+}
+
+.VPHero .action,
+.VPHomeHero .action {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Base button styles - uniform sizing */
+.VPHero .VPButton,
+.VPHomeHero .VPButton {
+  height: 44px !important;
+  padding: 0 24px !important;
+  border-radius: 8px !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+  transition: all 0.2s ease !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
+}
+
+/* Primary button - Clean gradient */
+.VPHero .VPButton.brand,
+.VPHomeHero .VPButton.brand {
+  background: linear-gradient(135deg, #3fc5b7 0%, #22d3ee 100%) !important;
+  border: none !important;
+  color: #0a0a0a !important;
+  font-weight: 600 !important;
+  gap: 6px !important;
+}
+
+/* Arrow icon for Get Started */
+.VPHero .VPButton.brand::after,
+.VPHomeHero .VPButton.brand::after {
+  content: "" !important;
+  width: 14px !important;
+  height: 14px !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230a0a0a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14'/%3E%3Cpath d='m12 5 7 7-7 7'/%3E%3C/svg%3E") !important;
+  background-size: contain !important;
+  background-repeat: no-repeat !important;
+  flex-shrink: 0 !important;
+  transition: transform 0.2s ease !important;
+}
+
+.VPHero .VPButton.brand:hover,
+.VPHomeHero .VPButton.brand:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(63, 197, 183, 0.3) !important;
+}
+
+.VPHero .VPButton.brand:hover::after,
+.VPHomeHero .VPButton.brand:hover::after {
+  transform: translateX(2px) !important;
+}
+
+/* Secondary button - GitHub with icon */
+.VPHero .VPButton.alt,
+.VPHomeHero .VPButton.alt {
+  background: transparent !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: #fff !important;
+  gap: 8px !important;
+}
+
+/* GitHub icon */
+.VPHero .VPButton.alt::before,
+.VPHomeHero .VPButton.alt::before {
+  content: "" !important;
+  width: 16px !important;
+  height: 16px !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z'/%3E%3C/svg%3E") !important;
+  background-size: contain !important;
+  background-repeat: no-repeat !important;
+  flex-shrink: 0 !important;
+  opacity: 0.7 !important;
+  transition: opacity 0.2s ease !important;
+}
+
+.VPHero .VPButton.alt:hover,
+.VPHomeHero .VPButton.alt:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  transform: translateY(-1px) !important;
+}
+
+.VPHero .VPButton.alt:hover::before,
+.VPHomeHero .VPButton.alt:hover::before {
+  opacity: 1 !important;
+}
+
+/* Hide default features on home page */
+.VPHome .VPFeatures {
+  display: none !important;
+}
+
+/* Glowing gradient line separator */
+.VPHomeHero::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 400px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(63, 197, 183, 0.5) 20%,
+    rgba(34, 211, 238, 0.8) 50%,
+    rgba(139, 92, 246, 0.5) 80%,
+    transparent 100%
+  );
+  box-shadow: 0 0 20px rgba(63, 197, 183, 0.3);
+}
+
+/* Force dark theme on home page */
+html:not(.dark) .VPHome {
+  background: #000 !important;
+}
+
+html:not(.dark) .VPHome .VPHero .name {
+  color: #fff !important;
+}
+
+html:not(.dark) .VPHome .VPHero .tagline {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+html:not(.dark) .VPHome .VPHero .VPButton.alt {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #fff !important;
+}
+
+html:not(.dark) .VPHome .VPHero .VPButton.alt:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+html:not(.dark) .VPHome .version-badge {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .VPSidebar .group > .title {
@@ -237,10 +547,14 @@ html.dark .timeline::before {
   letter-spacing: 0.08em;
 }
 
-html.dark .VPHomeHero::before {
-  background: radial-gradient(circle at top, rgba(63, 197, 183, 0.38), transparent 60%),
-    radial-gradient(circle at 20% 50%, rgba(15, 75, 70, 0.35), transparent 55%),
-    radial-gradient(circle at 80% 30%, rgba(30, 124, 115, 0.28), transparent 60%);
+/* Light mode button adjustments */
+html:not(.dark) .VPHomeHero .VPButton.alt {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+}
+
+html:not(.dark) .VPHomeHero .VPButton.alt:hover {
+  background: rgba(0, 0, 0, 0.08) !important;
 }
 
 .features-list {
