@@ -70,6 +70,7 @@ bunWay is designed for Express developers who want Bun's speed without learning 
 | `compression` | `compression()` | Gzip responses |
 | `express-rate-limit` | `rateLimit()` | Rate limiting |
 | `cookie-parser` | `cookieParser()` | Cookie parsing |
+| `passport` | `passport()` | Authentication |
 
 [Full migration guide →](https://bunway.jointops.dev/guide/express-migration.html)
 
@@ -107,6 +108,7 @@ import {
   cors,           // CORS headers
   helmet,         // Security headers
   session,        // Session management
+  passport,       // Authentication
   logger,         // Request logging (morgan-compatible)
   csrf,           // CSRF protection
   compression,    // Gzip/deflate

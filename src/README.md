@@ -43,6 +43,7 @@ All Express-compatible, all built-in:
 | `compression()` | `compression` |
 | `rateLimit()` | `express-rate-limit` |
 | `cookieParser()` | `cookie-parser` |
+| `passport()` | `passport` |
 
 ## Why bunWay?
 
