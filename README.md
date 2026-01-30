@@ -1,6 +1,7 @@
 # bunWay
 
 [![npm version](https://img.shields.io/npm/v/bunway.svg?logo=npm&label=npm)](https://www.npmjs.com/package/bunway)
+[![CI](https://github.com/JointOps/bunway/actions/workflows/ci.yml/badge.svg)](https://github.com/JointOps/bunway/actions/workflows/ci.yml)
 [![bun only](https://img.shields.io/badge/runtime-bun%201.1+-1e7c73?logo=bun&logoColor=white)](https://bun.sh)
 [![docs](https://img.shields.io/badge/docs-The%20Bun%20way-3fc5b7)](https://bunway.jointops.dev/)
 [![license](https://img.shields.io/badge/license-MIT-lightgrey.svg)](./LICENSE)
