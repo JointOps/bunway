@@ -15,9 +15,9 @@ const isHome = computed(() => frontmatter.value.layout === 'home')
     <LandingNavbar v-if="isHome" />
     <Layout>
       <template #home-hero-info-before>
-        <a href="/changelog" class="version-badge">
+        <a href="https://github.com/JointOps/bunway/releases" class="version-badge" target="_blank" rel="noopener">
           <span class="version-dot"></span>
-          <span>v0.2.0 now available</span>
+          <span>v1.0.0 is here!</span>
           <span class="chevron">→</span>
         </a>
       </template>

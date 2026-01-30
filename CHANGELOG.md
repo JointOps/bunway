@@ -7,12 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-01-30
+
+🎉 **First stable release!** bunWay is production-ready.
+
+### Highlights
+
+- **Express-compatible API** — Same `(req, res, next)` patterns you know
+- **13 built-in middleware** — Sessions, auth, security, logging, and more
+- **Zero dependencies** — Just Bun, nothing else
+- **Full TypeScript support** — Strict types throughout
+
 ### Added
+- Custom landing page with new navbar design
+- WebSockets documentation
+- Authentication middleware documentation
+- Rate limiting middleware documentation
 - Professional benchmark suite with TechEmpower-style methodology
 - Automated publish workflow triggered on VERSION change
 - CodeQL security scanning
 - Dependabot for dependency updates
-- Codecov integration for test coverage reporting
+
+### Changed
+- Improved documentation across all middleware
+- Enhanced getting started guide
+- Updated Express migration guide
 
 ## [0.2.0] - 2026-01-30
 
@@ -70,6 +89,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - Creates GitHub release with auto-generated notes
    - Tags the release
 
-[Unreleased]: https://github.com/JointOps/bunway/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/JointOps/bunway/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/JointOps/bunway/releases/tag/v1.0.0
 [0.2.0]: https://github.com/JointOps/bunway/releases/tag/v0.2.0
 [0.1.0]: https://github.com/JointOps/bunway/releases/tag/v0.1.0
