@@ -1,11 +1,11 @@
 ---
 layout: home
 title: "bunWay"
-description: "bunWay is a Bun-native routing toolkit inspired by Express, offering familiar middleware, routing, and batteries-included DX."
+description: "bunWay is a Bun-native routing toolkit with Express-compatible APIs. Same middleware, same patterns—just faster."
 hero:
   name: "bunWay"
-  text: "Bun-native routing toolkit"
-  tagline: "Run everything. The Bun way."
+  text: "Express patterns. Bun speed."
+  tagline: "If you know Express, you know bunWay."
   image:
     src: "/hero-bun.svg"
     alt: "Bun Way hero illustration"
@@ -14,72 +14,91 @@ hero:
       text: Get Started
       link: /guide/getting-started
     - theme: alt
-      text: View Roadmap
-      link: /community/build-together
+      text: Coming from Express?
+      link: /guide/express-migration
 features:
   - title: "⚡ Bun-first"
     details: Built directly on Bun's Request/Response primitives, Bun.serve, and test runner—no Node polyfills.
-  - title: "🧭 Express-friendly"
-    details: Familiar middleware, routers, and helpers make the transition from Express effortless.
+  - title: "🧭 Express-compatible"
+    details: Same middleware names, same API patterns. helmet(), session(), logger()—they all work exactly as you expect.
   - title: "🔋 Batteries included"
-    details: Body parsers, CORS, error handling, TypeDoc, VitePress docs, and a roadmap toward cookies, sessions, auth, and more.
+    details: Body parsing, CORS, sessions, security headers, rate limiting, compression, static files—all built-in.
 ---
 
-::: info Why bunWay?
-- Bun-first: built around Bun.serve, native Request/Response objects, and the Bun test runner.
-- Express-friendly: plug into familiar middleware and router patterns without losing Fetch semantics.
-- Batteries included: JSON parsers, CORS, error handling, docs, and a roadmap toward sessions, cookies, and more.
-:::
+## Know Express? You Know bunWay.
+
+bunWay brings Express patterns to Bun. Same middleware, same routing, same API—just faster.
+
+| Express | bunWay |
+|---------|--------|
+| `express.json()` | `json()` |
+| `express.static()` | `serveStatic()` |
+| `helmet` | `helmet()` |
+| `morgan` | `logger()` |
+| `express-session` | `session()` |
+| `express-rate-limit` | `rateLimit()` |
+
+[See the full migration guide →](/guide/express-migration)
 
 ## Try it in 30 seconds
 
 ```ts
-import { bunway, cors, json } from "bunway";
+import { bunway, cors, helmet, logger, json, session } from "bunway";
 
 const app = bunway();
-app.use(cors({ origin: true }));
+
+app.use(cors());
+app.use(helmet());
+app.use(logger('dev'));
 app.use(json());
+app.use(session({ secret: 'my-secret' }));
 
-app.get("/hello", (ctx) => ctx.res.json({ message: "Run everything. The Bun way." }));
+app.get("/users/:id", (req, res) => {
+  res.json({ id: req.params.id });
+});
 
-app.listen(7070);
+app.listen(3000);
 ```
 
-Drop the snippet into `bun run` and see Bun-native routing in action.
+Same code you'd write in Express. Just faster.
 
 ## What you'll find here
 
 <div class="features-list">
   <div class="feature">
-    <span class="feature__icon">📚</span>
+    <span class="feature__icon">🔄</span>
     <div class="feature__body">
-      <h3>Core Primitives</h3>
-      <p>Deep dive into <a href="/guide/core-primitives">WayRequest, WayResponse, and WayContext</a> to master the building blocks.</p>
-    </div>
-  </div>
-  <div class="feature">
-    <span class="feature__icon">🗺️</span>
-    <div class="feature__body">
-      <h3>Router</h3>
-      <p>Understand the <a href="/guide/router">routing lifecycle, middleware pipelines, and sub-routers</a> with Bun-first ergonomics.</p>
+      <h3>Express Migration</h3>
+      <p>Coming from Express? Check out the <a href="/guide/express-migration">migration guide</a> for a side-by-side comparison.</p>
     </div>
   </div>
   <div class="feature">
     <span class="feature__icon">🧩</span>
     <div class="feature__body">
       <h3>Middleware</h3>
-      <p>Explore <a href="/middleware/index">body parsing, CORS, and error handling</a> tutorials to keep everything Bun-native.</p>
+      <p>Explore <a href="/middleware/index">all built-in middleware</a>: sessions, security, logging, rate limiting, and more.</p>
     </div>
   </div>
   <div class="feature">
-    <span class="feature__icon">🤝</span>
+    <span class="feature__icon">🗺️</span>
     <div class="feature__body">
-      <h3>Build Together</h3>
-      <p>Jump into the <a href="/community/build-together">roadmap and contribution guide</a> to help shape bunWay.</p>
+      <h3>Router</h3>
+      <p>Understand the <a href="/guide/router">routing lifecycle, middleware pipelines, and sub-routers</a>.</p>
+    </div>
+  </div>
+  <div class="feature">
+    <span class="feature__icon">📚</span>
+    <div class="feature__body">
+      <h3>Core Primitives</h3>
+      <p>Deep dive into <a href="/guide/core-primitives">request, response, and context</a> objects.</p>
     </div>
   </div>
 </div>
 
-## Ready to run everything the Bun way?
+## Ready to try Bun without learning a new framework?
 
-Start with the [Getting Started guide](/guide/getting-started), then star us on [GitHub](https://github.com/JointOps/bunway) and help shape the toolkit.
+```bash
+bun add bunway
+```
+
+Start with the [Getting Started guide](/guide/getting-started) or jump straight to the [Express migration guide](/guide/express-migration).
