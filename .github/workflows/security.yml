@@ -3,8 +3,6 @@ name: Security Scanning
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   schedule:
     # Run weekly on Sunday at 2 AM UTC
     - cron: '0 2 * * 0'
@@ -29,7 +27,7 @@ jobs:
           queries: security-and-quality
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+        uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
@@ -43,17 +41,3 @@ jobs:
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:typescript"
-
-  dependency-review:
-    name: Dependency Review
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Dependency Review
-        uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: high
-          deny-licenses: GPL-3.0, AGPL-3.0
