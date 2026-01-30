@@ -24,7 +24,7 @@ bunway uses the exact same `(req, res, next)` handler signature as Express. Your
 - **Batteries included** – 12+ middleware covering most production needs
 - **Zero dependencies** – pure Bun, no Node polyfills
 
-## Current capabilities (v0.2.0)
+## Current capabilities (v1.0.0)
 
 bunway ships with everything you need for production apps:
 
