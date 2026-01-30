@@ -19,7 +19,7 @@ for (let i = 0; i < 100; i++) {
   });
 }
 
-// Middleware benchmark
+// Middleware benchmark - separate app to not affect main benchmarks
 const middlewareApp = bunway();
 for (let i = 0; i < 10; i++) {
   middlewareApp.use((req, res, next) => {
@@ -31,9 +31,9 @@ middlewareApp.get("/middleware", (req, res) => {
   res.json({ processed: true });
 });
 
-// Body parsing benchmark
-app.use(bunway.json());
-app.post("/body", (req, res) => {
+// Body parsing benchmark - use route-level middleware, not global!
+// This way /json and /plaintext use the fast path
+app.post("/body", bunway.json(), (req, res) => {
   res.json({ received: true, size: JSON.stringify(req.body).length });
 });
 

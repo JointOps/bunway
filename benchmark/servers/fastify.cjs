@@ -1,14 +1,17 @@
 const fastify = require("fastify")({ logger: false });
 
-// JSON serialization benchmark
+// NOTE: NO global hooks - this ensures /json and /plaintext are fair benchmarks
+// Middleware is ONLY applied to routes that need it
+
+// JSON serialization benchmark (NO hooks)
 fastify.get("/json", async () => ({ message: "Hello, World!" }));
 
-// Plaintext benchmark
+// Plaintext benchmark (NO hooks)
 fastify.get("/plaintext", async (request, reply) => {
   reply.type("text/plain").send("Hello, World!");
 });
 
-// Routing benchmark - register 100 routes
+// Routing benchmark - register 100 routes (NO hooks)
 for (let i = 0; i < 100; i++) {
   fastify.get(`/route${i}/:id`, async (request) => ({
     route: i,
@@ -16,17 +19,18 @@ for (let i = 0; i < 100; i++) {
   }));
 }
 
-// Middleware benchmark
-fastify.addHook("onRequest", async (request) => {
-  if (request.url === "/middleware") {
+// Middleware benchmark - ONLY affects /middleware endpoint using encapsulation
+fastify.register(async function middlewarePlugin(instance) {
+  // This hook ONLY runs for routes in this plugin
+  instance.addHook("onRequest", async (request) => {
     for (let i = 0; i < 10; i++) {
       request[`mw${i}`] = true;
     }
-  }
-});
-fastify.get("/middleware", async () => ({ processed: true }));
+  });
+  instance.get("/", async () => ({ processed: true }));
+}, { prefix: "/middleware" });
 
-// Body parsing benchmark
+// Body parsing benchmark (Fastify has built-in body parsing, no extra middleware needed)
 fastify.post("/body", async (request) => ({
   received: true,
   size: JSON.stringify(request.body).length,

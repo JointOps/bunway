@@ -2,33 +2,36 @@ import { Elysia } from "elysia";
 
 const app = new Elysia();
 
-// JSON serialization benchmark
+// NOTE: NO global middleware - this ensures /json and /plaintext are fair benchmarks
+// Middleware is ONLY applied to routes that need it
+
+// JSON serialization benchmark (NO middleware)
 app.get("/json", () => ({ message: "Hello, World!" }));
 
-// Plaintext benchmark
+// Plaintext benchmark (NO middleware)
 app.get("/plaintext", () => new Response("Hello, World!", {
   headers: { "Content-Type": "text/plain" }
 }));
 
-// Routing benchmark - register 100 routes
+// Routing benchmark - register 100 routes (NO middleware)
 for (let i = 0; i < 100; i++) {
   app.get(`/route${i}/:id`, ({ params }) => ({ route: i, id: params.id }));
 }
 
-// Middleware benchmark
-const middlewareApp = new Elysia()
-  .derive(() => {
-    const data: Record<string, boolean> = {};
-    for (let i = 0; i < 10; i++) {
-      data[`mw${i}`] = true;
-    }
-    return { middlewareData: data };
-  })
-  .get("/middleware", () => ({ processed: true }));
+// Middleware benchmark - using group to isolate middleware to this route only
+app.group("/middleware", (app) =>
+  app
+    .derive(() => {
+      const data: Record<string, boolean> = {};
+      for (let i = 0; i < 10; i++) {
+        data[`mw${i}`] = true;
+      }
+      return { middlewareData: data };
+    })
+    .get("/", () => ({ processed: true }))
+);
 
-app.use(middlewareApp);
-
-// Body parsing benchmark
+// Body parsing benchmark (Elysia has built-in body parsing)
 app.post("/body", ({ body }) => ({
   received: true,
   size: JSON.stringify(body).length,

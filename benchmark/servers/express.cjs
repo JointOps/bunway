@@ -1,38 +1,42 @@
 const express = require("express");
 
 const app = express();
-app.use(express.json());
 
-// JSON serialization benchmark
+// NOTE: NO global middleware - this ensures /json and /plaintext are fair benchmarks
+// Body parsing is ONLY applied to routes that need it
+
+// JSON serialization benchmark (NO middleware)
 app.get("/json", (req, res) => {
   res.json({ message: "Hello, World!" });
 });
 
-// Plaintext benchmark
+// Plaintext benchmark (NO middleware)
 app.get("/plaintext", (req, res) => {
   res.type("text/plain").send("Hello, World!");
 });
 
-// Routing benchmark - register 100 routes
+// Routing benchmark - register 100 routes (NO middleware)
 for (let i = 0; i < 100; i++) {
   app.get(`/route${i}/:id`, (req, res) => {
     res.json({ route: i, id: req.params.id });
   });
 }
 
-// Middleware benchmark
+// Middleware benchmark - ONLY affects /middleware endpoint
+const middlewareRouter = express.Router();
 for (let i = 0; i < 10; i++) {
-  app.use("/middleware", (req, res, next) => {
+  middlewareRouter.use((req, res, next) => {
     req[`mw${i}`] = true;
     next();
   });
 }
-app.get("/middleware", (req, res) => {
+middlewareRouter.get("/", (req, res) => {
   res.json({ processed: true });
 });
+app.use("/middleware", middlewareRouter);
 
-// Body parsing benchmark
-app.post("/body", (req, res) => {
+// Body parsing benchmark - json() middleware ONLY on this route
+app.post("/body", express.json(), (req, res) => {
   res.json({ received: true, size: JSON.stringify(req.body).length });
 });
 
