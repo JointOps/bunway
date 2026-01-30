@@ -1,0 +1,120 @@
+{
+  "timestamp": "2026-01-30T09:55:10.087Z",
+  "config": {
+    "iterations": 3000,
+    "warmupIterations": 500,
+    "concurrency": 50,
+    "endpoints": [
+      "/json",
+      "/plaintext"
+    ]
+  },
+  "environment": {
+    "os": "darwin",
+    "arch": "arm64",
+    "bunVersion": "1.3.7",
+    "nodeVersion": "v24.3.0"
+  },
+  "results": [
+    {
+      "name": "bunway",
+      "displayName": "bunWay",
+      "runtime": "bun",
+      "endpoints": {
+        "/json": {
+          "rps": 63084.295948871644,
+          "latencyAvg": 0.45274932266666595,
+          "latencyP99": 2.4766670000000204,
+          "errors": 0
+        },
+        "/plaintext": {
+          "rps": 63775.22684901343,
+          "latencyAvg": 0.4510624293333329,
+          "latencyP99": 1.6128329999999664,
+          "errors": 0
+        }
+      },
+      "timestamp": "2026-01-30T09:55:10.087Z"
+    },
+    {
+      "name": "hono",
+      "displayName": "Hono",
+      "runtime": "bun",
+      "endpoints": {
+        "/json": {
+          "rps": 71717.29158405213,
+          "latencyAvg": 0.4097597880000001,
+          "latencyP99": 1.7172080000000278,
+          "errors": 0
+        },
+        "/plaintext": {
+          "rps": 91210.4779678349,
+          "latencyAvg": 0.35445768299999947,
+          "latencyP99": 0.8661250000000109,
+          "errors": 0
+        }
+      },
+      "timestamp": "2026-01-30T09:55:10.087Z"
+    },
+    {
+      "name": "elysia",
+      "displayName": "Elysia",
+      "runtime": "bun",
+      "endpoints": {
+        "/json": {
+          "rps": 91911.17618150079,
+          "latencyAvg": 0.3679974413333329,
+          "latencyP99": 1.5558330000001206,
+          "errors": 0
+        },
+        "/plaintext": {
+          "rps": 93329.53005128381,
+          "latencyAvg": 0.35124868066666953,
+          "latencyP99": 1.0397080000000187,
+          "errors": 0
+        }
+      },
+      "timestamp": "2026-01-30T09:55:10.087Z"
+    },
+    {
+      "name": "express",
+      "displayName": "Express",
+      "runtime": "node",
+      "endpoints": {
+        "/json": {
+          "rps": 24890.20660223849,
+          "latencyAvg": 1.0990310589999954,
+          "latencyP99": 4.9493750000001455,
+          "errors": 0
+        },
+        "/plaintext": {
+          "rps": 31786.90061825528,
+          "latencyAvg": 0.8249424646666624,
+          "latencyP99": 1.8012079999998605,
+          "errors": 0
+        }
+      },
+      "timestamp": "2026-01-30T09:55:10.087Z"
+    },
+    {
+      "name": "fastify",
+      "displayName": "Fastify",
+      "runtime": "node",
+      "endpoints": {
+        "/json": {
+          "rps": 32274.071414451628,
+          "latencyAvg": 0.8679800260000003,
+          "latencyP99": 3.5584170000001905,
+          "errors": 0
+        },
+        "/plaintext": {
+          "rps": 44794.95133424222,
+          "latencyAvg": 0.6040779880000071,
+          "latencyP99": 1.498833999999988,
+          "errors": 0
+        }
+      },
+      "timestamp": "2026-01-30T09:55:10.087Z"
+    }
+  ]
+}

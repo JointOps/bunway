@@ -1,170 +1,113 @@
 # Benchmark Comparison Report
 
-> Generated: January 30, 2026
-> Machine: Apple Silicon (M-series)
-> Test Config: 100 concurrent connections, 10 seconds per endpoint
+> Generated: January 30, 2026 at 02:57 PM
+> Machine: darwin (arm64)
+> Bun: 1.3.7 | Node.js: v24.3.0
+> Config: 3,000 requests, 50 concurrent connections
 
 ---
 
 ## Summary
 
-| Framework | Runtime | JSON (req/s) | Plaintext (req/s) | Routing (req/s) | Rank |
-|-----------|---------|--------------|-------------------|-----------------|------|
-| **Hono** | Bun | 91,846 | 91,846 | 91,846 | 🥇 1 |
-| **Fastify** | Node.js | 81,352 | 81,352 | 81,352 | 🥈 2 |
-| **bunWay** | Bun | 80,730 | 80,730 | 60,355 | 🥉 3 |
-| **Elysia** | Bun | 63,676 | 63,676 | 63,676 | 4 |
-| **Express** | Node.js | 43,818 | 43,818 | 43,818 | 5 |
+| Rank | Framework | Runtime | JSON (req/s) | Plaintext (req/s) | Routing (req/s) | Latency (avg) |
+|------|-----------|---------|--------------|-------------------|-----------------|---------------|
+| 🥇 | **Elysia** | Bun | 102,931 | 102,879 | N/A | 0.33ms |
+| 🥈 | **Hono** | Bun | 80,588 | 98,066 | N/A | 0.37ms |
+| 🥉 | **bunWay** | Bun | 73,884 | 73,558 | N/A | 0.41ms |
+| 4 | **Fastify** | Node.js | 36,880 | 47,835 | N/A | 0.74ms |
+| 5 | **Express** | Node.js | 27,814 | 33,075 | N/A | 0.97ms |
 
 ---
 
-## What These Numbers Mean
-
-### Requests per Second (req/s)
-The number of HTTP requests the server can handle in one second. Higher is better.
-
-- **80,000+ req/s**: Excellent - handles very high traffic
-- **50,000-80,000 req/s**: Good - suitable for most production workloads
-- **20,000-50,000 req/s**: Acceptable - fine for moderate traffic
-- **< 20,000 req/s**: May need optimization for high-traffic scenarios
-
-### Latency
-Time from when a request is sent to when the response is received.
-
-- **< 1ms**: Excellent
-- **1-5ms**: Good
-- **5-20ms**: Acceptable
-- **> 20ms**: May feel slow to users
-
----
-
-## Detailed Analysis
-
-### 🥇 Hono (91,846 req/s)
-**The fastest framework tested.**
-
-- Minimal abstraction over Bun's native HTTP
-- Lightweight router with near-zero overhead
-- Best choice when raw performance is the priority
-
-### 🥈 Fastify (81,352 req/s)
-**Fastest Node.js framework.**
-
-- Highly optimized JSON serialization
-- Schema-based validation (when used) adds minimal overhead
-- Great choice for Node.js projects needing speed
-
-### 🥉 bunWay (80,730 req/s)
-**Express-compatible with near-Fastify performance.**
-
-- Only ~1% slower than Fastify for JSON responses
-- Express-compatible API means zero learning curve
-- Best choice when migrating from Express to Bun
-
-### Elysia (63,676 req/s)
-**Feature-rich Bun framework.**
-
-- Lower raw throughput than simpler alternatives
-- Offers TypeScript-first experience with end-to-end type safety
-- Best choice when developer experience matters more than raw speed
-
-### Express (43,818 req/s)
-**The baseline.**
-
-- 2x slower than bunWay
-- Still handles 43k+ requests/second (plenty for most apps)
-- Massive ecosystem and community support
-
----
-
-## Performance Comparison Chart
+## Performance Chart
 
 ```
 Requests per Second (higher is better)
 ──────────────────────────────────────────────────────────────────
 
-Hono      ████████████████████████████████████████████████ 91,846
-Fastify   ██████████████████████████████████████████       81,352
-bunWay    █████████████████████████████████████████        80,730
-Elysia    █████████████████████████████████                63,676
-Express   ███████████████████████                          43,818
+Elysia     ████████████████████████████████████████ 102,931
+Hono       ███████████████████████████████ 80,588
+bunWay     █████████████████████████████ 73,884
+Fastify    ██████████████ 36,880
+Express    ███████████ 27,814
 
-          0        25k       50k       75k       100k
+          0        25,733       51,466       77,199       102,931
 ```
 
 ---
 
-## Key Takeaways
-
-### bunWay vs Express
-- **1.84x faster** than Express
-- Same `(req, res, next)` API
-- Drop-in replacement for most Express apps
-
-### bunWay vs Fastify
-- Nearly identical performance (~99%)
-- bunWay uses familiar Express patterns
-- Fastify requires learning new API
-
-### bunWay vs Hono
-- Hono is ~14% faster
-- bunWay provides Express compatibility
-- Choose Hono for maximum speed, bunWay for familiarity
+## Key Comparisons
 
 ### bunWay vs Elysia
-- bunWay is ~27% faster
-- Elysia offers better TypeScript integration
-- Choose based on API style preference
+- bunWay is **28.2% slower** than Elysia
+- bunWay: 73,884 req/s | Elysia: 102,931 req/s
+
+### bunWay vs Hono
+- bunWay is **8.3% slower** than Hono
+- bunWay: 73,884 req/s | Hono: 80,588 req/s
+
+### bunWay vs Fastify
+- bunWay is **100.3% faster** than Fastify
+- bunWay: 73,884 req/s | Fastify: 36,880 req/s
+
+### bunWay vs Express
+- bunWay is **165.6% faster** than Express
+- bunWay: 73,884 req/s | Express: 27,814 req/s
 
 ---
 
-## Test Methodology
+## Detailed Results
 
-### Endpoints Tested
-| Endpoint | Description | Purpose |
-|----------|-------------|---------|
-| `/json` | Returns `{ message: "Hello, World!" }` | JSON serialization speed |
-| `/plaintext` | Returns `"Hello, World!"` | Minimum framework overhead |
-| `/route50/:id` | Route with parameter | Router matching performance |
+### Elysia
 
-### Configuration
-- **Tool**: autocannon v8.0.0
-- **Connections**: 100 concurrent
-- **Duration**: 10 seconds per endpoint
-- **Pipelining**: Disabled (realistic scenario)
+| Endpoint | Requests/sec | Latency (avg) | Latency (p99) | Errors |
+|----------|--------------|---------------|---------------|--------|
+| `/json` | 102,931 | 0.33ms | 1.77ms | 0 |
+| `/plaintext` | 102,879 | 0.32ms | 0.64ms | 0 |
 
-### Environment
-- **OS**: macOS (Darwin)
-- **CPU**: Apple Silicon
-- **Bun**: v1.3.7
-- **Node.js**: v24.4.1
+### Hono
 
----
+| Endpoint | Requests/sec | Latency (avg) | Latency (p99) | Errors |
+|----------|--------------|---------------|---------------|--------|
+| `/json` | 80,588 | 0.37ms | 2.19ms | 0 |
+| `/plaintext` | 98,066 | 0.32ms | 0.69ms | 0 |
 
-## Recommendations
+### bunWay
 
-| Use Case | Recommended Framework |
-|----------|----------------------|
-| Migrating from Express | **bunWay** |
-| Maximum raw performance | **Hono** |
-| Node.js with speed needs | **Fastify** |
-| TypeScript-first development | **Elysia** |
-| Ecosystem & community | **Express** |
+| Endpoint | Requests/sec | Latency (avg) | Latency (p99) | Errors |
+|----------|--------------|---------------|---------------|--------|
+| `/json` | 73,884 | 0.41ms | 2.03ms | 0 |
+| `/plaintext` | 73,558 | 0.40ms | 0.99ms | 0 |
+
+### Fastify
+
+| Endpoint | Requests/sec | Latency (avg) | Latency (p99) | Errors |
+|----------|--------------|---------------|---------------|--------|
+| `/json` | 36,880 | 0.74ms | 7.43ms | 0 |
+| `/plaintext` | 47,835 | 0.56ms | 1.18ms | 0 |
+
+### Express
+
+| Endpoint | Requests/sec | Latency (avg) | Latency (p99) | Errors |
+|----------|--------------|---------------|---------------|--------|
+| `/json` | 27,814 | 0.97ms | 3.84ms | 0 |
+| `/plaintext` | 33,075 | 0.79ms | 1.75ms | 0 |
 
 ---
 
 ## Running These Benchmarks
 
 ```bash
-# Install dependencies
-bun install
+# Run full benchmark suite
+bun run benchmark
 
-# Run individual server
-bun benchmark/servers/bunway.ts
+# Quick benchmark (fewer iterations)
+bun run benchmark:quick
 
-# Run benchmark
-bunx autocannon -c 100 -d 10 http://localhost:3000/json
-
-# Run full comparison
-./benchmark/scripts/run-comparison.sh
+# CI mode (bunWay only, JSON output)
+bun run benchmark:ci
 ```
+
+---
+
+*Generated by bunWay Benchmark Runner*
