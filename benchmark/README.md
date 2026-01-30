@@ -2,6 +2,8 @@
 
 Professional, fair, and reproducible benchmarks for comparing web framework performance.
 
+> **Why benchmark?** bunWay gives you Express-compatible APIs on Bun. These benchmarks show how much faster your familiar Express-style code runs on Bun compared to Node.js.
+
 ## Quick Start
 
 ```bash
