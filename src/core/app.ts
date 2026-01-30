@@ -56,12 +56,15 @@ export class BunWayApp extends Router {
       Object.assign(this.settings, options.settings);
     }
 
-    // Inject app context into request and response
-    this.use((req, res, next) => {
-      req.setApp(this);
-      res.setApp(this);
-      res.setAcceptHeader(req.get("accept"));
-      next();
+    // Set up direct app context injection (avoids middleware overhead)
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const self = this;
+    this.setAppContext({
+      setApp: (req, res) => {
+        req.setApp(self);
+        res.setApp(self);
+        res.setAcceptHeader(req.get("accept"));
+      },
     });
   }
 

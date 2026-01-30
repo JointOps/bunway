@@ -56,7 +56,8 @@ export interface RequestAppContext {
 
 export class BunRequest {
   private _original: Request;
-  private _url: URL;
+  private _url: URL | null = null; // Lazy - only parsed when needed
+  private _pathname: string; // Pre-computed or extracted
   private _params: Record<string, string> = {};
   private _body: unknown = undefined;
   private _rawBody: Uint8Array | null = null;
@@ -68,9 +69,49 @@ export class BunRequest {
 
   locals: Record<string, unknown> = {};
 
-  constructor(original: Request) {
+  /**
+   * Create a new BunRequest.
+   * @param original - The original Request object
+   * @param pathname - Optional pre-computed pathname (avoids URL parsing)
+   */
+  constructor(original: Request, pathname?: string) {
     this._original = original;
-    this._url = new URL(original.url);
+    // Use pre-computed pathname if provided, otherwise extract lazily
+    this._pathname = pathname ?? this.extractPathname(original.url);
+  }
+
+  /**
+   * Fast pathname extraction without full URL parsing
+   */
+  private extractPathname(url: string): string {
+    const protocolEnd = url.indexOf("://");
+    let pathStart: number;
+
+    if (protocolEnd !== -1) {
+      pathStart = url.indexOf("/", protocolEnd + 3);
+      if (pathStart === -1) return "/";
+    } else {
+      pathStart = url.indexOf("/");
+      if (pathStart === -1) return "/";
+    }
+
+    let pathEnd = url.length;
+    const queryIndex = url.indexOf("?", pathStart);
+    if (queryIndex !== -1) pathEnd = queryIndex;
+    const hashIndex = url.indexOf("#", pathStart);
+    if (hashIndex !== -1 && hashIndex < pathEnd) pathEnd = hashIndex;
+
+    return url.slice(pathStart, pathEnd) || "/";
+  }
+
+  /**
+   * Get the parsed URL object (lazy initialization)
+   */
+  private get parsedUrl(): URL {
+    if (this._url === null) {
+      this._url = new URL(this._original.url);
+    }
+    return this._url;
   }
 
   /**
@@ -149,20 +190,20 @@ export class BunRequest {
   }
 
   get path(): string {
-    return this._url.pathname;
+    return this._pathname;
   }
 
   get pathname(): string {
-    return this._url.pathname;
+    return this._pathname;
   }
 
   get originalUrl(): string {
-    const search = this._url.search;
-    return this._url.pathname + search;
+    const search = this.parsedUrl.search;
+    return this._pathname + search;
   }
 
   get query(): URLSearchParams {
-    return this._url.searchParams;
+    return this.parsedUrl.searchParams;
   }
 
   get headers(): Headers {
@@ -187,11 +228,11 @@ export class BunRequest {
   }
 
   get hostname(): string {
-    return this._url.hostname;
+    return this.parsedUrl.hostname;
   }
 
   get subdomains(): string[] {
-    const hostname = this._url.hostname;
+    const hostname = this.parsedUrl.hostname;
     // Skip IP addresses
     if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname) || hostname === "localhost") {
       return [];
@@ -222,11 +263,11 @@ export class BunRequest {
   }
 
   get protocol(): string {
-    return this._url.protocol.replace(":", "");
+    return this.parsedUrl.protocol.replace(":", "");
   }
 
   get secure(): boolean {
-    return this._url.protocol === "https:";
+    return this.parsedUrl.protocol === "https:";
   }
 
   get ip(): string {
@@ -340,7 +381,7 @@ export class BunRequest {
   }
 
   param(name: string): string | undefined {
-    return this._params[name] ?? this._url.searchParams.get(name) ?? undefined;
+    return this._params[name] ?? this.parsedUrl.searchParams.get(name) ?? undefined;
   }
 
   get(header: string): string | undefined {

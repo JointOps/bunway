@@ -10,6 +10,8 @@ import type {
   WebSocketRouteDefinition,
 } from "../types";
 import { isHttpError } from "./errors";
+import { FastMatcher } from "./fast-matcher";
+import { getPathname } from "../utils/url";
 
 interface SubRouter {
   prefix: string;
@@ -39,8 +41,23 @@ export class Router {
   protected paramHandlers: Map<string, ParamHandler[]> = new Map();
   protected wsRoutes: WebSocketRouteDefinition[] = [];
 
+  // Fast matcher for O(1) static routes and compiled regex for dynamic routes
+  protected fastMatcher: FastMatcher = new FastMatcher();
+
+  // App context for direct injection (set by BunWayApp)
+  protected _appContext: {
+    setApp: (req: BunRequest, res: BunResponse) => void;
+  } | null = null;
+
   constructor(opts: RouterOptions = {}) {
     this.routerOptions = opts;
+  }
+
+  /**
+   * Set the app context for direct injection (used by BunWayApp)
+   */
+  setAppContext(context: { setApp: (req: BunRequest, res: BunResponse) => void }): void {
+    this._appContext = context;
   }
 
   protected getRoutes(): RouteDefinition[] {
@@ -64,6 +81,18 @@ export class Router {
     handlers.push(handler);
     this.paramHandlers.set(name, handlers);
     return this;
+  }
+
+  /**
+   * Check if any param handlers are registered for the given params
+   */
+  private hasParamHandlersFor(params: Record<string, string>): boolean {
+    for (const name of Object.keys(params)) {
+      if (this.paramHandlers.has(name)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private pathToRegex(path: string): { regex: RegExp; keys: string[] } {
@@ -90,6 +119,9 @@ export class Router {
   private addRoute(method: string, path: string, handlers: Handler[]): void {
     const { regex, keys } = this.pathToRegex(path);
     this.routes.push({ method, path, regex, keys, handlers });
+
+    // Also register with fast matcher for O(1) lookup
+    this.fastMatcher.add(method, path, handlers);
   }
 
   get(path: string, ...handlers: Handler[]): this {
@@ -317,53 +349,96 @@ export class Router {
   }
 
   async handle(original: Request, server?: BunServer<unknown>): Promise<Response> {
-    const req = new BunRequest(original);
-    const res = new BunResponse();
-
-    // Set socket IP if server is provided
-    if (server?.requestIP) {
-      const socketAddr = server.requestIP(original);
-      req.setSocketIp(socketAddr?.address ?? null);
-    }
+    // Fast pathname extraction - avoids full URL parsing
+    const pathname = getPathname(original.url);
     const method = original.method.toUpperCase();
-    const pathname = new URL(original.url).pathname;
 
+    // Check child routers first - optimized to avoid creating new Request/URL
     for (const { prefix, router } of this.children) {
       if (pathname.startsWith(prefix)) {
-        const newUrl = new URL(original.url);
-        newUrl.pathname = pathname.slice(prefix.length) || "/";
-        return router.handle(new Request(newUrl.toString(), original));
+        const childPathname = pathname.slice(prefix.length) || "/";
+        return router.handleInternal(original, childPathname, method, server);
       }
     }
 
-    try {
-      await this.runPipeline([...this.middlewares], req, res);
-    } catch (err) {
-      return this.handleError(err, req, res);
-    }
+    // FAST PATH: If no middleware, check route existence before creating objects
+    if (this.middlewares.length === 0 && this.errorHandlers.length === 0) {
+      const matchResult = this.fastMatcher.match(method, pathname);
 
-    if (res.isSent()) {
-      // Handle streaming responses
-      if (res.isStreaming()) {
-        return res.toStreamingResponse();
+      if (!matchResult) {
+        // No route match - return 404/405 without creating req/res
+        const matchingMethods = this.fastMatcher.getMatchingMethods(pathname);
+        if (matchingMethods.length > 0) {
+          const allowedMethods = matchingMethods.join(", ");
+          return new Response(
+            JSON.stringify({
+              error: "Method Not Allowed",
+              message: `${method} is not allowed for ${pathname}`,
+              allowedMethods,
+            }),
+            {
+              status: 405,
+              headers: {
+                "Content-Type": "application/json",
+                Allow: allowedMethods,
+              },
+            }
+          );
+        }
+        return new Response(
+          JSON.stringify({
+            error: "Not Found",
+            message: `Cannot ${method} ${pathname}`,
+          }),
+          {
+            status: 404,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
       }
-      return res.toResponse();
-    }
 
-    for (const route of this.routes) {
-      if (route.method !== method) continue;
-      const match = route.regex.exec(pathname);
-      if (!match) continue;
+      // Route found - now create req/res for handlers
+      const req = new BunRequest(original, pathname);
+      const res = new BunResponse();
 
-      const params: Record<string, string> = {};
-      route.keys.forEach((key, i) => {
-        params[key] = match[i + 1] ?? "";
-      });
-      req.params = params;
-      req.route = { path: route.path, method: route.method };
+      if (server?.requestIP) {
+        const socketAddr = server.requestIP(original);
+        req.setSocketIp(socketAddr?.address ?? null);
+      }
 
+      // Inject app context directly (avoids middleware overhead)
+      if (this._appContext) {
+        this._appContext.setApp(req, res);
+      }
+
+      req.params = matchResult.params;
+      req.route = { path: matchResult.path, method };
+
+      // FAST PATH: Single handler, no param handlers - direct invocation
+      const hasParamHandlers = this.hasParamHandlersFor(matchResult.params);
+      const singleHandler = matchResult.handlers.length === 1 ? matchResult.handlers[0] : null;
+      if (singleHandler && !hasParamHandlers) {
+        try {
+          const result = singleHandler(req, res, () => {}) as unknown;
+          if (result && typeof (result as Promise<void>).then === "function") {
+            await (result as Promise<void>);
+          }
+        } catch (err) {
+          return this.handleError(err, req, res);
+        }
+
+        if (res.isSent()) {
+          if (res.isStreaming()) {
+            return res.toStreamingResponse();
+          }
+          return res.toResponse();
+        }
+        return new Response(null, { status: 200 });
+      }
+
+      // Build param middleware handlers
       const paramMiddleware: Handler[] = [];
-      for (const [name, value] of Object.entries(params)) {
+      for (const [name, value] of Object.entries(matchResult.params)) {
         const handlers = this.paramHandlers.get(name);
         if (handlers) {
           for (const handler of handlers) {
@@ -372,7 +447,7 @@ export class Router {
         }
       }
 
-      const pipeline = [...paramMiddleware, ...route.handlers];
+      const pipeline = [...paramMiddleware, ...matchResult.handlers];
 
       try {
         await this.runPipeline(pipeline, req, res);
@@ -381,7 +456,6 @@ export class Router {
       }
 
       if (res.isSent()) {
-        // Handle streaming responses
         if (res.isStreaming()) {
           return res.toStreamingResponse();
         }
@@ -391,10 +465,207 @@ export class Router {
       return new Response(null, { status: 200 });
     }
 
-    // Check if route exists with different method (405 Method Not Allowed)
-    const pathMatches = this.routes.filter((r) => r.regex.exec(pathname));
-    if (pathMatches.length > 0) {
-      const allowedMethods = pathMatches.map((r) => r.method).join(", ");
+    // STANDARD PATH: Has middleware, need req/res upfront
+    return this.handleWithMiddleware(original, pathname, method, server);
+  }
+
+  /**
+   * Internal handle method for child router delegation - avoids creating new Request/URL objects
+   */
+  protected async handleInternal(
+    original: Request,
+    pathname: string,
+    method: string,
+    server?: BunServer<unknown>
+  ): Promise<Response> {
+    // Check child routers first
+    for (const { prefix, router } of this.children) {
+      if (pathname.startsWith(prefix)) {
+        const childPathname = pathname.slice(prefix.length) || "/";
+        return router.handleInternal(original, childPathname, method, server);
+      }
+    }
+
+    // Fast path for no middleware
+    if (this.middlewares.length === 0 && this.errorHandlers.length === 0) {
+      const matchResult = this.fastMatcher.match(method, pathname);
+
+      if (!matchResult) {
+        const matchingMethods = this.fastMatcher.getMatchingMethods(pathname);
+        if (matchingMethods.length > 0) {
+          const allowedMethods = matchingMethods.join(", ");
+          return new Response(
+            JSON.stringify({
+              error: "Method Not Allowed",
+              message: `${method} is not allowed for ${pathname}`,
+              allowedMethods,
+            }),
+            {
+              status: 405,
+              headers: {
+                "Content-Type": "application/json",
+                Allow: allowedMethods,
+              },
+            }
+          );
+        }
+        return new Response(
+          JSON.stringify({
+            error: "Not Found",
+            message: `Cannot ${method} ${pathname}`,
+          }),
+          {
+            status: 404,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      const req = new BunRequest(original, pathname);
+      const res = new BunResponse();
+
+      if (server?.requestIP) {
+        const socketAddr = server.requestIP(original);
+        req.setSocketIp(socketAddr?.address ?? null);
+      }
+
+      // Inject app context directly (avoids middleware overhead)
+      if (this._appContext) {
+        this._appContext.setApp(req, res);
+      }
+
+      req.params = matchResult.params;
+      req.route = { path: matchResult.path, method };
+
+      // FAST PATH: Single handler, no param handlers - direct invocation
+      const hasParamHandlers = this.hasParamHandlersFor(matchResult.params);
+      const singleHandler = matchResult.handlers.length === 1 ? matchResult.handlers[0] : null;
+      if (singleHandler && !hasParamHandlers) {
+        try {
+          const result = singleHandler(req, res, () => {}) as unknown;
+          if (result && typeof (result as Promise<void>).then === "function") {
+            await (result as Promise<void>);
+          }
+        } catch (err) {
+          return this.handleError(err, req, res);
+        }
+
+        if (res.isSent()) {
+          if (res.isStreaming()) {
+            return res.toStreamingResponse();
+          }
+          return res.toResponse();
+        }
+        return new Response(null, { status: 200 });
+      }
+
+      const paramMiddleware: Handler[] = [];
+      for (const [name, value] of Object.entries(matchResult.params)) {
+        const handlers = this.paramHandlers.get(name);
+        if (handlers) {
+          for (const handler of handlers) {
+            paramMiddleware.push((r, s, n) => handler(r, s, n, value, name));
+          }
+        }
+      }
+
+      const pipeline = [...paramMiddleware, ...matchResult.handlers];
+
+      try {
+        await this.runPipeline(pipeline, req, res);
+      } catch (err) {
+        return this.handleError(err, req, res);
+      }
+
+      if (res.isSent()) {
+        if (res.isStreaming()) {
+          return res.toStreamingResponse();
+        }
+        return res.toResponse();
+      }
+
+      return new Response(null, { status: 200 });
+    }
+
+    return this.handleWithMiddleware(original, pathname, method, server);
+  }
+
+  /**
+   * Handle request with middleware pipeline - creates req/res upfront
+   */
+  private async handleWithMiddleware(
+    original: Request,
+    pathname: string,
+    method: string,
+    server?: BunServer<unknown>
+  ): Promise<Response> {
+    const req = new BunRequest(original, pathname);
+    const res = new BunResponse();
+
+    // Inject app context directly (avoids middleware overhead)
+    if (this._appContext) {
+      this._appContext.setApp(req, res);
+    }
+
+    if (server?.requestIP) {
+      const socketAddr = server.requestIP(original);
+      req.setSocketIp(socketAddr?.address ?? null);
+    }
+
+    // Run global middleware
+    try {
+      await this.runPipeline([...this.middlewares], req, res);
+    } catch (err) {
+      return this.handleError(err, req, res);
+    }
+
+    if (res.isSent()) {
+      if (res.isStreaming()) {
+        return res.toStreamingResponse();
+      }
+      return res.toResponse();
+    }
+
+    // Fast route matching - O(1) for static routes, single regex for dynamic
+    const matchResult = this.fastMatcher.match(method, pathname);
+
+    if (matchResult) {
+      req.params = matchResult.params;
+      req.route = { path: matchResult.path, method };
+
+      // Build param middleware handlers
+      const paramMiddleware: Handler[] = [];
+      for (const [name, value] of Object.entries(matchResult.params)) {
+        const handlers = this.paramHandlers.get(name);
+        if (handlers) {
+          for (const handler of handlers) {
+            paramMiddleware.push((r, s, n) => handler(r, s, n, value, name));
+          }
+        }
+      }
+
+      const pipeline = [...paramMiddleware, ...matchResult.handlers];
+
+      try {
+        await this.runPipeline(pipeline, req, res);
+      } catch (err) {
+        return this.handleError(err, req, res);
+      }
+
+      if (res.isSent()) {
+        if (res.isStreaming()) {
+          return res.toStreamingResponse();
+        }
+        return res.toResponse();
+      }
+
+      return new Response(null, { status: 200 });
+    }
+
+    // No match found - check for 405 Method Not Allowed
+    const matchingMethods = this.fastMatcher.getMatchingMethods(pathname);
+    if (matchingMethods.length > 0) {
+      const allowedMethods = matchingMethods.join(", ");
       return new Response(
         JSON.stringify({
           error: "Method Not Allowed",
