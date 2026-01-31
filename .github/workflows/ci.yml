@@ -67,12 +67,6 @@ jobs:
       - name: Run tests
         run: bun test
 
-      - name: Run unit tests
-        run: bun test tests/unit
-
-      - name: Run acceptance tests
-        run: bun test tests/acceptance
-
   build:
     name: Build
     runs-on: ubuntu-latest
