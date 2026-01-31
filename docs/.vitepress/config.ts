@@ -16,21 +16,52 @@ function createCanonicalUrl(relativePath?: string): string {
 
 export default defineConfig({
   base: "/",
-  title: "bunWay",
-  description: "Bun-native routing toolkit",
+  title: "bunWay - Express API. Bun speed.",
+  description: "Express-compatible web framework for Bun. Drop-in replacement with zero rewrites. Same API, faster runtime.",
   appearance: true,
   cleanUrls: false,
   lastUpdated: true,
   head: [
     ["link", { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" }],
-    ["meta", { name: "theme-color", content: "#1e7c73" }],
-    ["meta", { name: "description", content: "Run everything. The Bun way." }],
-    ["meta", { property: "og:title", content: "bunWay" }],
-    ["meta", { property: "og:description", content: "Run everything. The Bun way." }],
-    [
-      "meta",
-      { name: "google-site-verification", content: "MfUtITfQjC9X52HpWU_55nMEkiQTpunoH2pMPqg6unM" },
-    ],
+    ["meta", { name: "theme-color", content: "#3fc5b7" }],
+    ["meta", { name: "description", content: "Express-compatible web framework for Bun. Drop-in replacement with zero rewrites. Same API, faster runtime." }],
+    ["meta", { name: "keywords", content: "bun, express, web framework, javascript, typescript, nodejs, http server, routing, middleware" }],
+    ["meta", { name: "author", content: "JointOps" }],
+    ["meta", { property: "og:type", content: "website" }],
+    ["meta", { property: "og:site_name", content: "bunWay" }],
+    ["meta", { property: "og:title", content: "bunWay - Express API. Bun speed." }],
+    ["meta", { property: "og:description", content: "Express-compatible web framework for Bun. Drop-in replacement with zero rewrites." }],
+    ["meta", { property: "og:url", content: "https://bunway.jointops.dev" }],
+    ["meta", { property: "og:image", content: "https://bunway.jointops.dev/og-image.png" }],
+    ["meta", { property: "og:image:width", content: "1200" }],
+    ["meta", { property: "og:image:height", content: "630" }],
+    ["meta", { name: "twitter:card", content: "summary_large_image" }],
+    ["meta", { name: "twitter:site", content: "@JointOps_" }],
+    ["meta", { name: "twitter:title", content: "bunWay - Express API. Bun speed." }],
+    ["meta", { name: "twitter:description", content: "Express-compatible web framework for Bun. Drop-in replacement with zero rewrites." }],
+    ["meta", { name: "twitter:image", content: "https://bunway.jointops.dev/og-image.png" }],
+    ["meta", { name: "google-site-verification", content: "MfUtITfQjC9X52HpWU_55nMEkiQTpunoH2pMPqg6unM" }],
+    ["script", { type: "application/ld+json" }, JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "SoftwareSourceCode",
+      "name": "bunWay",
+      "description": "Express-compatible web framework for Bun. Drop-in replacement with zero rewrites.",
+      "url": "https://bunway.jointops.dev",
+      "codeRepository": "https://github.com/JointOps/bunway",
+      "programmingLanguage": ["TypeScript", "JavaScript"],
+      "runtimePlatform": "Bun",
+      "license": "https://opensource.org/licenses/MIT",
+      "author": {
+        "@type": "Organization",
+        "name": "JointOps",
+        "url": "https://jointops.dev"
+      },
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    })],
   ],
   sitemap: {
     hostname: CANONICAL_BASE,

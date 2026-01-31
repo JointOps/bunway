@@ -1,0 +1,52 @@
+# bunWay
+
+> Express-compatible web framework for Bun. Drop-in replacement with zero rewrites.
+
+## What is bunWay?
+
+bunWay is a web framework for Bun that uses the same API as Express.js. If you know Express, you know bunWay. No learning curve, just faster performance.
+
+## Key Features
+
+- Express-compatible API: Same `app.get()`, `app.post()`, `req`, `res`, `next` patterns
+- Bun-native: Built specifically for Bun runtime, no Node.js polyfills
+- Zero dependencies: No production dependencies
+- Built-in middleware: Body parsing, CORS, cookies, sessions, static files, rate limiting
+- TypeScript-first: Full type safety out of the box
+
+## Installation
+
+```bash
+bun add bunway
+```
+
+## Quick Start
+
+```typescript
+import { bunway } from 'bunway'
+
+const app = bunway()
+
+app.get('/', (req, res) => {
+  res.json({ message: 'Hello bunWay!' })
+})
+
+app.listen(3000)
+```
+
+## Documentation
+
+- Full docs: https://bunway.jointops.dev
+- Getting Started: https://bunway.jointops.dev/guide/getting-started
+- Express Migration: https://bunway.jointops.dev/guide/express-migration
+- API Reference: https://bunway.jointops.dev/api/
+
+## Links
+
+- GitHub: https://github.com/JointOps/bunway
+- npm: https://www.npmjs.com/package/bunway
+- Discord: https://discord.gg/9VuNVM4k
+
+## For more details
+
+See /llms-full.txt for comprehensive documentation including all middleware options, configuration, and advanced usage patterns.

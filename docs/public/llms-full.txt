@@ -1,0 +1,421 @@
+# bunWay - Complete Documentation for AI Assistants
+
+## Overview
+
+bunWay is an Express-compatible web framework built natively for Bun. It provides the same familiar API that Express developers know (`app.get()`, `app.post()`, `req`, `res`, `next`) but runs on Bun for significantly better performance.
+
+**Key value proposition**: Zero learning curve for Express developers, zero rewrites needed to migrate existing Express apps.
+
+## Installation
+
+```bash
+bun add bunway
+```
+
+## Basic Usage
+
+```typescript
+import { bunway } from 'bunway'
+
+const app = bunway()
+
+// Middleware
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path}`)
+  next()
+})
+
+// Routes
+app.get('/', (req, res) => {
+  res.send('Hello World!')
+})
+
+app.get('/json', (req, res) => {
+  res.json({ message: 'Hello JSON!' })
+})
+
+app.post('/users', (req, res) => {
+  res.status(201).json({ id: 1, ...req.body })
+})
+
+// Start server
+app.listen(3000, () => {
+  console.log('Server running on http://localhost:3000')
+})
+```
+
+## Built-in Middleware
+
+### Body Parsing
+
+```typescript
+import { bunway, json, urlencoded, text } from 'bunway'
+
+const app = bunway()
+
+// Parse JSON bodies
+app.use(json())
+
+// Parse URL-encoded bodies
+app.use(urlencoded({ extended: true }))
+
+// Parse text bodies
+app.use(text())
+```
+
+### CORS
+
+```typescript
+import { bunway, cors } from 'bunway'
+
+const app = bunway()
+
+// Enable CORS for all origins
+app.use(cors())
+
+// Custom CORS configuration
+app.use(cors({
+  origin: 'https://example.com',
+  methods: ['GET', 'POST'],
+  credentials: true
+}))
+```
+
+### Static Files
+
+```typescript
+import { bunway, serveStatic } from 'bunway'
+
+const app = bunway()
+
+// Serve static files from 'public' directory
+app.use(serveStatic('public'))
+
+// With options
+app.use('/assets', serveStatic('public', {
+  maxAge: 86400000,
+  index: 'index.html'
+}))
+```
+
+### Sessions
+
+```typescript
+import { bunway, session } from 'bunway'
+
+const app = bunway()
+
+app.use(session({
+  secret: 'your-secret-key',
+  cookie: {
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    secure: true,
+    httpOnly: true
+  }
+}))
+
+app.get('/login', (req, res) => {
+  req.session.userId = 123
+  res.json({ success: true })
+})
+```
+
+### Cookie Parser
+
+```typescript
+import { bunway, cookieParser } from 'bunway'
+
+const app = bunway()
+
+app.use(cookieParser())
+
+app.get('/', (req, res) => {
+  console.log(req.cookies)
+  res.cookie('name', 'value', { httpOnly: true })
+  res.send('Cookie set!')
+})
+```
+
+### Rate Limiting
+
+```typescript
+import { bunway, rateLimit } from 'bunway'
+
+const app = bunway()
+
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests'
+}))
+```
+
+### Security (Helmet)
+
+```typescript
+import { bunway, helmet } from 'bunway'
+
+const app = bunway()
+
+// Apply security headers
+app.use(helmet())
+
+// Custom configuration
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"]
+    }
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true
+  }
+}))
+```
+
+### Logger
+
+```typescript
+import { bunway, logger } from 'bunway'
+
+const app = bunway()
+
+app.use(logger())
+
+// Custom format
+app.use(logger({
+  format: ':method :url :status :response-time ms'
+}))
+```
+
+## Routing
+
+### Basic Routes
+
+```typescript
+app.get('/users', handler)
+app.post('/users', handler)
+app.put('/users/:id', handler)
+app.patch('/users/:id', handler)
+app.delete('/users/:id', handler)
+app.all('/users', handler) // All methods
+```
+
+### Route Parameters
+
+```typescript
+app.get('/users/:id', (req, res) => {
+  const userId = req.params.id
+  res.json({ userId })
+})
+
+// Multiple parameters
+app.get('/users/:userId/posts/:postId', (req, res) => {
+  const { userId, postId } = req.params
+  res.json({ userId, postId })
+})
+```
+
+### Query Parameters
+
+```typescript
+app.get('/search', (req, res) => {
+  const { q, page, limit } = req.query
+  res.json({ query: q, page, limit })
+})
+```
+
+### Router Groups
+
+```typescript
+const userRouter = app.group('/users')
+
+userRouter.get('/', getAllUsers)
+userRouter.get('/:id', getUserById)
+userRouter.post('/', createUser)
+userRouter.put('/:id', updateUser)
+userRouter.delete('/:id', deleteUser)
+```
+
+## Request Object (req)
+
+```typescript
+req.method      // HTTP method
+req.path        // URL path
+req.url         // Full URL
+req.query       // Query parameters
+req.params      // Route parameters
+req.body        // Request body (after body parsing)
+req.headers     // Request headers
+req.cookies     // Cookies (after cookie parser)
+req.session     // Session data (after session middleware)
+req.ip          // Client IP address
+req.get(header) // Get specific header
+req.is(type)    // Check content type
+```
+
+## Response Object (res)
+
+```typescript
+res.status(code)           // Set status code
+res.send(body)             // Send response
+res.json(obj)              // Send JSON response
+res.html(html)             // Send HTML response
+res.text(text)             // Send text response
+res.redirect(url)          // Redirect
+res.redirect(status, url)  // Redirect with status
+res.set(header, value)     // Set response header
+res.cookie(name, value, options) // Set cookie
+res.clearCookie(name)      // Clear cookie
+res.type(contentType)      // Set content type
+res.sendFile(path)         // Send file
+res.download(path)         // Download file
+res.end()                  // End response
+```
+
+## Error Handling
+
+```typescript
+import { bunway, errorHandler, HttpError } from 'bunway'
+
+const app = bunway()
+
+// Throw HTTP errors
+app.get('/error', (req, res, next) => {
+  throw new HttpError(404, 'Not Found')
+})
+
+// Custom error handling
+app.use((err, req, res, next) => {
+  console.error(err)
+  res.status(err.status || 500).json({
+    error: err.message
+  })
+})
+
+// Or use built-in error handler
+app.use(errorHandler())
+```
+
+## WebSockets
+
+```typescript
+import { bunway } from 'bunway'
+
+const app = bunway()
+
+app.ws('/chat', {
+  open(ws) {
+    console.log('Client connected')
+  },
+  message(ws, message) {
+    ws.send(`Echo: ${message}`)
+  },
+  close(ws) {
+    console.log('Client disconnected')
+  }
+})
+
+app.listen(3000)
+```
+
+## Express Migration Guide
+
+### What stays the same:
+- `app.get()`, `app.post()`, etc.
+- `req.params`, `req.query`, `req.body`
+- `res.json()`, `res.send()`, `res.status()`
+- Middleware pattern `(req, res, next)`
+- `app.use()` for middleware
+
+### What changes:
+- Import from `'bunway'` instead of `'express'`
+- Use `bunway()` instead of `express()`
+- Built-in middleware (no need for separate packages)
+
+### Migration example:
+
+```typescript
+// Before (Express)
+import express from 'express'
+import cors from 'cors'
+import bodyParser from 'body-parser'
+
+const app = express()
+app.use(cors())
+app.use(bodyParser.json())
+
+// After (bunWay)
+import { bunway, cors, json } from 'bunway'
+
+const app = bunway()
+app.use(cors())
+app.use(json())
+```
+
+## TypeScript Support
+
+bunWay is written in TypeScript and provides full type definitions:
+
+```typescript
+import { bunway, BunRequest, BunResponse, NextFunction } from 'bunway'
+
+const app = bunway()
+
+app.get('/typed', (req: BunRequest, res: BunResponse, next: NextFunction) => {
+  res.json({ typed: true })
+})
+```
+
+## Common Patterns
+
+### Authentication Middleware
+
+```typescript
+const authMiddleware = (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1]
+  if (!token) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+  // Verify token...
+  next()
+}
+
+app.use('/api', authMiddleware)
+```
+
+### Async Handlers
+
+```typescript
+app.get('/async', async (req, res) => {
+  const data = await fetchData()
+  res.json(data)
+})
+```
+
+### Chained Response Methods
+
+```typescript
+app.get('/chained', (req, res) => {
+  res
+    .status(200)
+    .set('X-Custom-Header', 'value')
+    .json({ success: true })
+})
+```
+
+## Performance Tips
+
+1. bunWay is already optimized for Bun - no additional configuration needed
+2. Use built-in middleware instead of external packages
+3. Leverage Bun's native file serving for static files
+4. Use WebSockets for real-time features (Bun's WS is very fast)
+
+## Links
+
+- Documentation: https://bunway.jointops.dev
+- GitHub: https://github.com/JointOps/bunway
+- npm: https://www.npmjs.com/package/bunway
+- Discord: https://discord.gg/9VuNVM4k
+- Twitter: https://x.com/JointOps_
