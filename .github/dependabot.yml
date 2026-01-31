@@ -1,0 +1,69 @@
+version: 2
+updates:
+  # NPM dependencies
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "UTC"
+    labels:
+      - dependencies
+      - npm
+    reviewers:
+      - JointOps
+    assignees:
+      - JointOps
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      # Group dev dependencies together
+      dev-dependencies:
+        patterns:
+          - "@types/*"
+          - "typescript"
+          - "prettier"
+          - "typedoc"
+          - "vitepress"
+        update-types:
+          - minor
+          - patch
+      # Group test dependencies
+      test-dependencies:
+        patterns:
+          - "autocannon"
+        update-types:
+          - minor
+          - patch
+    # Ignore major version updates for frameworks (breaking changes)
+    ignore:
+      - dependency-name: "express"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "fastify"
+        update-types: ["version-update:semver-major"]
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - ci
+    reviewers:
+      - JointOps
+    commit-message:
+      prefix: "ci(deps)"
+
+  # Benchmark directory dependencies (if separate)
+  - package-ecosystem: npm
+    directory: "/benchmark"
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies
+      - benchmark
+    commit-message:
+      prefix: "chore(benchmark)"

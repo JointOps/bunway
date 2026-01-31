@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://bunwaylabs.github.io/bunway/sitemap.xml
+Sitemap: https://bunway.jointops.dev/sitemap.xml

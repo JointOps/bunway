@@ -1,116 +1,131 @@
 ---
 title: Roadmap & Contributions
-description: Explore bunWay’s community roadmap, contribution guidelines, and current focus areas for Bun-native features.
+description: Explore bunWay's community roadmap, contribution guidelines, and current focus areas for Bun-native features.
 ---
 
 # Roadmap & Contributions
 
-bunway is a community-powered experiment to build the Bun-native, all-in-one web toolkit we want to use. Think of this page as our shared map—and the invitation to help draw the next checkpoints.
+bunway is a community-powered project building the Bun-native, Express-compatible web toolkit we want to use. This page shows what's shipped and what's next.
 
-## Philosophy: Bun-first, Battery-packed
+## Philosophy
 
-- **Bun is the runtime.** Fetch, streams, crypto, testing—Bun already ships the toys, we just get to play with them.
-- **Express vibes forever.** Familiar middleware ergonomics make Express expats feel at home on Bun.
-- **All-in-one ambition.** We’re chasing a single package that covers routing, middleware, sessions, security, observability—the works.
-- **Ship & tell.** Every feature rides out with TypeDoc, guides, and examples so the next explorer moves faster.
+- **Express-compatible** – same `(req, res, next)` signature and middleware patterns you know
+- **Bun-native** – built on Bun's Fetch primitives, no Node polyfills
+- **Batteries included** – one package for routing, middleware, sessions, security, observability
+- **Community-led** – we build what developers actually need
 
 <div class="timeline">
   <div class="timeline__node">
-    <span class="timeline__badge success">Phase 0 · shipped</span>
+    <span class="timeline__badge success">Phase 0 · Complete</span>
     <h3>Core MVP</h3>
-    <p>Express vibes unlocked. bunway now wraps Bun’s Request/Response primitives with the essentials.</p>
+    <p>Express-compatible foundation with Bun-native primitives.</p>
     <ul>
-      <li><code>WayRequest</code>, <code>WayResponse</code>, <code>WayContext</code></li>
+      <li><code>BunRequest</code>, <code>BunResponse</code> with Express-style APIs</li>
+      <li>Express-compatible <code>(req, res, next)</code> handler signature</li>
       <li>Router verbs, params, sub-routers, middleware, 404 fallback</li>
-      <li>Response finalizer merging middleware header bags</li>
       <li><code>bunway()</code> factory + <code>app.listen()</code></li>
       <li>Built-ins: <code>errorHandler</code>, <code>cors</code>, <code>json</code>, <code>urlencoded</code>, <code>text</code></li>
-      <li>Bun test suite covering routes, errors, CORS, body limits</li>
+      <li>Comprehensive Bun test suite</li>
     </ul>
   </div>
   <div class="timeline__node">
-    <span class="timeline__badge">Phase 1</span>
+    <span class="timeline__badge success">Phase 1 · Complete</span>
     <h3>HTTP niceties & DX</h3>
-    <p>Polish the experience. Cookies, headers, compression—because ergonomics matter.</p>
+    <p>Polished developer experience with essential middleware.</p>
     <ul>
-      <li>Cookie helpers (parse/set, signed cookies)</li>
-      <li>Security headers (helmet-style middleware)</li>
-      <li>Compression (gzip/br) via Bun APIs</li>
-      <li>Static file serving with cache controls & etags</li>
-      <li>Weak/strong ETag helpers for user responses</li>
-      <li>Expanded docs & examples</li>
+      <li><code>cookieParser()</code> – parse/set cookies, signed cookies</li>
+      <li><code>helmet()</code> – security headers</li>
+      <li><code>compression()</code> – gzip/br compression</li>
+      <li><code>serveStatic()</code> – static file serving with cache controls</li>
     </ul>
   </div>
   <div class="timeline__node">
-    <span class="timeline__badge">Phase 2</span>
-    <h3>Sessions & auth glue</h3>
-    <p>Give bunway a memory—sessions, CSRF protection, auth helpers.</p>
+    <span class="timeline__badge success">Phase 2 · Complete</span>
+    <h3>Sessions & auth</h3>
+    <p>Stateful applications with sessions and authentication.</p>
     <ul>
-      <li>Session middleware with pluggable stores (Memory, Redis)</li>
-      <li>Session rotation helpers</li>
-      <li>CSRF protection (token + cookie)</li>
-      <li>Auth helpers for basic/JWT flows</li>
+      <li><code>session()</code> – session middleware with Memory/File stores</li>
+      <li><code>csrf()</code> – CSRF protection</li>
+      <li><code>passport()</code> – authentication middleware</li>
     </ul>
   </div>
   <div class="timeline__node">
-    <span class="timeline__badge">Phase 3</span>
+    <span class="timeline__badge progress">Phase 3 · In Progress</span>
     <h3>Streaming & uploads</h3>
-    <p>Let bunway flex its streaming muscles—multipart, SSE, websockets.</p>
+    <p>Advanced request handling for modern applications.</p>
     <ul>
-      <li>Multipart/form-data streaming with limits & storage adapters</li>
-      <li>File upload constraints (size, type filters)</li>
-      <li>Server-Sent Events helper</li>
-      <li>WebSocket routing sugar on top of <code>Bun.serve</code></li>
+      <li class="done">WebSocket routing (types exported)</li>
+      <li class="todo">Multipart/form-data streaming</li>
+      <li class="todo">File upload constraints (size, type filters)</li>
+      <li class="todo">Server-Sent Events helper</li>
     </ul>
   </div>
   <div class="timeline__node">
-    <span class="timeline__badge">Phase 4</span>
+    <span class="timeline__badge progress">Phase 4 · In Progress</span>
     <h3>QoS & protection</h3>
-    <p>Keep the gates strong—rate limiting, timeouts, DoS guards.</p>
+    <p>Production-ready quality of service features.</p>
     <ul>
-      <li>Rate limiting (Memory + Redis)</li>
-      <li>Request timeouts/aborts + body size guards beyond <code>Content-Length</code></li>
-      <li>Basic DoS protection (slowloris guards, header sanity checks)</li>
+      <li class="done"><code>rateLimit()</code> – rate limiting with Memory store</li>
+      <li class="todo">Request timeouts/aborts</li>
+      <li class="todo">DoS protection (slowloris guards)</li>
     </ul>
   </div>
   <div class="timeline__node">
-    <span class="timeline__badge">Phase 5</span>
+    <span class="timeline__badge success">Phase 5 · Complete</span>
     <h3>Observability</h3>
-    <p>See everything—logs, request IDs, metrics so we can brag about latency.</p>
+    <p>Visibility into your running applications.</p>
     <ul>
-      <li>Bun-native logger (morgan-style + structured output)</li>
-      <li>Request IDs + trace propagation helpers</li>
-      <li>Metrics endpoint (Prometheus) with histograms</li>
+      <li><code>logger()</code> – morgan-style request logging</li>
+      <li class="todo">Request IDs + trace propagation</li>
+      <li class="todo">Metrics endpoint (Prometheus)</li>
     </ul>
   </div>
 </div>
 
+## Current focus areas
+
+We're actively working on:
+
+1. **File uploads** – multipart/form-data parsing with streaming support
+2. **SSE helpers** – Server-Sent Events for real-time applications
+3. **Request timeouts** – graceful handling of slow clients
+4. **WebSocket routing** – sugar on top of `Bun.serve` WebSocket support
+
 ## How to contribute
 
-::: tip How to start
-Pick a phase from the roadmap, open an issue to discuss approach, and prototype using Bun’s native APIs. We love rough proof-of-concepts—iterate together!
+::: tip Getting started
+Pick an item from the roadmap, open an issue to discuss approach, and prototype using Bun's native APIs.
 :::
 
-1. **Pick a phase** – grab the milestone that sparks joy and open an issue/PR.
-2. **Prototype** – hack on Bun’s primitives; keep it native, keep it lean.
-3. **Test & document** – Bun tests + TypeDoc updates = future contributors thanking you.
-4. **Collaborate** – riff in issues, review PRs, shape the roadmap together.
+1. **Pick a feature** – grab something from the roadmap that interests you
+2. **Open an issue** – discuss the approach before diving in
+3. **Prototype** – build on Bun's primitives, keep it lean
+4. **Test & document** – Bun tests + docs updates
+5. **Submit PR** – we'll review and iterate together
 
 ## Development workflow
 
 ```bash
-bun install           # install deps
-bun run test          # Bun test suite
+bun install           # Install deps
+bun run test          # Run test suite
 bun run typecheck     # TypeScript check
-bun run format        # Prettier
-bun run docs          # TypeDoc API reference
-bun run docs:dev      # VitePress docs site (development)
+bun run format        # Prettier formatting
+bun run docs:dev      # VitePress docs (development)
 ```
 
-`npm run prepare:dist` builds the publishable package (`dist/`), ready for npm.
+`bun run prepare:dist` builds the publishable package.
 
 ## Community promise
 
-Bunway is the clubhouse for Bun devs chasing that Express nostalgia. We’re building the toolkit we want: fast, native, expressive, and delightfully bun-tastic.
+bunway is built for developers who love Express patterns but want Bun's speed. We're creating the toolkit we wish existed: fast, native, expressive, and well-documented.
 
-Jump in. Share ideas. Iterate quickly. The more we contribute, the sweeter Bun-first programming gets.
+Jump in. Share ideas. Help us build the best Express-compatible framework for Bun.
+
+<style>
+.timeline__badge.success { background: #10b981; }
+.timeline__badge.progress { background: #f59e0b; }
+.done { color: #10b981; }
+.done::before { content: "✓ "; font-weight: bold; }
+.todo { color: #6b7280; }
+.todo::before { content: "○ "; }
+</style>

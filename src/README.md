@@ -1,50 +1,64 @@
 # bunWay
 
-**Run everything. The Bun way.** bunWay is an open-source experiment to recreate the ergonomics of Express on top of Bun’s native runtime. If you moved to Bun for its speed and modern APIs but miss the familiar middleware/route flow, this toolkit is for you.
+**If you know Express, you know bunWay.** Same middleware, same routing, same `(req, res, next)` flow—just faster on Bun.
 
-## Overview
-
-- Built entirely on Bun’s `Request`/`Response` objects.
-- Familiar `(ctx, next)` middleware signature and `bunway()` factory.
-- Ships batteries included: `json`, `urlencoded`, `text`, `cors`, and `errorHandler` middleware.
-- TypeScript-first with generated `.d.ts` files and TypeDoc reference.
-
-## Goal
-
-Give Bun developers the nostalgic Express flow without leaving the Bun runtime. No Node polyfills, no surprises—just Bun-native speed with a welcoming API.
-
-## Quick usage
-
-```ts
-import { bunway, cors, json, errorHandler, HttpError } from "bunway";
-
-const app = bunway();
-app.use(cors({ origin: true }));
-app.use(json());
-app.use(errorHandler({ logger: console.error }));
-
-app.get("/", (ctx) => ctx.res.text("Hello from bunway"));
-app.get("/users/:id", (ctx) => {
-  const id = ctx.req.param("id");
-  if (!id) throw new HttpError(404, "User not found");
-  return ctx.res.json({ id });
-});
-
-app.listen({ port: 7070 });
-```
-
-Install via:
+## Quick Start
 
 ```bash
 bun add bunway
 ```
 
-## Learn more
+```ts
+import { bunway, cors, helmet, logger, json, session } from "bunway";
 
-- Documentation: <https://bunwaylabs.github.io/bunway/>
-- GitHub: <https://github.com/bunwaylabs/bunway>
-- npm package: <https://www.npmjs.com/package/bunway>
+const app = bunway();
+
+app.use(cors());
+app.use(helmet());
+app.use(logger('dev'));
+app.use(json());
+app.use(session({ secret: 'my-secret' }));
+
+app.get("/users/:id", (req, res) => {
+  res.json({ id: req.params.id });
+});
+
+app.listen(3000);
+```
+
+## Built-in Middleware
+
+All Express-compatible, all built-in:
+
+| bunWay | Express Equivalent |
+|--------|-------------------|
+| `json()` | `express.json()` |
+| `urlencoded()` | `express.urlencoded()` |
+| `serveStatic()` | `express.static()` |
+| `cors()` | `cors` |
+| `helmet()` | `helmet` |
+| `logger()` | `morgan` |
+| `session()` | `express-session` |
+| `csrf()` | `csurf` |
+| `compression()` | `compression` |
+| `rateLimit()` | `express-rate-limit` |
+| `cookieParser()` | `cookie-parser` |
+| `passport()` | `passport` |
+
+## Why bunWay?
+
+- **Zero learning curve** — Same API patterns as Express
+- **Batteries included** — Sessions, security, logging, rate limiting—all built-in
+- **Bun-native** — Built on Bun.serve, no Node polyfills
+- **Fast** — Bun is 3-4x faster than Node.js
+
+## Learn More
+
+- Documentation: https://bunway.jointops.dev/
+- Express Migration: https://bunway.jointops.dev/guide/express-migration.html
+- GitHub: https://github.com/JointOps/bunway
+- npm: https://www.npmjs.com/package/bunway
 
 ## License
 
-MIT © bunway contributors
+MIT © bunWay contributors

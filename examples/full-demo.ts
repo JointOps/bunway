@@ -1,7 +1,5 @@
 type BunwayExports = typeof import("../src");
 
-// When working inside the repo we usually want to import from `src/` so edits are reflected
-// immediately. Published consumers resolve the package from `dist/`. Toggle via env.
 const runtime = (await (Bun.env.BUNWAY_USE_SRC === "true"
   ? import("../src")
   : import("../dist"))) as BunwayExports;
@@ -24,17 +22,17 @@ type User = { id: string; name: string };
 
 function createAdminRouter(): RouterInstance {
   const router = new RouterCtor();
-  router.use(async (ctx, next) => {
-    const auth = ctx.req.headers.get("authorization");
+  router.use((req, res, next) => {
+    const auth = req.headers.get("authorization");
     if (auth !== "super-secret") {
       throw new HttpError(401, "Admin authorization required", {
         headers: { "WWW-Authenticate": "Basic realm=admin" },
       });
     }
-    await next();
+    next();
   });
 
-  router.get("/stats", (ctx) => ctx.res.json({ uptime: process.uptime() }));
+  router.get("/stats", (req, res) => res.json({ uptime: process.uptime() }));
   return router;
 }
 
@@ -45,40 +43,35 @@ function createApiRouter(): RouterInstance {
     ["2", { id: "2", name: "Linus" }],
   ]);
 
-  router.get("/users", (ctx) => ctx.res.ok({ users: Array.from(users.values()) }));
+  router.get("/users", (req, res) => res.ok({ users: Array.from(users.values()) }));
 
-  router.get("/users/:id", (ctx) => {
-    const user = users.get(ctx.req.param("id") ?? "");
+  router.get("/users/:id", (req, res) => {
+    const user = users.get(req.params.id ?? "");
     if (!user) throw new HttpError(404, "User not found");
-    return ctx.res.ok(user);
+    res.ok(user);
   });
 
-  router.post("/users", async (ctx) => {
-    ctx.req.applyBodyParserOverrides({
-      text: { enabled: false },
-      urlencoded: { enabled: true },
-    });
-    const form = (await ctx.req.parseBody()) as Record<string, unknown>;
+  router.post("/users", (req, res) => {
+    const form = req.body as Record<string, unknown>;
     const id = crypto.randomUUID();
     const name = String(form?.name ?? "Anonymous");
     users.set(id, { id, name });
-    return ctx.res.created({ id, name });
+    res.created({ id, name });
   });
 
-  router.post("/users/:id/preferences", async (ctx) => {
-    const data = (await ctx.req.parseBody()) as Record<string, unknown>;
-    const id = ctx.req.param("id")!;
+  router.post("/users/:id/preferences", (req, res) => {
+    const data = req.body as Record<string, unknown>;
+    const id = req.params.id;
     users.set(id, { id, name: String(data?.name ?? "Anonymous") });
-    ctx.req.locals.updatedAt = new Date().toISOString();
-    return ctx.res.json({ saved: true, updatedAt: ctx.req.locals.updatedAt });
+    res.locals.updatedAt = new Date().toISOString();
+    res.json({ saved: true, updatedAt: res.locals.updatedAt });
   });
 
   router.get(
     "/raw",
-    () =>
-      new Response(JSON.stringify({ message: "Raw response" }), {
-        headers: { "Content-Type": "application/json" },
-      })
+    (req, res) => {
+      res.type("application/json").send(JSON.stringify({ message: "Raw response" }));
+    }
   );
 
   return router;
@@ -102,16 +95,17 @@ export function createApp(): ReturnType<typeof bunway> {
     })
   );
 
-  app.use(async (ctx, next) => {
+  app.use((req, res, next) => {
     if (!shouldLogRequests) {
-      await next();
+      next();
       return;
     }
     const start = performance.now();
-    await next();
+    res.locals.requestStart = start;
+    next();
     const duration = performance.now() - start;
     console.log(
-      `${ctx.req.method} ${ctx.req.path} -> ${ctx.res.statusCode} (${duration.toFixed(1)}ms)`
+      `${req.method} ${req.path} -> ${res.statusCode} (${duration.toFixed(1)}ms)`
     );
   });
 
@@ -121,14 +115,8 @@ export function createApp(): ReturnType<typeof bunway> {
 
   app.use(
     errorHandler({
-      logger: (err, ctx) => {
-        console.error("Unhandled error", ctx.req.method, ctx.req.path, err);
-      },
-      map: (err) => {
-        if (err instanceof SyntaxError) {
-          return new HttpError(400, "Malformed JSON payload");
-        }
-        return null;
+      logger: (err, req) => {
+        console.error("Unhandled error", req.method, req.path, err);
       },
     })
   );
@@ -136,12 +124,9 @@ export function createApp(): ReturnType<typeof bunway> {
   app.use("/admin", createAdminRouter());
   app.use("/api", createApiRouter());
 
-  app.get("/health", (ctx) => ctx.res.text("OK"));
-  app.post("/echo", async (ctx) => {
-    // Auto body parsing ran earlier, so `ctx.req.body` is already populated; parseBody() is
-    // called here only to illustrate the manual override API.
-    const body = await ctx.req.parseBody();
-    return ctx.res.ok({ body });
+  app.get("/health", (req, res) => res.text("OK"));
+  app.post("/echo", (req, res) => {
+    res.ok({ body: req.body });
   });
 
   return app;

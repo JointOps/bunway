@@ -1,7 +1,7 @@
 import { defineConfig } from "vitepress";
 import type { HeadConfig } from "vitepress";
 
-const CANONICAL_BASE = "https://bunwaylabs.github.io/bunway/";
+const CANONICAL_BASE = "https://bunway.jointops.dev/";
 
 function createCanonicalUrl(relativePath?: string): string {
   const base = CANONICAL_BASE.endsWith("/") ? CANONICAL_BASE : `${CANONICAL_BASE}/`;
@@ -15,7 +15,7 @@ function createCanonicalUrl(relativePath?: string): string {
 }
 
 export default defineConfig({
-  base: "/bunway/",
+  base: "/",
   title: "bunWay",
   description: "Bun-native routing toolkit",
   appearance: true,
@@ -45,7 +45,7 @@ export default defineConfig({
     return head;
   },
   themeConfig: {
-    nav: [{ text: "API Reference", link: "https://bunwaylabs.github.io/bunway/api/index.html" }],
+    nav: [{ text: "API Reference", link: "https://bunway.jointops.dev/api/index.html" }],
     outline: [2, 3],
     docFooter: {
       prev: "Previous",
@@ -57,8 +57,10 @@ export default defineConfig({
         items: [
           { text: "Overview", link: "/guide/overview" },
           { text: "Getting Started", link: "/guide/getting-started" },
+          { text: "Coming from Express", link: "/guide/express-migration" },
           { text: "Core Primitives", link: "/guide/core-primitives" },
           { text: "Router", link: "/guide/router" },
+          { text: "WebSockets", link: "/guide/websockets" },
         ],
       },
       {
@@ -67,6 +69,13 @@ export default defineConfig({
           { text: "Overview", link: "/middleware/index" },
           { text: "Body Parsing", link: "/middleware/body-parsing" },
           { text: "CORS", link: "/middleware/cors" },
+          { text: "Session", link: "/middleware/session" },
+          { text: "Authentication", link: "/middleware/auth" },
+          { text: "Logger", link: "/middleware/logger" },
+          { text: "Security", link: "/middleware/security" },
+          { text: "Rate Limiting", link: "/middleware/rate-limit" },
+          { text: "Static Files", link: "/middleware/static" },
+          { text: "Cookies", link: "/middleware/cookies" },
           { text: "Error Handling", link: "/middleware/error-handler" },
         ],
       },
@@ -80,7 +89,7 @@ export default defineConfig({
       },
     ],
     socialLinks: [
-      { icon: "github", link: "https://github.com/bunwaylabs/bunway" },
+      { icon: "github", link: "https://github.com/JointOps/bunway" },
       { icon: "npm", link: "https://www.npmjs.com/package/bunway" }
     ],
   },

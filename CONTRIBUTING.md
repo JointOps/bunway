@@ -30,7 +30,7 @@ All tests use Bun’s built-in runner. Please add coverage for new behaviour in 
 
 ## Pull requests
 
-1. **Discuss first** – open an issue (bug or feature request) before large changes. Check the [Roadmap](https://bunwaylabs.github.io/bunway/community/build-together.html) for active phases.
+1. **Discuss first** – open an issue (bug or feature request) before large changes. Check the [Roadmap](https://bunway.jointops.dev/community/build-together.html) for active phases.
 2. **Branch naming** – any descriptive branch name is fine (e.g. `feature/cookies-support`).
 3. **Keep commits focused** – small, logical commits are easier to review.
 4. **Run the checklist** – make sure tests, type checks, docs, and formatters pass before opening a PR.
@@ -44,8 +44,8 @@ All tests use Bun’s built-in runner. Please add coverage for new behaviour in 
 
 ## Release process (maintainers)
 
-1. Update the version in `package.json` following semver.
-2. Run `npm run release` – this checks the tree, builds docs and dist, verifies the package, and publishes `dist/` to npm.
+1. Update the version in the `VERSION` file following semver (this is the source of truth).
+2. Run `npm run release` – this syncs the version, checks the tree, builds docs and dist, verifies the package, and publishes `dist/` to npm.
 3. Create a GitHub release with notes summarising the changes.
 
 ## Community guidelines

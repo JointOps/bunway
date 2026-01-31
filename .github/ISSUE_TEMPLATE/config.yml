@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: bunWay documentation
-    url: https://bunwaylabs.github.io/bunway/
+    url: https://bunway.jointops.dev/
     about: Usage guides, roadmap, and API reference live here.
   - name: Roadmap & contribution guide
-    url: https://bunwaylabs.github.io/bunway/community/build-together.html
+    url: https://bunway.jointops.dev/community/build-together.html
     about: Learn about active phases and how to get involved.

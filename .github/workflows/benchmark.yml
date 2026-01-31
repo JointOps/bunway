@@ -1,0 +1,123 @@
+name: Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: 'Benchmark duration in seconds'
+        required: false
+        default: '10'
+
+jobs:
+  benchmark:
+    name: Performance Benchmark
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Install autocannon
+        run: npm install -g autocannon
+
+      - name: Run benchmark
+        id: benchmark
+        run: |
+          # Start bunWay server
+          bun benchmark/servers/bunway.ts &
+          SERVER_PID=$!
+          sleep 2
+
+          # Run benchmarks
+          echo "## JSON Benchmark" >> $GITHUB_STEP_SUMMARY
+          JSON_RESULT=$(autocannon -c 100 -d 10 -j http://localhost:3000/json)
+          JSON_RPS=$(echo $JSON_RESULT | jq '.requests.average')
+          JSON_LATENCY=$(echo $JSON_RESULT | jq '.latency.average')
+          echo "- **Requests/sec**: $JSON_RPS" >> $GITHUB_STEP_SUMMARY
+          echo "- **Latency (avg)**: ${JSON_LATENCY}ms" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "## Plaintext Benchmark" >> $GITHUB_STEP_SUMMARY
+          PLAIN_RESULT=$(autocannon -c 100 -d 10 -j http://localhost:3000/plaintext)
+          PLAIN_RPS=$(echo $PLAIN_RESULT | jq '.requests.average')
+          PLAIN_LATENCY=$(echo $PLAIN_RESULT | jq '.latency.average')
+          echo "- **Requests/sec**: $PLAIN_RPS" >> $GITHUB_STEP_SUMMARY
+          echo "- **Latency (avg)**: ${PLAIN_LATENCY}ms" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "## Routing Benchmark" >> $GITHUB_STEP_SUMMARY
+          ROUTE_RESULT=$(autocannon -c 100 -d 10 -j http://localhost:3000/route50/123)
+          ROUTE_RPS=$(echo $ROUTE_RESULT | jq '.requests.average')
+          ROUTE_LATENCY=$(echo $ROUTE_RESULT | jq '.latency.average')
+          echo "- **Requests/sec**: $ROUTE_RPS" >> $GITHUB_STEP_SUMMARY
+          echo "- **Latency (avg)**: ${ROUTE_LATENCY}ms" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "## Middleware Benchmark (10 layers)" >> $GITHUB_STEP_SUMMARY
+          MW_RESULT=$(autocannon -c 100 -d 10 -j http://localhost:3000/middleware)
+          MW_RPS=$(echo $MW_RESULT | jq '.requests.average')
+          MW_LATENCY=$(echo $MW_RESULT | jq '.latency.average')
+          echo "- **Requests/sec**: $MW_RPS" >> $GITHUB_STEP_SUMMARY
+          echo "- **Latency (avg)**: ${MW_LATENCY}ms" >> $GITHUB_STEP_SUMMARY
+
+          # Save results for artifact
+          mkdir -p benchmark/results
+          echo "{\"json\": $JSON_RESULT, \"plaintext\": $PLAIN_RESULT, \"routing\": $ROUTE_RESULT, \"middleware\": $MW_RESULT}" > benchmark/results/ci-results.json
+
+          # Set outputs
+          echo "json_rps=$JSON_RPS" >> $GITHUB_OUTPUT
+          echo "plaintext_rps=$PLAIN_RPS" >> $GITHUB_OUTPUT
+
+          kill $SERVER_PID 2>/dev/null || true
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmark/results/ci-results.json
+          retention-days: 30
+
+      - name: Comment PR with results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const results = JSON.parse(fs.readFileSync('benchmark/results/ci-results.json', 'utf8'));
+
+            const body = `## Benchmark Results
+
+            | Endpoint | Requests/sec | Latency (avg) | Latency (p99) |
+            |----------|-------------|---------------|---------------|
+            | /json | ${results.json.requests.average.toFixed(0)} | ${results.json.latency.average.toFixed(2)}ms | ${results.json.latency.p99.toFixed(2)}ms |
+            | /plaintext | ${results.plaintext.requests.average.toFixed(0)} | ${results.plaintext.latency.average.toFixed(2)}ms | ${results.plaintext.latency.p99.toFixed(2)}ms |
+            | /route50/:id | ${results.routing.requests.average.toFixed(0)} | ${results.routing.latency.average.toFixed(2)}ms | ${results.routing.latency.p99.toFixed(2)}ms |
+            | /middleware | ${results.middleware.requests.average.toFixed(0)} | ${results.middleware.latency.average.toFixed(2)}ms | ${results.middleware.latency.p99.toFixed(2)}ms |
+
+            <details>
+            <summary>Test Configuration</summary>
+
+            - Duration: 10s per endpoint
+            - Connections: 100
+            - Runner: ubuntu-latest
+            </details>
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });

@@ -38,3 +38,12 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .DS_Store
 .vscode
 docs/api
+
+# Claude AI assistant config
+CLAUDE.md
+.claude/
+
+# Internal planning docs (not for public repo)
+PLAN.md
+plan.md
+EXPRESS-DIFF.md
