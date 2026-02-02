@@ -16,7 +16,7 @@ function createCanonicalUrl(relativePath?: string): string {
 
 export default defineConfig({
   base: "/",
-  title: "bunWay - Express API. Bun speed.",
+  title: "bunWay",
   description: "Express-compatible web framework for Bun. Drop-in replacement with zero rewrites. Same API, faster runtime.",
   appearance: true,
   cleanUrls: false,
@@ -121,7 +121,8 @@ export default defineConfig({
     ],
     socialLinks: [
       { icon: "github", link: "https://github.com/JointOps/bunway" },
-      { icon: "npm", link: "https://www.npmjs.com/package/bunway" }
+      { icon: "npm", link: "https://www.npmjs.com/package/bunway" },
+      { icon: "discord", link: "https://discord.gg/fTF4qjaMFT" }
     ],
   },
 });
