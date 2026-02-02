@@ -417,5 +417,5 @@ app.get('/chained', (req, res) => {
 - Documentation: https://bunway.jointops.dev
 - GitHub: https://github.com/JointOps/bunway
 - npm: https://www.npmjs.com/package/bunway
-- Discord: https://discord.gg/9VuNVM4k
+- Discord: https://discord.gg/fTF4qjaMFT
 - Twitter: https://x.com/JointOps_
