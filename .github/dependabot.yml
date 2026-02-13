@@ -4,15 +4,12 @@ updates:
   - package-ecosystem: npm
     directory: "/"
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
       time: "09:00"
-      timezone: "UTC"
+      timezone: "Etc/UTC"
     labels:
       - dependencies
       - npm
-    reviewers:
-      - JointOps
     assignees:
       - JointOps
     commit-message:
@@ -52,8 +49,6 @@ updates:
     labels:
       - dependencies
       - ci
-    reviewers:
-      - JointOps
     commit-message:
       prefix: "ci(deps)"
 
