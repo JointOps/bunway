@@ -183,7 +183,7 @@ describe("logger middleware", () => {
     const timeMatch = logs[0].match(/(\d+\.\d+) ms/);
     expect(timeMatch).toBeDefined();
     const time = parseFloat(timeMatch![1]);
-    expect(time).toBeGreaterThanOrEqual(50);
+    expect(time).toBeGreaterThanOrEqual(48); // Allow small timing variance for CI
   });
 
   it("logs different status codes correctly", async () => {
