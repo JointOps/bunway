@@ -117,11 +117,11 @@ describe("Express Compatibility: Middleware Chain", () => {
     app.get("/protected", auth, (req, res) => res.json({ ok: true }));
     app.get("/public", (req, res) => res.json({ ok: true }));
 
-    await app.handle(buildRequest("/protected"));
+    const response1 = await app.handle(buildRequest("/protected"));
     expect(authCalled).toBe(true);
 
     authCalled = false;
-    await app.handle(buildRequest("/public"));
+    const response2 = await app.handle(buildRequest("/public"));
     expect(authCalled).toBe(false);
   });
 
