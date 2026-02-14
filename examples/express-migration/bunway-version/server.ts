@@ -23,7 +23,11 @@ app.use(
     secret: "taskapi-secret-key",
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false },
+    cookie: {
+      secure: false,
+      httpOnly: true,
+      sameSite: "lax",
+    },
   })
 );
 

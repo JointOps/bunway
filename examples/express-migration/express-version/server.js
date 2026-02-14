@@ -19,7 +19,9 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
 app.use(cookieParser());
+
 app.use(express.static(join(__dirname, "public")));
 
 const limiter = rateLimit({
@@ -33,7 +35,11 @@ app.use(
     secret: "taskapi-secret-key",
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false },
+    cookie: {
+      secure: false,
+      httpOnly: true,
+      sameSite: "lax",
+    },
   })
 );
 
