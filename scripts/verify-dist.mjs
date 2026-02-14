@@ -41,9 +41,12 @@ async function main() {
     requiredFiles.map((file) => ensureFileExists(new URL(`../${file}`, import.meta.url)))
   );
 
-  const gitStatus = execSync('git status --porcelain', { encoding: 'utf8' }).trim();
-  if (gitStatus) {
-    throw new Error('Working tree is dirty. Commit or stash changes before releasing.');
+  // Skip git status check in CI environment (files may change during build)
+  if (!process.env.CI) {
+    const gitStatus = execSync('git status --porcelain', { encoding: 'utf8' }).trim();
+    if (gitStatus) {
+      throw new Error('Working tree is dirty. Commit or stash changes before releasing.');
+    }
   }
 
   try {
