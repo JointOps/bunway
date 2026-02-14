@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-02-14
+
+### Added
+- **Chainable routes** — Express-compatible `app.route()` API for cleaner route definitions
+  - Define multiple HTTP methods on the same path without repetition
+  - Supports all HTTP methods: GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD, ALL
+  - Works with middleware chaining per method
+  - Compatible with both app and Router instances
+  - Zero performance overhead (thin wrapper pattern)
+  - Example: `app.route('/users').get(listUsers).post(createUser)`
+
+### Documentation
+- Added comprehensive chainable routes section to router guide
+- Updated Express compatibility table in README
+- Enhanced LLM context files (llms.txt, llms-full.txt)
+- Added 22 integration tests (exceeds minimum requirement)
+
 ## [1.0.0] - 2026-01-31
 
 🎉 **First stable release!** bunWay is production-ready.
