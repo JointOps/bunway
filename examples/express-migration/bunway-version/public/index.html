@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TaskAPI - bunway Version</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    h1 { color: #333; }
+    code {
+      background: #f4f4f4;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 0.9em;
+    }
+    pre {
+      background: #f4f4f4;
+      padding: 15px;
+      border-radius: 5px;
+      overflow-x: auto;
+    }
+    .endpoint {
+      margin: 20px 0;
+      padding: 15px;
+      border-left: 3px solid #ff6b00;
+      background: #f9f9f9;
+    }
+    .method {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 3px;
+      font-weight: bold;
+      font-size: 0.85em;
+      margin-right: 10px;
+    }
+    .get { background: #61affe; color: white; }
+    .post { background: #49cc90; color: white; }
+    .put { background: #fca130; color: white; }
+    .delete { background: #f93e3e; color: white; }
+    .badge {
+      display: inline-block;
+      background: #ff6b00;
+      color: white;
+      padding: 4px 10px;
+      border-radius: 3px;
+      font-size: 0.85em;
+      margin-left: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>TaskAPI - bunway Version <span class="badge">Faster</span></h1>
+  <p>Same TaskAPI, now running on bunway with minimal code changes.</p>
+
+  <h2>Available Endpoints</h2>
+
+  <div class="endpoint">
+    <span class="method get">GET</span>
+    <code>/</code> - API info
+  </div>
+
+  <div class="endpoint">
+    <span class="method get">GET</span>
+    <code>/api/health</code> - Health check
+  </div>
+
+  <div class="endpoint">
+    <span class="method post">POST</span>
+    <code>/api/auth/login</code> - Login (username, password)
+  </div>
+
+  <div class="endpoint">
+    <span class="method post">POST</span>
+    <code>/api/auth/logout</code> - Logout
+  </div>
+
+  <div class="endpoint">
+    <span class="method get">GET</span>
+    <code>/api/auth/me</code> - Get current user (requires auth)
+  </div>
+
+  <div class="endpoint">
+    <span class="method get">GET</span>
+    <code>/api/tasks</code> - List tasks (requires auth)
+  </div>
+
+  <div class="endpoint">
+    <span class="method post">POST</span>
+    <code>/api/tasks</code> - Create task (requires auth)
+  </div>
+
+  <div class="endpoint">
+    <span class="method get">GET</span>
+    <code>/api/tasks/:id</code> - Get task (requires auth)
+  </div>
+
+  <div class="endpoint">
+    <span class="method put">PUT</span>
+    <code>/api/tasks/:id</code> - Update task (requires auth)
+  </div>
+
+  <div class="endpoint">
+    <span class="method delete">DELETE</span>
+    <code>/api/tasks/:id</code> - Delete task (requires auth)
+  </div>
+
+  <div class="endpoint">
+    <span class="method post">POST</span>
+    <code>/api/upload/avatar</code> - Upload avatar image (requires auth)
+  </div>
+
+  <h2>Test Users</h2>
+  <pre>{ username: "admin", password: "password123" }
+{ username: "user", password: "userpass" }</pre>
+
+  <h2>Example Request</h2>
+  <pre>curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "password123"}' \
+  -c cookies.txt
+
+curl -X GET http://localhost:3000/api/tasks \
+  -b cookies.txt</pre>
+</body>
+</html>
