@@ -1,5 +1,5 @@
 import { BunWayApp, bunway as createBunway, type BunWayOptions } from "./core/app";
-import { json, urlencoded, text } from "./middleware/body-parser";
+import { json, urlencoded, text, raw } from "./middleware/body-parser";
 import { cors } from "./middleware/cors";
 import { serveStatic } from "./middleware/static";
 import { cookieParser } from "./middleware/cookie-parser";
@@ -15,6 +15,7 @@ interface BunwayFactory {
   json: typeof json;
   urlencoded: typeof urlencoded;
   text: typeof text;
+  raw: typeof raw;
   cors: typeof cors;
   static: typeof serveStatic;
   cookieParser: typeof cookieParser;
@@ -31,6 +32,7 @@ const bunway = ((options?: BunWayOptions) => createBunway(options)) as BunwayFac
 bunway.json = json;
 bunway.urlencoded = urlencoded;
 bunway.text = text;
+bunway.raw = raw;
 bunway.cors = cors;
 bunway.static = serveStatic;
 bunway.cookieParser = cookieParser;
@@ -51,7 +53,7 @@ export { BunRequest } from "./core/request";
 export { BunResponse } from "./core/response";
 export { HttpError, isHttpError } from "./core/errors";
 
-export { json, urlencoded, text } from "./middleware/body-parser";
+export { json, urlencoded, text, raw } from "./middleware/body-parser";
 export { cors } from "./middleware/cors";
 export { errorHandler } from "./middleware/error-handler";
 export { serveStatic } from "./middleware/static";
@@ -67,7 +69,7 @@ export { logger } from "./middleware/logger";
 export type { Handler, ErrorHandler, NextFunction, RouterOptions, ListenOptions, CookieOptions, SendFileOptions } from "./types";
 export type { BunWayOptions } from "./core/app";
 export type { HttpErrorOptions } from "./core/errors";
-export type { JsonOptions, UrlencodedOptions, TextOptions } from "./middleware/body-parser";
+export type { JsonOptions, UrlencodedOptions, TextOptions, RawOptions } from "./middleware/body-parser";
 export type { CorsOptions } from "./middleware/cors";
 export type { ErrorHandlerOptions } from "./middleware/error-handler";
 export type { StaticOptions } from "./middleware/static";

@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-02-14
+
+### Added
+- **Raw body parser** — `raw()` middleware for parsing binary request bodies
+  - Essential for webhook signature verification (Stripe, GitHub, PayPal, etc.)
+  - Supports size limits with string format ("5mb", "100kb", "1.5mb")
+  - Custom content-type matching (string, RegExp, or function)
+  - `verify` callback for signature verification before body assignment
+  - Returns Buffer instance on `req.body` for binary data handling
+  - Example: `raw({ type: 'application/json', verify: (req, res, buf) => {...} })`
+
+### Documentation
+- Added comprehensive raw body parser guide with webhook examples
+- Updated body-parsing.md with signature verification patterns
+- Enhanced Express compatibility table in README
+- Updated LLM context files with raw parser details
+- Added 16 integration tests covering all raw parser features
+
+### Fixed
+- CI verification script now skips git status check in CI environment
+  - Prevents false failures when dist files change during build
+  - Enables successful publish workflow on VERSION changes
+
 ## [1.0.1] - 2026-02-14
 
 ### Added

@@ -49,7 +49,7 @@ app.listen(3000, () => {
 ### Body Parsing
 
 ```typescript
-import { bunway, json, urlencoded, text } from 'bunway'
+import { bunway, json, urlencoded, text, raw } from 'bunway'
 
 const app = bunway()
 
@@ -61,7 +61,50 @@ app.use(urlencoded({ extended: true }))
 
 // Parse text bodies
 app.use(text())
+
+// Parse raw binary bodies (for webhooks)
+app.use(raw({ limit: '5mb' }))
 ```
+
+#### Raw Body Parser for Webhooks
+
+The `raw()` middleware parses request bodies as raw Buffers, essential for webhook signature verification:
+
+```typescript
+import crypto from 'crypto'
+import { bunway, raw } from 'bunway'
+
+const app = bunway()
+
+app.post('/webhook/stripe',
+  raw({
+    type: 'application/json',
+    verify: (req, res, buf) => {
+      const signature = req.get('stripe-signature')
+      const secret = process.env.STRIPE_WEBHOOK_SECRET!
+
+      const expectedSig = crypto
+        .createHmac('sha256', secret)
+        .update(buf)
+        .digest('hex')
+
+      if (signature !== expectedSig) {
+        throw new Error('Invalid signature')
+      }
+    }
+  }),
+  (req, res) => {
+    // req.body is a Buffer
+    const event = JSON.parse(req.body.toString())
+    res.json({ received: true })
+  }
+)
+```
+
+**Options:**
+- `limit`: Max payload size (string like "5mb" or number in bytes, default "100kb")
+- `type`: Content-type matcher (string, RegExp, or function, default "application/octet-stream")
+- `verify`: Callback to verify the raw body before parsing (receives req, res, buf, encoding)
 
 ### CORS
 

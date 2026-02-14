@@ -1,6 +1,6 @@
 {
   "name": "bunway",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Express-style routing toolkit built natively for Bun.",
   "private": true,
   "type": "module",
