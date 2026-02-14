@@ -46,6 +46,7 @@ export { bunway };
 
 export { BunWayApp } from "./core/app";
 export { Router } from "./core/router";
+export { Route } from "./core/route";
 export { BunRequest } from "./core/request";
 export { BunResponse } from "./core/response";
 export { HttpError, isHttpError } from "./core/errors";

@@ -12,6 +12,7 @@ import type {
 import { isHttpError } from "./errors";
 import { FastMatcher } from "./fast-matcher";
 import { getPathname } from "../utils/url";
+import { Route } from "./route";
 
 interface SubRouter {
   prefix: string;
@@ -165,6 +166,10 @@ export class Router {
       this.addRoute(method, path, handlers);
     }
     return this;
+  }
+
+  route(path: string): Route {
+    return new Route(path, this);
   }
 
   use(handler: Handler): this;
