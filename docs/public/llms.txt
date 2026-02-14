@@ -8,7 +8,8 @@ bunWay is a web framework for Bun that uses the same API as Express.js. If you k
 
 ## Key Features
 
-- Express-compatible API: Same `app.get()`, `app.post()`, `req`, `res`, `next` patterns
+- Express-compatible API: Same `app.get()`, `app.post()`, `app.route()`, `req`, `res`, `next` patterns
+- Chainable routes: `app.route('/path').get(...).post(...).put(...)` for cleaner route definitions
 - Bun-native: Built specifically for Bun runtime, no Node.js polyfills
 - Zero dependencies: No production dependencies
 - Built-in middleware: Body parsing, CORS, cookies, sessions, static files, rate limiting

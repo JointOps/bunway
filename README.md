@@ -50,6 +50,7 @@ bunWay is designed for Express developers who want Bun's speed without learning 
 | Express | bunWay |
 |---------|--------|
 | `app.get('/users/:id', (req, res) => {...})` | Same |
+| `app.route('/path').get(...).post(...)` | Same |
 | `req.params`, `req.query`, `req.body` | Same |
 | `res.json()`, `res.send()`, `res.status()` | Same |
 | `app.use(middleware)` | Same |
