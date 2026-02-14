@@ -62,6 +62,8 @@ bunWay is designed for Express developers who want Bun's speed without learning 
 |---------|--------|-------------|
 | `express.json()` | `json()` | Parse JSON bodies |
 | `express.urlencoded()` | `urlencoded()` | Parse form data |
+| `express.text()` | `text()` | Parse text bodies |
+| `express.raw()` | `raw()` | Parse raw binary (webhooks) |
 | `express.static()` | `serveStatic()` | Static files |
 | `cors` | `cors()` | CORS headers |
 | `helmet` | `helmet()` | Security headers |
@@ -106,6 +108,8 @@ All Express-compatible, all built-in:
 import {
   json,           // Parse JSON bodies
   urlencoded,     // Parse form data
+  text,           // Parse text bodies
+  raw,            // Parse raw binary bodies (webhooks)
   cors,           // CORS headers
   helmet,         // Security headers
   session,        // Session management
