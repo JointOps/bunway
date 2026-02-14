@@ -178,11 +178,11 @@ describe("Express Compatibility: Routing", () => {
     app.use("/api", router);
     app.get("/other", (req, res) => res.json({ ok: false }));
 
-    const response1 = await app.handle(buildRequest("/api/test"));
+    await app.handle(buildRequest("/api/test"));
     expect(apiCalled).toBe(true);
 
     apiCalled = false;
-    const response2 = await app.handle(buildRequest("/other"));
+    await app.handle(buildRequest("/other"));
     expect(apiCalled).toBe(false);
   });
 
