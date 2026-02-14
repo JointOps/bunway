@@ -1,0 +1,16 @@
+{
+  "name": "taskapi-bunway",
+  "version": "1.0.0",
+  "description": "TaskAPI built with bunway - migration demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun server.ts"
+  },
+  "dependencies": {
+    "bunway": "file:../../.."
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}
