@@ -55,6 +55,95 @@ const authMiddleware = (req, res, next) => {
 };
 ```
 
+## Chainable routes
+
+Define multiple HTTP methods on the same path without repeating yourself. This is identical to Express's `app.route()` pattern:
+
+```ts
+app
+  .route("/users")
+  .get((req, res) => res.json(allUsers))
+  .post((req, res) => res.created(createUser(req.body)));
+
+app
+  .route("/users/:id")
+  .get((req, res) => res.json(findUser(req.params.id)))
+  .put((req, res) => res.json(updateUser(req.params.id, req.body)))
+  .delete((req, res) => res.noContent());
+```
+
+### Before (repetitive)
+
+```ts
+app.get("/users", listUsers);
+app.post("/users", createUser);
+app.get("/users/:id", showUser);
+app.put("/users/:id", updateUser);
+app.patch("/users/:id", patchUser);
+app.delete("/users/:id", deleteUser);
+```
+
+### After (chainable)
+
+```ts
+app
+  .route("/users")
+  .get(listUsers)
+  .post(createUser);
+
+app
+  .route("/users/:id")
+  .get(showUser)
+  .put(updateUser)
+  .patch(patchUser)
+  .delete(deleteUser);
+```
+
+### All HTTP methods
+
+Chainable routes support all HTTP verbs:
+
+```ts
+app
+  .route("/test")
+  .get(handler)
+  .post(handler)
+  .put(handler)
+  .patch(handler)
+  .delete(handler)
+  .options(handler)
+  .head(handler)
+  .all(handler); // Responds to any method
+```
+
+### Middleware in chains
+
+Add middleware to individual methods:
+
+```ts
+app
+  .route("/admin/users")
+  .get(requireAuth, listUsers)
+  .post(requireAuth, requireAdmin, createUser);
+```
+
+### Works with routers
+
+Chainable routes work on both `app` and `Router` instances:
+
+```ts
+import { Router } from "bunway";
+
+const api = new Router();
+api
+  .route("/posts")
+  .get(listPosts)
+  .post(authMiddleware, createPost);
+
+app.use("/api", api);
+// Routes: GET /api/posts, POST /api/posts
+```
+
 ## Middleware ordering
 
 Global middleware runs in the order registered, followed by route-specific middleware:

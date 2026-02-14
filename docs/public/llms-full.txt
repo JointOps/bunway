@@ -202,6 +202,35 @@ app.delete('/users/:id', handler)
 app.all('/users', handler) // All methods
 ```
 
+### Chainable Routes
+
+Define multiple HTTP methods on the same path without repetition:
+
+```typescript
+// Single path, multiple methods
+app.route('/users')
+  .get((req, res) => res.json(allUsers))
+  .post((req, res) => res.status(201).json(createUser(req.body)))
+
+// Works with route parameters
+app.route('/users/:id')
+  .get((req, res) => res.json(findUser(req.params.id)))
+  .put((req, res) => res.json(updateUser(req.params.id, req.body)))
+  .patch((req, res) => res.json(patchUser(req.params.id, req.body)))
+  .delete((req, res) => res.status(204).send())
+
+// Supports middleware per method
+app.route('/admin/users')
+  .get(requireAuth, listUsers)
+  .post(requireAuth, requireAdmin, createUser)
+
+// Works on routers too
+import { Router } from 'bunway'
+const api = new Router()
+api.route('/posts').get(listPosts).post(authMiddleware, createPost)
+app.use('/api', api)
+```
+
 ### Route Parameters
 
 ```typescript
