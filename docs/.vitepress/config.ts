@@ -107,6 +107,7 @@ export default defineConfig({
           { text: "Rate Limiting", link: "/middleware/rate-limit" },
           { text: "Static Files", link: "/middleware/static" },
           { text: "Cookies", link: "/middleware/cookies" },
+          { text: "File Uploads", link: "/middleware/file-uploads" },
           { text: "Error Handling", link: "/middleware/error-handler" },
         ],
       },

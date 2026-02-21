@@ -74,6 +74,7 @@ bunWay is designed for Express developers who want Bun's speed without learning 
 | `compression` | `compression()` | Gzip responses |
 | `express-rate-limit` | `rateLimit()` | Rate limiting |
 | `cookie-parser` | `cookieParser()` | Cookie parsing |
+| `multer` | `upload()` | File uploads (multipart) |
 | `passport` | `passport()` | Authentication |
 
 [Full migration guide →](https://bunway.jointops.dev/guide/express-migration.html)
@@ -111,6 +112,7 @@ import {
   urlencoded,     // Parse form data
   text,           // Parse text bodies
   raw,            // Parse raw binary bodies (webhooks)
+  upload,         // File uploads (multer-compatible)
   cors,           // CORS headers
   helmet,         // Security headers
   session,        // Session management
@@ -145,6 +147,11 @@ app.use(rateLimit({ windowMs: 60000, max: 100 }));
 
 // Static files
 app.use(serveStatic('public'));
+
+// File uploads (multer-compatible)
+app.post('/upload', upload.single('avatar'), (req, res) => {
+  res.json({ file: req.file.originalname, size: req.file.size });
+});
 ```
 
 ## Documentation
