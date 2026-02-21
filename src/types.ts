@@ -50,6 +50,18 @@ export interface SendFileOptions {
   dotfiles?: "allow" | "deny" | "ignore";
 }
 
+export interface UploadedFile {
+  fieldname: string;
+  originalname: string;
+  encoding: string;
+  mimetype: string;
+  size: number;
+  buffer?: Buffer;
+  destination?: string;
+  filename?: string;
+  path?: string;
+}
+
 export const BUNWAY_DEFAULT_PORT = 3000;
 
 // WebSocket Types
