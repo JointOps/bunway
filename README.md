@@ -55,6 +55,7 @@ bunWay is designed for Express developers who want Bun's speed without learning 
 | `res.json()`, `res.send()`, `res.status()` | Same |
 | `app.use(middleware)` | Same |
 | `express.Router()` | `bunway.Router()` |
+| `Router({ mergeParams: true })` | Same |
 
 ### Middleware Mapping
 

@@ -67,11 +67,14 @@ Every Express middleware you know has a bunWay equivalent—built right in:
 |---------|--------|--------------|
 | `express.json()` | `json()` | Parse JSON request bodies |
 | `express.urlencoded()` | `urlencoded()` | Parse URL-encoded form data |
+| `express.text()` | `text()` | Parse text request bodies |
+| `express.raw()` | `raw()` | Parse raw binary bodies (webhooks) |
 | `express.static()` | `serveStatic()` | Serve static files |
 | `cors` | `cors()` | Handle CORS headers |
 | `helmet` | `helmet()` | Set security headers |
 | `morgan` | `logger()` | Request logging |
 | `express-session` | `session()` | Session management |
+| `passport` | `passport()` | Authentication |
 | `csurf` | `csrf()` | CSRF protection |
 | `compression` | `compression()` | Gzip/deflate compression |
 | `express-rate-limit` | `rateLimit()` | Rate limiting |
@@ -116,7 +119,9 @@ No more hunting through npm. No more version conflicts. It's all built-in.
 | `app.put()` | `app.put()` | Identical |
 | `app.delete()` | `app.delete()` | Identical |
 | `app.use()` | `app.use()` | Identical |
+| `app.route('/path')` | `app.route('/path')` | Chainable route definitions |
 | `express.Router()` | `bunway.Router()` | Same pattern |
+| `Router({ mergeParams: true })` | `Router({ mergeParams: true })` | Inherit parent route params |
 
 ## Migration Examples
 

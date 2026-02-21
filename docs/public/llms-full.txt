@@ -310,6 +310,25 @@ userRouter.put('/:id', updateUser)
 userRouter.delete('/:id', deleteUser)
 ```
 
+### mergeParams
+
+By default, child routers don't see parent route parameters. Use `mergeParams: true` to inherit them:
+
+```typescript
+import { Router } from 'bunway'
+
+const userRouter = new Router({ mergeParams: true })
+
+userRouter.get('/posts', (req, res) => {
+  res.json({ userId: req.params.userId })
+})
+
+app.use('/users/:userId', userRouter)
+// GET /users/123/posts → { "userId": "123" }
+```
+
+Child params override parent params with the same name. Deep nesting works when each router in the chain has `mergeParams: true`.
+
 ## Request Object (req)
 
 ```typescript
