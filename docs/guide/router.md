@@ -195,6 +195,41 @@ api.use("/admin", admin);
 // Full path: /api/admin/stats
 ```
 
+### mergeParams
+
+By default, child routers do not have access to route parameters defined in the parent. Pass `mergeParams: true` to inherit parent params:
+
+```ts
+import { Router } from "bunway";
+
+const userRouter = new Router({ mergeParams: true });
+
+userRouter.get("/posts", (req, res) => {
+  // req.params.userId is available from the parent mount
+  res.json({ userId: req.params.userId });
+});
+
+app.use("/users/:userId", userRouter);
+// GET /users/123/posts → { "userId": "123" }
+```
+
+Child params take precedence when the parent and child define the same parameter name.
+
+Deep nesting works as expected — each router in the chain must have `mergeParams: true` to pass params through:
+
+```ts
+const orgRouter = new Router({ mergeParams: true });
+const teamRouter = new Router({ mergeParams: true });
+
+teamRouter.get("/members", (req, res) => {
+  res.json({ orgId: req.params.orgId, teamId: req.params.teamId });
+});
+
+orgRouter.use("/teams/:teamId", teamRouter);
+app.use("/orgs/:orgId", orgRouter);
+// GET /orgs/abc/teams/xyz/members → { "orgId": "abc", "teamId": "xyz" }
+```
+
 ::: tip Returning native responses
 Handlers can always return `Response` objects straight from Fetch APIs—bunWay will still merge any middleware headers during finalization.
 :::
