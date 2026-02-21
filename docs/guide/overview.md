@@ -21,7 +21,7 @@ bunway uses the exact same `(req, res, next)` handler signature as Express. Your
 
 - **Express-compatible** – same `(req, res, next)` signature, familiar middleware patterns
 - **Bun-native** – built on Bun's Fetch primitives (`Request`, `Response`, `Bun.serve`)
-- **Batteries included** – 12+ middleware covering most production needs
+- **Batteries included** – 15+ middleware covering most production needs
 - **Zero dependencies** – pure Bun, no Node polyfills
 
 ## Current capabilities (v1.0.0)
@@ -53,6 +53,7 @@ bunway ships with everything you need for production apps:
 | `csrf()`         | CSRF protection                | `csurf`               |
 | `passport()`     | Authentication                 | `passport`            |
 | `logger()`       | Request logging                | `morgan`              |
+| `upload()`       | File uploads (multipart)       | `multer`              |
 | `errorHandler()` | Error handling                 | Custom middleware     |
 
 ## Quick example
@@ -83,9 +84,9 @@ app.listen({ port: 3000 });
 
 Most core features are complete. Active development focuses on:
 
-- **Streaming & uploads** – multipart parsing, file uploads, SSE helpers
 - **Advanced WebSocket** – routing sugar on top of `Bun.serve`
 - **Performance** – continued optimization and benchmarking
+- **SSE helpers** – server-sent events utilities
 
 See [Roadmap & Contributions](../community/build-together.md) for the full picture.
 

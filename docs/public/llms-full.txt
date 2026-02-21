@@ -459,6 +459,69 @@ app.get('/typed', (req: BunRequest, res: BunResponse, next: NextFunction) => {
 })
 ```
 
+### File Uploads
+
+```typescript
+import { bunway, upload, diskStorage } from 'bunway'
+
+const app = bunway()
+
+// Single file (memory storage - default)
+app.post('/avatar', upload.single('avatar'), (req, res) => {
+  // req.file: { fieldname, originalname, mimetype, size, buffer }
+  res.json({ file: req.file.originalname, size: req.file.size })
+})
+
+// Multiple files
+app.post('/photos', upload.array('photos', 5), (req, res) => {
+  res.json({ count: req.files.length })
+})
+
+// Mixed fields
+app.post('/profile', upload.fields([
+  { name: 'avatar', maxCount: 1 },
+  { name: 'gallery', maxCount: 8 }
+]), (req, res) => {
+  res.json({
+    avatar: req.files['avatar'][0].originalname,
+    gallery: req.files['gallery'].length
+  })
+})
+
+// Text-only (reject files)
+app.post('/form', upload.none(), (req, res) => {
+  res.json(req.body)
+})
+
+// Disk storage
+const store = diskStorage({
+  destination: './uploads',
+  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
+})
+
+const configured = upload({ storage: store, limits: { fileSize: 5 * 1024 * 1024 } })
+app.post('/documents', configured.array('docs', 10), (req, res) => {
+  res.json({ files: req.files.map(f => f.path) })
+})
+```
+
+**Strategies:**
+- `upload.single(fieldname)` → `req.file` (single UploadedFile)
+- `upload.array(fieldname, maxCount?)` → `req.files` (UploadedFile[])
+- `upload.fields(specs)` → `req.files` (Record<string, UploadedFile[]>)
+- `upload.none()` → no files, text fields only
+- `upload.any()` → `req.files` (UploadedFile[], all fields)
+
+**Storage engines:**
+- `memoryStorage()` — files as Buffer in memory (default)
+- `diskStorage({ destination, filename })` — files written to disk via Bun.file().writer()
+
+**Limits:** `{ fileSize, files, fields, fieldSize, fieldNameSize, parts }`
+
+**File filter:** `(req, file, cb) => cb(null, true/false)` to accept/reject files
+
+**Errors:** 400 (unexpected field, missing boundary), 413 (file too large, too many files/fields)
+
 ## Common Patterns
 
 ### Authentication Middleware

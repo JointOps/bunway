@@ -79,6 +79,7 @@ Every Express middleware you know has a bunWay equivalent—built right in:
 | `compression` | `compression()` | Gzip/deflate compression |
 | `express-rate-limit` | `rateLimit()` | Rate limiting |
 | `cookie-parser` | `cookieParser()` | Parse cookies |
+| `multer` | `upload()` | File uploads (multipart) |
 
 No more hunting through npm. No more version conflicts. It's all built-in.
 
