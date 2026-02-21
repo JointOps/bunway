@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-02-21
+
+### Added
+- **Router `mergeParams` option** — child routers can inherit parent route parameters
+  - `new Router({ mergeParams: true })` enables parent param inheritance
+  - Parameterized prefix matching for sub-router mounting (`/users/:userId`)
+  - Child params override parent params on name conflicts
+  - Deep nesting support (grandparent → parent → child param chain)
+  - `group()` transparently passes params through
+  - Intermediate routers without `mergeParams` correctly block param inheritance
+  - Express-compatible behavior matching `express.Router({ mergeParams: true })`
+
+### Documentation
+- Added mergeParams section to router deep dive guide
+- Updated Express compatibility table in README
+- Updated LLM context files (llms.txt, llms-full.txt)
+- Added 12 integration tests (696 total tests passing)
+
 ## [1.0.2] - 2026-02-14
 
 ### Added
@@ -129,7 +147,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - Creates GitHub release with auto-generated notes
    - Tags the release
 
-[Unreleased]: https://github.com/JointOps/bunway/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/JointOps/bunway/compare/v1.0.3...HEAD
+[1.0.3]: https://github.com/JointOps/bunway/compare/v1.0.2...v1.0.3
+[1.0.2]: https://github.com/JointOps/bunway/compare/v1.0.1...v1.0.2
+[1.0.1]: https://github.com/JointOps/bunway/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/JointOps/bunway/releases/tag/v1.0.0
 [0.2.0]: https://github.com/JointOps/bunway/releases/tag/v0.2.0
 [0.1.0]: https://github.com/JointOps/bunway/releases/tag/v0.1.0
