@@ -24,6 +24,7 @@ export interface RouteDefinition {
 export interface RouterOptions {
   caseSensitive?: boolean;
   strict?: boolean;
+  mergeParams?: boolean;
 }
 
 export interface ListenOptions {

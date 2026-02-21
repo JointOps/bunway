@@ -17,6 +17,8 @@ import { Route } from "./route";
 interface SubRouter {
   prefix: string;
   router: Router;
+  prefixRegex?: RegExp;
+  prefixKeys?: string[];
 }
 
 interface GroupOptions {
@@ -94,6 +96,38 @@ export class Router {
       }
     }
     return false;
+  }
+
+  private matchChild(
+    child: SubRouter,
+    pathname: string
+  ): { childPathname: string; parentParams: Record<string, string> } | null {
+    if (child.prefixRegex && child.prefixKeys) {
+      const match = child.prefixRegex.exec(pathname);
+      if (!match) return null;
+      const params: Record<string, string> = {};
+      for (let i = 0; i < child.prefixKeys.length; i++) {
+        const key = child.prefixKeys[i];
+        if (key) params[key] = match[i + 1] ?? "";
+      }
+      const childPathname = pathname.slice(match[0].length) || "/";
+      return { childPathname, parentParams: params };
+    }
+    if (pathname.startsWith(child.prefix)) {
+      return { childPathname: pathname.slice(child.prefix.length) || "/", parentParams: {} };
+    }
+    return null;
+  }
+
+  private prefixToRegex(prefix: string): { regex: RegExp; keys: string[] } {
+    const keys: string[] = [];
+    const pattern = prefix
+      .replace(/\/:(\w+)/g, (_, paramName) => {
+        keys.push(paramName);
+        return "/([^/]+)";
+      })
+      .replace(/\//g, "\\/");
+    return { regex: new RegExp(`^${pattern}`), keys };
   }
 
   private pathToRegex(path: string): { regex: RegExp; keys: string[] } {
@@ -186,7 +220,12 @@ export class Router {
     }
 
     if (routerOrHandler instanceof Router) {
-      this.children.push({ prefix: pathOrHandler, router: routerOrHandler });
+      if (pathOrHandler.includes(":")) {
+        const { regex, keys } = this.prefixToRegex(pathOrHandler);
+        this.children.push({ prefix: pathOrHandler, router: routerOrHandler, prefixRegex: regex, prefixKeys: keys });
+      } else {
+        this.children.push({ prefix: pathOrHandler, router: routerOrHandler });
+      }
       return this;
     }
 
@@ -199,7 +238,7 @@ export class Router {
   }
 
   group(prefix: string, callbackOrOptions?: GroupCallback | GroupOptions, callback?: GroupCallback): this {
-    const subRouter = new Router(this.routerOptions);
+    const subRouter = new Router({ ...this.routerOptions, mergeParams: true });
 
     if (typeof callbackOrOptions === "function") {
       callbackOrOptions(subRouter);
@@ -212,7 +251,12 @@ export class Router {
       callback(subRouter);
     }
 
-    this.children.push({ prefix, router: subRouter });
+    if (prefix.includes(":")) {
+      const { regex, keys } = this.prefixToRegex(prefix);
+      this.children.push({ prefix, router: subRouter, prefixRegex: regex, prefixKeys: keys });
+    } else {
+      this.children.push({ prefix, router: subRouter });
+    }
     return this;
   }
 
@@ -359,10 +403,10 @@ export class Router {
     const method = original.method.toUpperCase();
 
     // Check child routers first - optimized to avoid creating new Request/URL
-    for (const { prefix, router } of this.children) {
-      if (pathname.startsWith(prefix)) {
-        const childPathname = pathname.slice(prefix.length) || "/";
-        return router.handleInternal(original, childPathname, method, server);
+    for (const child of this.children) {
+      const delegated = this.matchChild(child, pathname);
+      if (delegated) {
+        return child.router.handleInternal(original, delegated.childPathname, method, server, delegated.parentParams);
       }
     }
 
@@ -481,15 +525,22 @@ export class Router {
     original: Request,
     pathname: string,
     method: string,
-    server?: BunServer<unknown>
+    server?: BunServer<unknown>,
+    parentParams?: Record<string, string>
   ): Promise<Response> {
     // Check child routers first
-    for (const { prefix, router } of this.children) {
-      if (pathname.startsWith(prefix)) {
-        const childPathname = pathname.slice(prefix.length) || "/";
-        return router.handleInternal(original, childPathname, method, server);
+    for (const child of this.children) {
+      const delegated = this.matchChild(child, pathname);
+      if (delegated) {
+        const accumulated = this.routerOptions.mergeParams && parentParams
+          ? { ...parentParams, ...delegated.parentParams }
+          : delegated.parentParams;
+        return child.router.handleInternal(original, delegated.childPathname, method, server, accumulated);
       }
     }
+
+    // Determine merged params helper
+    const mergeWith = this.routerOptions.mergeParams && parentParams ? parentParams : undefined;
 
     // Fast path for no middleware
     if (this.middlewares.length === 0 && this.errorHandlers.length === 0) {
@@ -539,7 +590,7 @@ export class Router {
         this._appContext.setApp(req, res);
       }
 
-      req.params = matchResult.params;
+      req.params = mergeWith ? { ...mergeWith, ...matchResult.params } : matchResult.params;
       req.route = { path: matchResult.path, method };
 
       // FAST PATH: Single handler, no param handlers - direct invocation
@@ -592,7 +643,7 @@ export class Router {
       return new Response(null, { status: 200 });
     }
 
-    return this.handleWithMiddleware(original, pathname, method, server);
+    return this.handleWithMiddleware(original, pathname, method, server, mergeWith);
   }
 
   /**
@@ -602,7 +653,8 @@ export class Router {
     original: Request,
     pathname: string,
     method: string,
-    server?: BunServer<unknown>
+    server?: BunServer<unknown>,
+    mergeWith?: Record<string, string>
   ): Promise<Response> {
     const req = new BunRequest(original, pathname);
     const res = new BunResponse();
@@ -615,6 +667,10 @@ export class Router {
     if (server?.requestIP) {
       const socketAddr = server.requestIP(original);
       req.setSocketIp(socketAddr?.address ?? null);
+    }
+
+    if (mergeWith) {
+      req.params = { ...mergeWith };
     }
 
     // Run global middleware
@@ -635,7 +691,7 @@ export class Router {
     const matchResult = this.fastMatcher.match(method, pathname);
 
     if (matchResult) {
-      req.params = matchResult.params;
+      req.params = mergeWith ? { ...mergeWith, ...matchResult.params } : matchResult.params;
       req.route = { path: matchResult.path, method };
 
       // Build param middleware handlers
