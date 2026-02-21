@@ -1,3 +1,5 @@
+import type { UploadedFile } from "../types";
+
 const DEFAULT_BODY_LIMIT = 1024 * 1024;
 
 /**
@@ -66,6 +68,8 @@ export class BunRequest {
   private _signedCookies: Record<string, string> = {};
   private _app?: RequestAppContext;
   private _socketIp: string | null = null;
+  private _file: UploadedFile | null = null;
+  private _files: UploadedFile[] | Record<string, UploadedFile[]> | null = null;
 
   locals: Record<string, unknown> = {};
 
@@ -350,6 +354,22 @@ export class BunRequest {
 
   set signedCookies(value: Record<string, string>) {
     this._signedCookies = value;
+  }
+
+  get file(): UploadedFile | null {
+    return this._file;
+  }
+
+  set file(value: UploadedFile | null) {
+    this._file = value;
+  }
+
+  get files(): UploadedFile[] | Record<string, UploadedFile[]> | null {
+    return this._files;
+  }
+
+  set files(value: UploadedFile[] | Record<string, UploadedFile[]> | null) {
+    this._files = value;
   }
 
   private parseCookies(): Record<string, string> {
