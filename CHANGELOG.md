@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-02-21
+
+### Added
+- **File upload middleware** — `upload()` for multipart form-data parsing (multer-compatible)
+  - Streaming multipart parser using Bun's native APIs (zero dependencies)
+  - Memory storage (`memoryStorage()`) and disk storage (`diskStorage()`) engines
+  - `single(fieldname)`, `array(fieldname, maxCount)`, `fields(specs)`, `none()`, `any()` strategies
+  - Configurable `fileFilter` callback for file type validation
+  - Configurable `limits` (fileSize, files, fields, fieldSize, fieldNameSize, parts)
+  - `preservePath` option for original filename paths
+  - `req.file` (single) and `req.files` (array/fields/any) on request object
+  - Express/multer-compatible API — drop-in replacement
+
+### Documentation
+- Added comprehensive file upload middleware guide
+- Updated Express migration guide with multer mapping
+- Updated middleware overview with upload entry
+
+### Testing
+- 155+ upload-specific tests (integration + acceptance + unit)
+- Library-wide unit test audit: 679 unit tests across 21 files
+- Total test count: 1232 tests, 2984 expects
+
 ## [1.0.3] - 2026-02-21
 
 ### Added
@@ -147,7 +170,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - Creates GitHub release with auto-generated notes
    - Tags the release
 
-[Unreleased]: https://github.com/JointOps/bunway/compare/v1.0.3...HEAD
+[Unreleased]: https://github.com/JointOps/bunway/compare/v1.0.4...HEAD
+[1.0.4]: https://github.com/JointOps/bunway/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/JointOps/bunway/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/JointOps/bunway/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/JointOps/bunway/compare/v1.0.0...v1.0.1

@@ -13,7 +13,7 @@ bunWay is a web framework for Bun that uses the same API as Express.js. If you k
 - mergeParams: `new Router({ mergeParams: true })` to access parent route parameters in child routers
 - Bun-native: Built specifically for Bun runtime, no Node.js polyfills
 - Zero dependencies: No production dependencies
-- Built-in middleware: Body parsing (JSON, urlencoded, text, raw), CORS, cookies, sessions, static files, rate limiting
+- Built-in middleware: Body parsing (JSON, urlencoded, text, raw), file uploads (multer-compatible), CORS, cookies, sessions, static files, rate limiting
 - TypeScript-first: Full type safety out of the box
 
 ## Installation
@@ -25,12 +25,19 @@ bun add bunway
 ## Quick Start
 
 ```typescript
-import { bunway } from 'bunway'
+import { bunway, json, upload } from 'bunway'
 
 const app = bunway()
 
+app.use(json())
+
 app.get('/', (req, res) => {
   res.json({ message: 'Hello bunWay!' })
+})
+
+// File uploads (multer-compatible)
+app.post('/upload', upload.single('file'), (req, res) => {
+  res.json({ name: req.file.originalname, size: req.file.size })
 })
 
 app.listen(3000)

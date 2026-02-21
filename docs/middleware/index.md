@@ -24,6 +24,7 @@ bunWay ships with a complete set of Express-compatible middleware—no npm hunti
 | [`serveStatic()`](static.md) | `express.static()` | Serve static files |
 | [`cookieParser()`](cookies.md) | `cookie-parser` | Parse and sign cookies |
 | [`compression()`](security.md#compression) | `compression` | Gzip/deflate responses |
+| [`upload()`](file-uploads.md) | `multer` | File uploads (multipart/form-data) |
 | [`errorHandler()`](error-handler.md) | Custom | Catch-all error handling |
 
 ## Quick Reference
@@ -138,6 +139,22 @@ app.get('/preferences', (req, res) => {
 ```
 
 [Full documentation →](cookies.md)
+
+### File Uploads
+
+```ts
+import { upload, diskStorage } from 'bunway';
+
+app.post('/avatar', upload.single('avatar'), (req, res) => {
+  res.json({ file: req.file.originalname });
+});
+
+app.post('/photos', upload.array('photos', 5), (req, res) => {
+  res.json({ count: req.files.length });
+});
+```
+
+[Full documentation →](file-uploads.md)
 
 ### CORS
 
