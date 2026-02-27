@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-XX-XX
+
+### Added
+- **Graceful Shutdown** — `app.close(callback?)` with callback and Promise support
+- **Server Access** — `app.server` getter for the underlying Bun.Server instance
+- **TLS/HTTPS Support** — `tls` option in `app.listen()` for native HTTPS
+  - String and Buffer cert/key formats
+  - Optional `passphrase` for encrypted private keys
+  - Optional `ca` for custom certificate authorities
+
+### Fixed
+- **`req.protocol`** now respects `X-Forwarded-Proto` header when trust proxy is enabled (Express parity)
+- **`req.secure`** now correctly reflects proxy-forwarded HTTPS (Express parity)
+
+### Documentation
+- New "Server Lifecycle" guide covering startup, HTTPS, shutdown, and testing
+- Updated Express migration guide with HTTPS, shutdown, and protocol comparisons
+- Updated README with TLS and shutdown features
+- Updated llms.txt and llms-full.txt
+
+### Testing
+- 57 new tests (21 unit + 30 integration + 4 acceptance + 2 compat)
+- Total: 1289 tests
+
+### Phase 1 Complete
+This release completes Phase 1 (Core Migration Blockers).
+
 ## [1.0.4] - 2026-02-21
 
 ### Added
@@ -170,7 +197,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    - Creates GitHub release with auto-generated notes
    - Tags the release
 
-[Unreleased]: https://github.com/JointOps/bunway/compare/v1.0.4...HEAD
+[Unreleased]: https://github.com/JointOps/bunway/compare/v1.0.5...HEAD
+[1.0.5]: https://github.com/JointOps/bunway/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/JointOps/bunway/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/JointOps/bunway/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/JointOps/bunway/compare/v1.0.1...v1.0.2
