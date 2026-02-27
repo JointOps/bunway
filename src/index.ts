@@ -70,7 +70,7 @@ export { passport, Passport } from "./middleware/passport";
 export { logger } from "./middleware/logger";
 export { upload, memoryStorage, diskStorage } from "./middleware/upload";
 
-export type { Handler, ErrorHandler, NextFunction, RouterOptions, ListenOptions, CookieOptions, SendFileOptions } from "./types";
+export type { Handler, ErrorHandler, NextFunction, RouterOptions, ListenOptions, TlsOptions, CookieOptions, SendFileOptions } from "./types";
 export type { BunWayOptions } from "./core/app";
 export type { HttpErrorOptions } from "./core/errors";
 export type { JsonOptions, UrlencodedOptions, TextOptions, RawOptions } from "./middleware/body-parser";
