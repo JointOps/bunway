@@ -70,9 +70,9 @@ Features implemented in bunway v1.0.0:
 - ✅ Static Files
 - ✅ Error Handling (automatic async error catching!)
 - ✅ CRUD Operations
-- ⏳ File Uploads - Coming in v1.0.4 (Phase 1.4)
+- ✅ File Uploads (since v1.0.4)
 
-**Note:** The file upload endpoint uses `bunway.upload()` which will be available in v1.0.4. All other features work identically to the Express version right now.
+All features work identically to the Express version.
 
 ## Installation
 

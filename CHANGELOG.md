@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.5] - 2026-XX-XX
+## [1.0.5] - 2026-02-28
 
 ### Added
 - **Graceful Shutdown** — `app.close(callback?)` with callback and Promise support
