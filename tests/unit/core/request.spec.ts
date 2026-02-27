@@ -221,6 +221,86 @@ describe("BunRequest (Unit)", () => {
     });
   });
 
+  describe("Protocol with X-Forwarded-Proto", () => {
+    const createAppRequest = (url: string, headers?: Record<string, string>, trustProxy?: unknown): BunRequest => {
+      const req = new BunRequest(new Request(url, { headers }));
+      req.setApp({
+        get: (setting: string) => {
+          if (setting === "trust proxy") return trustProxy;
+          return undefined;
+        },
+        getLogger: () => ({ info() {}, warn() {}, error() {} }),
+      });
+      return req;
+    };
+
+    it("should return X-Forwarded-Proto when trust proxy is true", () => {
+      const req = createAppRequest("http://localhost/", {
+        "x-forwarded-proto": "https",
+      }, true);
+      expect(req.protocol).toBe("https");
+    });
+
+    it("should ignore X-Forwarded-Proto when trust proxy is false", () => {
+      const req = createAppRequest("http://localhost/", {
+        "x-forwarded-proto": "https",
+      }, false);
+      expect(req.protocol).toBe("http");
+    });
+
+    it("should ignore X-Forwarded-Proto when trust proxy is not set", () => {
+      const req = createAppRequest("http://localhost/", {
+        "x-forwarded-proto": "https",
+      }, undefined);
+      expect(req.protocol).toBe("http");
+    });
+
+    it("should use first value from comma-separated X-Forwarded-Proto", () => {
+      const req = createAppRequest("http://localhost/", {
+        "x-forwarded-proto": "https, http",
+      }, true);
+      expect(req.protocol).toBe("https");
+    });
+
+    it("should fall back to URL protocol when header is absent", () => {
+      const req = createAppRequest("http://localhost/", {}, true);
+      expect(req.protocol).toBe("http");
+    });
+
+    it("should fall back to URL protocol when header is absent (https URL)", () => {
+      const req = createAppRequest("https://localhost/", {}, true);
+      expect(req.protocol).toBe("https");
+    });
+
+    it("req.secure should reflect X-Forwarded-Proto", () => {
+      const req = createAppRequest("http://localhost/", {
+        "x-forwarded-proto": "https",
+      }, true);
+      expect(req.secure).toBe(true);
+    });
+
+    it("req.secure should be false when proto is http via proxy", () => {
+      const req = createAppRequest("https://localhost/", {
+        "x-forwarded-proto": "http",
+      }, true);
+      expect(req.secure).toBe(false);
+    });
+
+    it("should work with numeric trust proxy value", () => {
+      const req = createAppRequest("http://localhost/", {
+        "x-forwarded-proto": "https",
+      }, 1);
+      expect(req.protocol).toBe("https");
+    });
+
+    it("should work with string trust proxy value", () => {
+      const req = createAppRequest("http://localhost/", {
+        "x-forwarded-proto": "https",
+      }, "loopback");
+      expect(req.protocol).toBe("https");
+    });
+  });
+
   describe("XHR Detection", () => {
     it("should detect XMLHttpRequest", () => {
       const req = createRequest("http://localhost/", {
