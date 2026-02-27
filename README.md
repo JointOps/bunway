@@ -42,6 +42,8 @@ Same code you'd write in Express. Just faster.
 - **Batteries included** — Sessions, security, logging, rate limiting—all built-in
 - **Bun-native** — Built on Bun.serve, no Node polyfills
 - **Fast** — Bun is 3-4x faster than Node.js
+- **HTTPS/TLS** — Native TLS via `app.listen({ tls: { cert, key } })`
+- **Graceful shutdown** — `app.close()` for clean server lifecycle
 
 ## Express Compatibility
 
@@ -56,6 +58,8 @@ bunWay is designed for Express developers who want Bun's speed without learning 
 | `app.use(middleware)` | Same |
 | `express.Router()` | `bunway.Router()` |
 | `Router({ mergeParams: true })` | Same |
+| `https.createServer(opts, app)` | `app.listen({ tls: opts })` |
+| `server.close(callback)` | `app.close(callback)` |
 
 ### Middleware Mapping
 

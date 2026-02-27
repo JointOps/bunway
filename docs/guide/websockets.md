@@ -31,6 +31,14 @@ app.ws('/chat', {
 app.listen(3000);
 ```
 
+::: tip WebSocket over HTTPS
+When TLS is enabled, WebSocket connections automatically use `wss://`:
+```ts
+app.listen({ port: 443, tls: { cert, key } });
+// Clients connect via wss://localhost:443/chat
+```
+:::
+
 ## WebSocket Handlers
 
 Define handlers for WebSocket lifecycle events:
