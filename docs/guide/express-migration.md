@@ -98,6 +98,8 @@ No more hunting through npm. No more version conflicts. It's all built-in.
 | `req.get('header')` | `req.get('header')` | Identical |
 | `req.ip` | `req.ip` | Identical |
 | `req.session` | `req.session` | With session middleware |
+| `req.protocol` | `req.protocol` | Identical (respects X-Forwarded-Proto with trust proxy) |
+| `req.secure` | `req.secure` | Identical |
 
 ### Response Object
 
@@ -123,6 +125,8 @@ No more hunting through npm. No more version conflicts. It's all built-in.
 | `app.route('/path')` | `app.route('/path')` | Chainable route definitions |
 | `express.Router()` | `bunway.Router()` | Same pattern |
 | `Router({ mergeParams: true })` | `Router({ mergeParams: true })` | Inherit parent route params |
+| `https.createServer(opts, app)` | `app.listen({ tls: opts })` | Native TLS support |
+| `server.close(callback)` | `app.close(callback)` | Graceful shutdown |
 
 ## Migration Examples
 

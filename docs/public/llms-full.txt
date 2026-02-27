@@ -44,6 +44,69 @@ app.listen(3000, () => {
 })
 ```
 
+## Server Lifecycle
+
+### HTTPS/TLS
+
+```typescript
+app.listen({
+  port: 443,
+  tls: {
+    cert: await Bun.file("cert.pem").text(),
+    key: await Bun.file("key.pem").text(),
+  },
+});
+```
+
+Options:
+- key: Private key as string or Buffer (required with tls)
+- cert: Certificate as string or Buffer (required with tls)
+- ca: Certificate authority (optional)
+- passphrase: Private key passphrase (optional)
+
+### Server Access
+
+```typescript
+const server = app.listen(3000);
+app.server;       // Bun.Server instance
+app.server.port;  // actual port number
+```
+
+### Graceful Shutdown
+
+```typescript
+// Promise style
+await app.close();
+
+// Callback style (Express pattern)
+app.close(() => {
+  console.log("Server closed");
+  process.exit(0);
+});
+
+// Signal handling
+process.on("SIGTERM", async () => {
+  await app.close();
+  process.exit(0);
+});
+```
+
+### Behind a Reverse Proxy
+
+```typescript
+app.set("trust proxy", true);
+// req.protocol reads X-Forwarded-Proto header
+// req.secure reflects forwarded HTTPS status
+```
+
+### Express HTTPS Migration
+
+Express: `https.createServer({ key, cert }, app).listen(443)`
+bunWay: `app.listen({ port: 443, tls: { key, cert } })`
+
+Express: `server.close(callback)`
+bunWay: `app.close(callback)` or `await app.close()`
+
 ## Built-in Middleware
 
 ### Body Parsing

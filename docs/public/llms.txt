@@ -15,6 +15,10 @@ bunWay is a web framework for Bun that uses the same API as Express.js. If you k
 - Zero dependencies: No production dependencies
 - Built-in middleware: Body parsing (JSON, urlencoded, text, raw), file uploads (multer-compatible), CORS, cookies, sessions, static files, rate limiting
 - TypeScript-first: Full type safety out of the box
+- Graceful shutdown: app.close(callback?) with callback and Promise support
+- HTTPS/TLS: app.listen({ tls: { cert, key } }) for native TLS
+- Server access: app.server getter for Bun.Server instance
+- X-Forwarded-Proto: req.protocol respects proxy headers when trust proxy is enabled
 
 ## Installation
 

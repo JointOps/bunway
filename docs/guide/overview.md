@@ -24,7 +24,7 @@ bunway uses the exact same `(req, res, next)` handler signature as Express. Your
 - **Batteries included** – 15+ middleware covering most production needs
 - **Zero dependencies** – pure Bun, no Node polyfills
 
-## Current capabilities (v1.0.0)
+## Current capabilities
 
 bunway ships with everything you need for production apps:
 
@@ -35,6 +35,9 @@ bunway ships with everything you need for production apps:
 - `BunRequest` and `BunResponse` helpers
 - Sub-routers with middleware inheritance
 - Router finalizer that merges middleware headers
+- Graceful shutdown via `app.close()`
+- Native HTTPS/TLS support
+- `X-Forwarded-Proto` support behind reverse proxies
 
 ### Built-in Middleware
 
@@ -82,11 +85,12 @@ app.listen({ port: 3000 });
 
 ## What's next?
 
-Most core features are complete. Active development focuses on:
+Core features and migration blockers are complete. Active development focuses on:
 
-- **Advanced WebSocket** – routing sugar on top of `Bun.serve`
-- **Performance** – continued optimization and benchmarking
-- **SSE helpers** – server-sent events utilities
+- **Request/Response gaps** — `req.fresh/stale`, `req.range()`, `res.jsonp()`
+- **Security middleware** — request validation, HPP protection, request timeout
+- **Developer experience** — SSE helpers, response time, request ID
+- **Performance** — continued optimization and benchmarking
 
 See [Roadmap & Contributions](../community/build-together.md) for the full picture.
 

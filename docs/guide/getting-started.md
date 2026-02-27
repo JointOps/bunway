@@ -132,6 +132,14 @@ Run tests via `bun test`.
 The Bun test runner resets global state between files. Keep fixtures explicit and prefer per-test setup/teardown to avoid surprises.
 :::
 
+## Stopping the Server
+
+```ts
+await app.close();
+```
+
+For HTTPS, signal handling, and testing patterns, see the [Server Lifecycle](/guide/server-lifecycle) guide.
+
 ## Next steps
 
 - [Express Migration Guide](./express-migration.md) - Side-by-side comparison
