@@ -49,6 +49,7 @@ export class BunWayApp extends Router {
   private settings: AppSettings = { ...DEFAULT_SETTINGS };
   public locals: Record<string, unknown> = {};
   private engines: Map<string, (path: string, options: Record<string, unknown>, callback: (err: Error | null, html?: string) => void) => void> = new Map();
+  private _server: ReturnType<typeof Bun.serve> | null = null;
 
   constructor(options?: BunWayOptions) {
     super(options);
@@ -119,18 +120,33 @@ export class BunWayApp extends Router {
     return (this.settings.logger as BunWayLogger) || defaultLogger;
   }
 
+  get server(): ReturnType<typeof Bun.serve> | null {
+    return this._server;
+  }
+
+  async close(callback?: () => void): Promise<void> {
+    if (!this._server) {
+      if (callback) callback();
+      return;
+    }
+    this._server.stop();
+    this._server = null;
+    if (callback) callback();
+  }
+
   listen(port?: number, callback?: () => void): ReturnType<typeof Bun.serve>;
   listen(options?: ListenOptions, callback?: () => void): ReturnType<typeof Bun.serve>;
   listen(
     portOrOptions?: number | ListenOptions,
     callback?: () => void
   ): ReturnType<typeof Bun.serve> {
-    const port =
+    const options =
       typeof portOrOptions === "number"
-        ? portOrOptions
-        : portOrOptions?.port ?? BUNWAY_DEFAULT_PORT;
+        ? { port: portOrOptions }
+        : portOrOptions ?? {};
 
-    const hostname = typeof portOrOptions === "object" ? portOrOptions.hostname : undefined;
+    const port = options.port ?? BUNWAY_DEFAULT_PORT;
+    const hostname = options.hostname;
 
     const self = this;
 
@@ -138,7 +154,6 @@ export class BunWayApp extends Router {
       port,
       hostname,
       fetch: async (req: Request, server: BunServer<WebSocketData>) => {
-        // Check for WebSocket upgrade
         if (req.headers.get("upgrade")?.toLowerCase() === "websocket") {
           return self.handleWebSocketUpgrade(req, server);
         }
@@ -158,7 +173,10 @@ export class BunWayApp extends Router {
           ws.data.handlers.drain?.(ws);
         },
       },
-    });
+      ...(options.tls ? { tls: options.tls } : {}),
+    } as Parameters<typeof Bun.serve<WebSocketData>>[0]);
+
+    this._server = server;
 
     if (callback) callback();
 
