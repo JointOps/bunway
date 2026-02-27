@@ -255,4 +255,84 @@ describe("BunWayApp (Unit)", () => {
       expect(routes[0].handlers.length).toBe(2);
     });
   });
+
+  describe("server lifecycle", () => {
+    it("should have server as null before listen()", () => {
+      const app = new BunWayApp();
+      expect(app.server).toBeNull();
+    });
+
+    it("should expose server after listen()", () => {
+      const app = new BunWayApp();
+      const server = app.listen(0);
+      expect(app.server).toBe(server);
+      expect(app.server).not.toBeNull();
+      server.stop();
+    });
+
+    it("should set server to null after close()", async () => {
+      const app = new BunWayApp();
+      app.listen(0);
+      await app.close();
+      expect(app.server).toBeNull();
+    });
+
+    it("close() should return a Promise", () => {
+      const app = new BunWayApp();
+      const result = app.close();
+      expect(result).toBeInstanceOf(Promise);
+    });
+
+    it("close() on non-started app should resolve without error", async () => {
+      const app = new BunWayApp();
+      await expect(app.close()).resolves.toBeUndefined();
+    });
+
+    it("multiple close() calls should not throw", async () => {
+      const app = new BunWayApp();
+      app.listen(0);
+      await app.close();
+      await app.close();
+      await app.close();
+      expect(app.server).toBeNull();
+    });
+
+    it("listen() should still return server for backward compat", () => {
+      const app = new BunWayApp();
+      const server = app.listen(0);
+      expect(server).toBeDefined();
+      expect(typeof server.stop).toBe("function");
+      expect(typeof server.port).toBe("number");
+      server.stop();
+    });
+
+    it("listen(port) overload should work", () => {
+      const app = new BunWayApp();
+      const server = app.listen(0);
+      expect(server.port).toBeGreaterThan(0);
+      server.stop();
+    });
+
+    it("listen(options) overload should work", () => {
+      const app = new BunWayApp();
+      const server = app.listen({ port: 0 });
+      expect(server.port).toBeGreaterThan(0);
+      server.stop();
+    });
+
+    it("close(callback) should call callback", async () => {
+      const app = new BunWayApp();
+      app.listen(0);
+      let called = false;
+      await app.close(() => { called = true; });
+      expect(called).toBe(true);
+    });
+
+    it("close(callback) on non-started app should still call callback", async () => {
+      const app = new BunWayApp();
+      let called = false;
+      await app.close(() => { called = true; });
+      expect(called).toBe(true);
+    });
+  });
 });
