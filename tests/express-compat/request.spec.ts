@@ -294,4 +294,30 @@ describe("Express Compatibility: Request Object", () => {
       user: { id: 123, name: "test" }
     });
   });
+
+  test("req.protocol respects X-Forwarded-Proto with trust proxy (Express pattern)", async () => {
+    const app = bunway();
+    app.set("trust proxy", true);
+    app.get("/test", (req, res) => {
+      res.json({ protocol: req.protocol });
+    });
+
+    const response = await app.handle(buildRequest("/test", {
+      headers: { "X-Forwarded-Proto": "https" },
+    }));
+    expect(await response.json()).toEqual({ protocol: "https" });
+  });
+
+  test("req.secure respects X-Forwarded-Proto with trust proxy (Express pattern)", async () => {
+    const app = bunway();
+    app.set("trust proxy", true);
+    app.get("/test", (req, res) => {
+      res.json({ secure: req.secure });
+    });
+
+    const response = await app.handle(buildRequest("/test", {
+      headers: { "X-Forwarded-Proto": "https" },
+    }));
+    expect(await response.json()).toEqual({ secure: true });
+  });
 });
