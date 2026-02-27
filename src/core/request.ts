@@ -267,11 +267,18 @@ export class BunRequest {
   }
 
   get protocol(): string {
+    const trust = this.getTrustProxy();
+    if (trust !== false) {
+      const proto = this.get("x-forwarded-proto");
+      if (proto) {
+        return proto.split(",")[0]!.trim();
+      }
+    }
     return this.parsedUrl.protocol.replace(":", "");
   }
 
   get secure(): boolean {
-    return this.parsedUrl.protocol === "https:";
+    return this.protocol === "https";
   }
 
   get ip(): string {
