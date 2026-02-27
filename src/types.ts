@@ -27,9 +27,17 @@ export interface RouterOptions {
   mergeParams?: boolean;
 }
 
+export interface TlsOptions {
+  key: string | Buffer;
+  cert: string | Buffer;
+  ca?: string | Buffer | (string | Buffer)[];
+  passphrase?: string;
+}
+
 export interface ListenOptions {
   port?: number;
   hostname?: string;
+  tls?: TlsOptions;
 }
 
 export interface CookieOptions {
