@@ -91,6 +91,7 @@ export default defineConfig({
           { text: "Coming from Express", link: "/guide/express-migration" },
           { text: "Core Primitives", link: "/guide/core-primitives" },
           { text: "Router", link: "/guide/router" },
+          { text: "Server Lifecycle", link: "/guide/server-lifecycle" },
           { text: "WebSockets", link: "/guide/websockets" },
         ],
       },
