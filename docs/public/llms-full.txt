@@ -585,6 +585,35 @@ app.post('/documents', configured.array('docs', 10), (req, res) => {
 
 **Errors:** 400 (unexpected field, missing boundary), 413 (file too large, too many files/fields)
 
+## Phase 2: Request/Response Completeness (v1.0.6)
+
+### Cache Validation
+app.get("/data", (req, res) => {
+  res.set("ETag", '"v1"');
+  if (req.fresh) { res.status(304).end(); return; }
+  res.json({ data: "value" });
+});
+
+### Range Requests
+app.get("/video", async (req, res) => {
+  await res.sendFile("./video.mp4"); // Auto-handles Range header
+});
+
+### JSONP
+app.set("jsonp callback name", "cb");
+app.get("/api", (req, res) => res.jsonp({ name: "bunway" }));
+// GET /api?cb=fn → fn({"name":"bunway"});
+
+### Cross-References
+app.get("/test", (req, res) => {
+  req.res === res; // true
+  res.req === req; // true
+  res.app;         // BunWayApp instance
+});
+
+### Array Paths
+app.use(["/v1", "/v2"], apiRouter);
+
 ## Common Patterns
 
 ### Authentication Middleware

@@ -19,6 +19,12 @@ bunWay is a web framework for Bun that uses the same API as Express.js. If you k
 - HTTPS/TLS: app.listen({ tls: { cert, key } }) for native TLS
 - Server access: app.server getter for Bun.Server instance
 - X-Forwarded-Proto: req.protocol respects proxy headers when trust proxy is enabled
+- req.fresh / req.stale: Cache validation (ETag + Last-Modified). Only GET/HEAD with 2xx/304.
+- req.range(size, options?): Parses Range header. Returns array of {start,end}, -1 (unsatisfiable), -2 (malformed), or undefined.
+- res.sendFile() range support: Automatic 206 Partial Content with Content-Range header. Accept-Ranges: bytes on all responses.
+- res.jsonp(data): JSONP response. Configurable via app.set("jsonp callback name", "cb"). Sanitizes callback name for XSS prevention.
+- req.res / res.req / res.app: Cross-references between request, response, and app objects.
+- app.use([path1, path2], handler): Array path support for middleware and sub-router mounting.
 
 ## Installation
 
