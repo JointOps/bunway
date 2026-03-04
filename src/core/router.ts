@@ -207,9 +207,23 @@ export class Router {
   }
 
   use(handler: Handler): this;
+  use(paths: string[], router: Router): this;
+  use(paths: string[], ...handlers: Handler[]): this;
   use(path: string, router: Router): this;
   use(path: string, ...handlers: Handler[]): this;
-  use(pathOrHandler: string | Handler, routerOrHandler?: Router | Handler, ...rest: Handler[]): this {
+  use(pathOrHandler: string | string[] | Handler, routerOrHandler?: Router | Handler, ...rest: Handler[]): this {
+    // Array of paths — register for each path
+    if (Array.isArray(pathOrHandler)) {
+      for (const path of pathOrHandler) {
+        if (routerOrHandler instanceof Router) {
+          this.use(path, routerOrHandler);
+        } else if (routerOrHandler !== undefined) {
+          this.use(path, routerOrHandler as Handler, ...rest);
+        }
+      }
+      return this;
+    }
+
     if (typeof pathOrHandler === "function") {
       if (pathOrHandler.length === 4) {
         this.errorHandlers.push(pathOrHandler as unknown as ErrorHandler);
