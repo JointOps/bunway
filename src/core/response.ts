@@ -1,4 +1,5 @@
 import type { CookieOptions, SendFileOptions } from "../types";
+import type { BunRequest } from "./request";
 import { existsSync, statSync } from "fs";
 import { join, extname, basename, resolve } from "path";
 import { getBaseMimeType } from "../utils/mime";
@@ -26,6 +27,7 @@ export class BunResponse {
   private _sent = false;
   private _app?: AppContext;
   private _acceptHeader?: string;
+  private _req?: BunRequest;
 
   // Streaming support
   private _streaming = false;
@@ -41,6 +43,18 @@ export class BunResponse {
 
   setAcceptHeader(accept: string | undefined): void {
     this._acceptHeader = accept;
+  }
+
+  setReq(req: BunRequest): void {
+    this._req = req;
+  }
+
+  get req(): BunRequest | undefined {
+    return this._req;
+  }
+
+  get app(): AppContext | undefined {
+    return this._app;
   }
 
   get statusCode(): number {
@@ -125,6 +139,50 @@ export class BunResponse {
   json(data: unknown): void {
     this._headers.set("Content-Type", "application/json");
     this._body = JSON.stringify(data);
+    this._sent = true;
+  }
+
+  jsonp(data: unknown): void {
+    const callbackName = (this._app?.get("jsonp callback name") as string) ?? "callback";
+
+    const spaces = this._app?.get("json spaces") as number | undefined;
+    const replacer = this._app?.get("json replacer") as ((key: string, value: unknown) => unknown) | undefined;
+
+    let body = replacer || spaces
+      ? JSON.stringify(data, replacer, spaces)
+      : JSON.stringify(data);
+
+    let callback: string | undefined;
+    const rawCallback = this._req?.query.get(callbackName) ?? undefined;
+    if (rawCallback !== undefined) {
+      callback = rawCallback;
+    }
+
+    if (!this._headers.has("Content-Type")) {
+      this._headers.set("X-Content-Type-Options", "nosniff");
+      this._headers.set("Content-Type", "application/json");
+    }
+
+    if (typeof callback === "string" && callback.length !== 0) {
+      this._headers.set("X-Content-Type-Options", "nosniff");
+      this._headers.set("Content-Type", "text/javascript; charset=utf-8");
+
+      callback = callback.replace(/[^\[\]\w$.]/g, "");
+
+      if (callback && body !== undefined) {
+        if (typeof body === "string") {
+          body = body
+            .replace(/\u2028/g, "\\u2028")
+            .replace(/\u2029/g, "\\u2029");
+        }
+
+        body = `/**/ typeof ${callback} === 'function' && ${callback}(${body});`;
+      } else if (!body) {
+        body = "";
+      }
+    }
+
+    this._body = body ?? "";
     this._sent = true;
   }
 
@@ -283,9 +341,10 @@ export class BunResponse {
       return;
     }
 
+    const fileSize = stat.size;
     const mimeType = getBaseMimeType(fullPath);
     this._headers.set("Content-Type", mimeType);
-    this._headers.set("Content-Length", String(stat.size));
+    this._headers.set("Accept-Ranges", "bytes");
 
     if (options.maxAge !== undefined) {
       this._headers.set("Cache-Control", `max-age=${options.maxAge}`);
@@ -297,6 +356,62 @@ export class BunResponse {
       }
     }
 
+    // Check for Range header
+    const rangeHeader = this._req?.get("range");
+    if (rangeHeader && fileSize > 0) {
+      const index = rangeHeader.indexOf("=");
+      if (index !== -1 && rangeHeader.slice(0, index) === "bytes") {
+        const rangesStr = rangeHeader.slice(index + 1);
+        const firstRange = rangesStr.split(",")[0]?.trim();
+
+        if (firstRange) {
+          const dashIndex = firstRange.indexOf("-");
+          if (dashIndex !== -1) {
+            const startStr = firstRange.slice(0, dashIndex);
+            const endStr = firstRange.slice(dashIndex + 1);
+
+            let start: number;
+            let end: number;
+
+            if (startStr === "") {
+              const suffixLength = parseInt(endStr, 10);
+              if (!isNaN(suffixLength) && suffixLength > 0) {
+                start = Math.max(0, fileSize - suffixLength);
+                end = fileSize - 1;
+              } else {
+                start = 0;
+                end = fileSize - 1;
+              }
+            } else {
+              start = parseInt(startStr, 10);
+              end = endStr === "" ? fileSize - 1 : parseInt(endStr, 10);
+            }
+
+            if (!isNaN(start) && !isNaN(end) && start <= end && start < fileSize) {
+              if (end >= fileSize) end = fileSize - 1;
+
+              const file = Bun.file(fullPath);
+              this._statusCode = 206;
+              this._headers.set("Content-Range", `bytes ${start}-${end}/${fileSize}`);
+              this._headers.set("Content-Length", String(end - start + 1));
+              this._body = await file.slice(start, end + 1).arrayBuffer();
+              this._sent = true;
+              return;
+            }
+
+            // Unsatisfiable range
+            this._statusCode = 416;
+            this._headers.set("Content-Range", `bytes */${fileSize}`);
+            this._body = null;
+            this._sent = true;
+            return;
+          }
+        }
+      }
+    }
+
+    // No range or non-bytes range — send full file
+    this._headers.set("Content-Length", String(fileSize));
     const file = Bun.file(fullPath);
     this._body = await file.arrayBuffer();
     this._sent = true;
