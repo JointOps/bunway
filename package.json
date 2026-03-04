@@ -1,12 +1,24 @@
 {
   "name": "bunway",
-  "version": "1.0.5",
-  "description": "Express-style routing toolkit built natively for Bun.",
+  "version": "1.0.6",
+  "description": "Express-compatible web framework for Bun. Same API, zero dependencies, 16 built-in middleware.",
   "private": true,
   "type": "module",
   "module": "./src/index.ts",
   "license": "MIT",
   "author": "JointOps <shayanhussain48@gmail.com>",
+  "contributors": [
+    {
+      "name": "ShayanHussainSB",
+      "email": "shayanhussain48@gmail.com",
+      "url": "https://github.com/ShayanHussainSB"
+    },
+    {
+      "name": "MoizYousuf",
+      "email": "moizyousuf24@gmail.com",
+      "url": "https://github.com/MoizYousuf"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/JointOps/bunway.git"
