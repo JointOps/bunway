@@ -92,6 +92,7 @@ export default defineConfig({
           { text: "Core Primitives", link: "/guide/core-primitives" },
           { text: "Router", link: "/guide/router" },
           { text: "Server Lifecycle", link: "/guide/server-lifecycle" },
+          { text: "Request & Response", link: "/guide/request-response" },
           { text: "WebSockets", link: "/guide/websockets" },
         ],
       },
