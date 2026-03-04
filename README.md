@@ -44,6 +44,10 @@ Same code you'd write in Express. Just faster.
 - **Fast** — Bun is 3-4x faster than Node.js
 - **HTTPS/TLS** — Native TLS via `app.listen({ tls: { cert, key } })`
 - **Graceful shutdown** — `app.close()` for clean server lifecycle
+- **Cache Validation** (`req.fresh` / `req.stale`) — 304 Not Modified support
+- **Range Requests** (`req.range()`) — video streaming and resumable downloads
+- **JSONP** (`res.jsonp()`) — legacy cross-domain JSON with callback
+- **Array Paths** (`app.use(['/v1', '/v2'], handler)`) — multi-path middleware mounting
 
 ## Express Compatibility
 
@@ -60,6 +64,11 @@ bunWay is designed for Express developers who want Bun's speed without learning 
 | `Router({ mergeParams: true })` | Same |
 | `https.createServer(opts, app)` | `app.listen({ tls: opts })` |
 | `server.close(callback)` | `app.close(callback)` |
+| Cache Validation | `req.fresh`, `req.stale` |
+| Range Requests | `req.range(size)`, `res.sendFile()` 206 |
+| JSONP | `res.jsonp()`, `app.set("jsonp callback name")` |
+| Cross-References | `req.res`, `res.req`, `res.app` |
+| Array Paths | `app.use([paths], handler)` |
 
 ### Middleware Mapping
 
