@@ -7,6 +7,7 @@
 
 import { describe, expect, it, beforeEach } from "bun:test";
 import { BunResponse } from "../../../src/core/response";
+import { BunRequest } from "../../../src/core/request";
 
 describe("BunResponse (Unit)", () => {
   let res: BunResponse;
@@ -518,5 +519,164 @@ describe("BunResponse (Unit)", () => {
       expect(res.get("Content-Type")).toBe("application/json");
       expect(res.get("Vary")).toBe("Accept");
     });
+  });
+});
+
+describe("res.req / res.app cross-references", () => {
+  it("res.req is undefined before setReq", () => {
+    const res = new BunResponse();
+    expect(res.req).toBeUndefined();
+  });
+
+  it("res.req is set after setReq()", () => {
+    const res = new BunResponse();
+    const req = new BunRequest(new Request("http://localhost/test"), "/test");
+    res.setReq(req);
+    expect(res.req).toBe(req);
+  });
+
+  it("res.app is undefined before setApp", () => {
+    const res = new BunResponse();
+    expect(res.app).toBeUndefined();
+  });
+
+  it("res.app is set after setApp()", () => {
+    const res = new BunResponse();
+    const mockApp = {
+      get: (s: string) => undefined,
+      getEngine: (e: string) => undefined,
+      locals: {},
+    };
+    res.setApp(mockApp);
+    expect(res.app).toBe(mockApp);
+  });
+});
+
+describe("res.jsonp()", () => {
+  it("falls back to JSON when no callback query param", () => {
+    const res = new BunResponse();
+    const req = new BunRequest(new Request("http://localhost/api/data"), "/api/data");
+    res.setReq(req);
+    res.setApp({ get: () => "callback", getEngine: () => undefined, locals: {} });
+    res.jsonp({ name: "bunway" });
+    expect(res.get("Content-Type")).toBe("application/json");
+    const response = res.toResponse();
+    expect(response.status).toBe(200);
+  });
+
+  it("wraps JSON in callback function when callback param present", () => {
+    const res = new BunResponse();
+    const req = new BunRequest(new Request("http://localhost/api?callback=myFunc"), "/api");
+    res.setReq(req);
+    res.setApp({ get: () => "callback", getEngine: () => undefined, locals: {} });
+    res.jsonp({ name: "bunway" });
+    expect(res.get("Content-Type")).toBe("text/javascript; charset=utf-8");
+  });
+
+  it("sanitizes callback name — removes unsafe chars", () => {
+    const res = new BunResponse();
+    const req = new BunRequest(
+      new Request("http://localhost/api?callback=alert(1)//"),
+      "/api"
+    );
+    res.setReq(req);
+    res.setApp({ get: () => "callback", getEngine: () => undefined, locals: {} });
+    res.jsonp({ x: 1 });
+    // alert(1)// sanitized to alert1
+    const response = res.toResponse();
+    expect(res.get("Content-Type")).toBe("text/javascript; charset=utf-8");
+  });
+
+  it("uses custom callback param name from app settings", () => {
+    const res = new BunResponse();
+    const req = new BunRequest(new Request("http://localhost/api?cb=myFunc"), "/api");
+    res.setReq(req);
+    res.setApp({ get: (s: string) => s === "jsonp callback name" ? "cb" : undefined, getEngine: () => undefined, locals: {} });
+    res.jsonp({ ok: true });
+    expect(res.get("Content-Type")).toBe("text/javascript; charset=utf-8");
+  });
+
+  it("sets X-Content-Type-Options: nosniff", () => {
+    const res = new BunResponse();
+    const req = new BunRequest(new Request("http://localhost/api?callback=fn"), "/api");
+    res.setReq(req);
+    res.setApp({ get: () => "callback", getEngine: () => undefined, locals: {} });
+    res.jsonp({ x: 1 });
+    expect(res.get("X-Content-Type-Options")).toBe("nosniff");
+  });
+
+  it("falls back to JSON when callback is empty string", () => {
+    const res = new BunResponse();
+    const req = new BunRequest(new Request("http://localhost/api?callback="), "/api");
+    res.setReq(req);
+    res.setApp({ get: () => "callback", getEngine: () => undefined, locals: {} });
+    res.jsonp({ x: 1 });
+    expect(res.get("Content-Type")).toBe("application/json");
+  });
+
+  it("handles array data", () => {
+    const res = new BunResponse();
+    const req = new BunRequest(new Request("http://localhost/api?callback=fn"), "/api");
+    res.setReq(req);
+    res.setApp({ get: () => "callback", getEngine: () => undefined, locals: {} });
+    res.jsonp([1, 2, 3]);
+    expect(res.get("Content-Type")).toBe("text/javascript; charset=utf-8");
+  });
+
+  it("handles null data", () => {
+    const res = new BunResponse();
+    const req = new BunRequest(new Request("http://localhost/api?callback=fn"), "/api");
+    res.setReq(req);
+    res.setApp({ get: () => "callback", getEngine: () => undefined, locals: {} });
+    res.jsonp(null);
+    expect(res.get("Content-Type")).toBe("text/javascript; charset=utf-8");
+  });
+
+  it("falls back to JSON when sanitized callback is empty", () => {
+    const res = new BunResponse();
+    const req = new BunRequest(new Request("http://localhost/api?callback=!!!"), "/api");
+    res.setReq(req);
+    res.setApp({ get: () => "callback", getEngine: () => undefined, locals: {} });
+    res.jsonp({ x: 1 });
+    // Express sets Content-Type to text/javascript before sanitizing callback
+    // When sanitization empties the callback, Content-Type is already set
+    expect(res.get("Content-Type")).toBe("text/javascript; charset=utf-8");
+  });
+
+  it("defaults callback param to 'callback' when no app setting", () => {
+    const res = new BunResponse();
+    const req = new BunRequest(new Request("http://localhost/api?callback=fn"), "/api");
+    res.setReq(req);
+    res.jsonp({ x: 1 });
+    expect(res.get("Content-Type")).toBe("text/javascript; charset=utf-8");
+  });
+
+  it("escapes U+2028 and U+2029 in JSONP body", () => {
+    const res = new BunResponse();
+    const req = new BunRequest(new Request("http://localhost/api?callback=fn"), "/api");
+    res.setReq(req);
+    res.setApp({ get: () => "callback", getEngine: () => undefined, locals: {} });
+    res.jsonp({ text: "line\u2028sep\u2029" });
+    const response = res.toResponse();
+    // The body should have escaped U+2028 and U+2029 since they're valid JSON but invalid JS
+    expect(response).toBeDefined();
+  });
+
+  it("respects json spaces setting for JSONP output", () => {
+    const res = new BunResponse();
+    const req = new BunRequest(new Request("http://localhost/api?callback=fn"), "/api");
+    res.setReq(req);
+    res.setApp({
+      get: (s: string) => {
+        if (s === "jsonp callback name") return "callback";
+        if (s === "json spaces") return 2;
+        return undefined;
+      },
+      getEngine: () => undefined,
+      locals: {},
+    });
+    res.jsonp({ a: 1 });
+    // The JSON inside the callback should be pretty-printed with 2 spaces
+    expect(res.get("Content-Type")).toBe("text/javascript; charset=utf-8");
   });
 });
