@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.6] - 2026-03-04
+
+### Added
+- **Cache Validation** — `req.fresh` and `req.stale` for ETag/Last-Modified conditional requests
+- **Range Requests** — `req.range(size, options?)` parses Range header (Express-compatible)
+- **Partial Content** — `res.sendFile()` now handles Range requests automatically (206 + Content-Range)
+- **Accept-Ranges** — `res.sendFile()` sets `Accept-Ranges: bytes` on all responses
+- **JSONP** — `res.jsonp(data)` with configurable callback parameter name
+- **Cross-References** — `req.res`, `res.req`, `res.app` set during request dispatch
+- **Array Paths** — `app.use([path1, path2], handler)` for multi-path middleware registration
+
+### Documentation
+- New "Request & Response" guide covering cache validation, range requests, JSONP, and cross-references
+- Updated Express migration guide with Phase 2 feature comparisons
+- Updated README with new features
+- Updated llms.txt and llms-full.txt
+
+### Testing
+- 97 new tests (62 unit + 25 integration + 4 acceptance + 6 compat)
+- Total: ~1386 tests
+
+### Phase 2 Complete
+This release completes Phase 2 (Request/Response Completeness).
+
 ## [1.0.5] - 2026-02-28
 
 ### Added
@@ -197,7 +221,8 @@ This release completes Phase 1 (Core Migration Blockers).
    - Creates GitHub release with auto-generated notes
    - Tags the release
 
-[Unreleased]: https://github.com/JointOps/bunway/compare/v1.0.5...HEAD
+[Unreleased]: https://github.com/JointOps/bunway/compare/v1.0.6...HEAD
+[1.0.6]: https://github.com/JointOps/bunway/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/JointOps/bunway/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/JointOps/bunway/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/JointOps/bunway/compare/v1.0.2...v1.0.3
