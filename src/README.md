@@ -1,23 +1,38 @@
 # bunWay
 
-**If you know Express, you know bunWay.** Same middleware, same routing, same `(req, res, next)` flow—just faster on Bun.
+**Your Express code. Bun's speed. Zero changes.**
 
-## Quick Start
+bunWay exists for one reason: **you shouldn't have to rewrite your backend to get faster performance.** If you know Express, you already know bunWay. Same middleware. Same routing. Same `(req, res, next)`. Just swap the import and you're running on Bun.
+
+## The Problem
+
+Migrating to Bun means choosing between:
+- **Rewriting everything** for a new framework's API
+- **Staying on Node.js** and missing out on Bun's speed
+
+bunWay gives you a third option: **change nothing.**
+
+## Install
 
 ```bash
 bun add bunway
 ```
 
+## 30-Second Setup
+
 ```ts
-import { bunway, cors, helmet, logger, json, session } from "bunway";
+import { bunway, json, cors, helmet, logger } from "bunway";
 
 const app = bunway();
 
 app.use(cors());
 app.use(helmet());
-app.use(logger('dev'));
+app.use(logger("dev"));
 app.use(json());
-app.use(session({ secret: 'my-secret' }));
+
+app.get("/", (req, res) => {
+  res.json({ message: "Hello from bunWay!" });
+});
 
 app.get("/users/:id", (req, res) => {
   res.json({ id: req.params.id });
@@ -26,39 +41,83 @@ app.get("/users/:id", (req, res) => {
 app.listen(3000);
 ```
 
-## Built-in Middleware
+That's real, working code. If it looks like Express, that's the point.
 
-All Express-compatible, all built-in:
+## What You Get
 
-| bunWay | Express Equivalent |
-|--------|-------------------|
-| `json()` | `express.json()` |
-| `urlencoded()` | `express.urlencoded()` |
-| `serveStatic()` | `express.static()` |
-| `cors()` | `cors` |
-| `helmet()` | `helmet` |
-| `logger()` | `morgan` |
-| `session()` | `express-session` |
-| `csrf()` | `csurf` |
-| `compression()` | `compression` |
-| `rateLimit()` | `express-rate-limit` |
-| `cookieParser()` | `cookie-parser` |
-| `passport()` | `passport` |
+### 16 Built-in Middleware — No npm Install Required
 
-## Why bunWay?
+| What You Need | Express (separate package) | bunWay (built-in) |
+|--------------|---------------------------|-------------------|
+| JSON parsing | `express.json()` | `json()` |
+| Form data | `express.urlencoded()` | `urlencoded()` |
+| File uploads | `multer` | `upload()` |
+| CORS | `cors` | `cors()` |
+| Security headers | `helmet` | `helmet()` |
+| Sessions | `express-session` | `session()` |
+| Auth | `passport` | `passport()` |
+| Logging | `morgan` | `logger()` |
+| CSRF protection | `csurf` | `csrf()` |
+| Compression | `compression` | `compression()` |
+| Rate limiting | `express-rate-limit` | `rateLimit()` |
+| Static files | `express.static()` | `serveStatic()` |
+| Cookies | `cookie-parser` | `cookieParser()` |
+| Raw bodies | `body-parser.raw()` | `raw()` |
+| Text bodies | `body-parser.text()` | `text()` |
+| Error handling | Custom middleware | `errorHandler()` |
 
-- **Zero learning curve** — Same API patterns as Express
-- **Batteries included** — Sessions, security, logging, rate limiting—all built-in
-- **Bun-native** — Built on Bun.serve, no Node polyfills
-- **Fast** — Bun is 3-4x faster than Node.js
+One import. No version conflicts. No `node_modules` sprawl.
+
+### Express API — Fully Compatible
+
+Everything you expect from Express works:
+
+```ts
+// Routing
+app.get("/users/:id", handler);
+app.route("/posts").get(list).post(auth, create);
+
+// Sub-routers
+const api = new Router({ mergeParams: true });
+app.use("/api", api);
+
+// Array paths
+app.use(["/v1", "/v2"], apiRouter);
+
+// Cache validation
+if (req.fresh) { res.status(304).end(); return; }
+
+// File streaming with automatic range support
+await res.sendFile("./video.mp4"); // Handles 206 Partial Content
+
+// JSONP
+res.jsonp({ data: "value" }); // ?callback=fn → fn({"data":"value"})
+
+// Native HTTPS
+app.listen({ port: 443, tls: { cert, key } });
+
+// Graceful shutdown
+await app.close();
+```
+
+## Who Is bunWay For?
+
+- **Express developers** who want Bun's speed without learning a new framework
+- **Teams migrating to Bun** who don't want to rewrite their backend
+- **New projects** that want Express patterns with modern performance
+- **Anyone tired** of installing 15 separate middleware packages
+
+## Our Mission
+
+**Make Bun accessible to every Express developer.** No rewrites. No new patterns to memorize. No breaking changes to your mental model. You bring your Express knowledge — we bring Bun's performance.
 
 ## Learn More
 
-- Documentation: https://bunway.jointops.dev/
-- Express Migration: https://bunway.jointops.dev/guide/express-migration.html
-- GitHub: https://github.com/JointOps/bunway
-- npm: https://www.npmjs.com/package/bunway
+- **Documentation**: [bunway.jointops.dev](https://bunway.jointops.dev/)
+- **Express Migration Guide**: [bunway.jointops.dev/guide/express-migration](https://bunway.jointops.dev/guide/express-migration.html)
+- **GitHub**: [github.com/JointOps/bunway](https://github.com/JointOps/bunway)
+- **Discord**: [discord.gg/fTF4qjaMFT](https://discord.gg/fTF4qjaMFT)
 
 ## License
 
-MIT © bunWay contributors
+MIT © [JointOps](https://jointops.dev)
