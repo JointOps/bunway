@@ -100,6 +100,8 @@ No more hunting through npm. No more version conflicts. It's all built-in.
 | `req.session` | `req.session` | With session middleware |
 | `req.protocol` | `req.protocol` | Identical (respects X-Forwarded-Proto with trust proxy) |
 | `req.secure` | `req.secure` | Identical |
+| `req.fresh` / `req.stale` | `req.fresh` / `req.stale` | ETag + Last-Modified cache validation |
+| `req.range(size)` | `req.range(size)` | Range header parsing for partial content |
 
 ### Response Object
 
@@ -112,6 +114,8 @@ No more hunting through npm. No more version conflicts. It's all built-in.
 | `res.cookie()` | `res.cookie()` | Identical |
 | `res.redirect()` | `res.redirect()` | Identical |
 | `res.sendStatus()` | `res.sendStatus()` | Identical |
+| `res.sendFile()` range | `res.sendFile()` range | Automatic 206 Partial Content with `Accept-Ranges: bytes` |
+| `res.jsonp(data)` | `res.jsonp(data)` | JSONP with configurable callback name |
 
 ### Routing
 
@@ -125,6 +129,9 @@ No more hunting through npm. No more version conflicts. It's all built-in.
 | `app.route('/path')` | `app.route('/path')` | Chainable route definitions |
 | `express.Router()` | `bunway.Router()` | Same pattern |
 | `Router({ mergeParams: true })` | `Router({ mergeParams: true })` | Inherit parent route params |
+| `req.res` / `res.req` | `req.res` / `res.req` | Cross-references set during dispatch |
+| `res.app` | `res.app` | Access app instance from response |
+| `app.use([paths], handler)` | `app.use([paths], handler)` | Array path mounting |
 | `https.createServer(opts, app)` | `app.listen({ tls: opts })` | Native TLS support |
 | `server.close(callback)` | `app.close(callback)` | Graceful shutdown |
 

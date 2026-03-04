@@ -83,11 +83,18 @@ app.get("/users/:id", (req, res) => {
 app.listen({ port: 3000 });
 ```
 
+### Request & Response
+
+- **Cache Validation** — `req.fresh` / `req.stale` for 304 responses
+- **Range Requests** — `req.range()` + automatic `res.sendFile()` partial content (206)
+- **JSONP** — `res.jsonp()` for legacy cross-domain support
+- **Cross-References** — `req.res`, `res.req`, `res.app` for Express parity
+- **Array Paths** — `app.use(['/v1', '/v2'], router)` for multi-path mounting
+
 ## What's next?
 
-Core features and migration blockers are complete. Active development focuses on:
+Core features and request/response completeness are done. Active development focuses on:
 
-- **Request/Response gaps** — `req.fresh/stale`, `req.range()`, `res.jsonp()`
 - **Security middleware** — request validation, HPP protection, request timeout
 - **Developer experience** — SSE helpers, response time, request ID
 - **Performance** — continued optimization and benchmarking
