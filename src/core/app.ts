@@ -43,6 +43,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   "etag": "weak",
   "x-powered-by": true,
   "env": process.env.NODE_ENV || "development",
+  "jsonp callback name": "callback",
 };
 
 export class BunWayApp extends Router {
@@ -63,7 +64,9 @@ export class BunWayApp extends Router {
     this.setAppContext({
       setApp: (req, res) => {
         req.setApp(self);
+        req.setRes(res);
         res.setApp(self);
+        res.setReq(req);
         res.setAcceptHeader(req.get("accept"));
       },
     });

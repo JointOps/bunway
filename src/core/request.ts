@@ -1,4 +1,5 @@
 import type { UploadedFile } from "../types";
+import type { BunResponse } from "./response";
 
 const DEFAULT_BODY_LIMIT = 1024 * 1024;
 
@@ -56,6 +57,13 @@ export interface RequestAppContext {
   getLogger(): BunWayLogger;
 }
 
+export interface RangeSpec {
+  start: number;
+  end: number;
+}
+
+export type RangeResult = RangeSpec[] & { type: string } | -1 | -2;
+
 export class BunRequest {
   private _original: Request;
   private _url: URL | null = null; // Lazy - only parsed when needed
@@ -70,6 +78,7 @@ export class BunRequest {
   private _socketIp: string | null = null;
   private _file: UploadedFile | null = null;
   private _files: UploadedFile[] | Record<string, UploadedFile[]> | null = null;
+  private _res?: BunResponse;
 
   locals: Record<string, unknown> = {};
 
@@ -130,8 +139,16 @@ export class BunRequest {
     this._app = app;
   }
 
+  setRes(res: BunResponse): void {
+    this._res = res;
+  }
+
   get app(): RequestAppContext | undefined {
     return this._app;
+  }
+
+  get res(): BunResponse | undefined {
+    return this._res;
   }
 
   private getTrustProxy(): TrustProxyValue {
@@ -279,6 +296,54 @@ export class BunRequest {
 
   get secure(): boolean {
     return this.protocol === "https";
+  }
+
+  get fresh(): boolean {
+    const method = this.method;
+    const statusCode = this._res?.statusCode ?? 0;
+
+    if (method !== "GET" && method !== "HEAD") return false;
+
+    if (statusCode < 200 || (statusCode >= 300 && statusCode !== 304)) return false;
+
+    const ifNoneMatch = this.get("if-none-match");
+    const ifModifiedSince = this.get("if-modified-since");
+
+    if (!ifNoneMatch && !ifModifiedSince) return false;
+
+    const cacheControl = this.get("cache-control");
+    if (cacheControl && /(?:^|,)\s*?no-cache\s*?(?:,|$)/.test(cacheControl)) return false;
+
+    if (ifNoneMatch) {
+      if (ifNoneMatch.trim() === "*") return true;
+
+      const etag = this._res?.get("etag");
+      if (!etag) return false;
+
+      const tags = ifNoneMatch.split(",").map(t => t.trim());
+      const normalizedEtag = etag.replace(/^W\//, "");
+      return tags.some(t => {
+        const normalized = t.replace(/^W\//, "");
+        return normalized === normalizedEtag;
+      });
+    }
+
+    if (ifModifiedSince) {
+      const lastModified = this._res?.get("last-modified");
+      if (!lastModified) return false;
+
+      const clientDate = Date.parse(ifModifiedSince);
+      const serverDate = Date.parse(lastModified);
+      if (isNaN(clientDate) || isNaN(serverDate)) return false;
+
+      return serverDate <= clientDate;
+    }
+
+    return false;
+  }
+
+  get stale(): boolean {
+    return !this.fresh;
   }
 
   get ip(): string {
@@ -469,6 +534,79 @@ export class BunRequest {
       }
     }
     return false;
+  }
+
+  range(size: number, options?: { combine?: boolean }): RangeResult | undefined {
+    const rangeHeader = this.get("range");
+    if (!rangeHeader) return undefined;
+
+    const index = rangeHeader.indexOf("=");
+    if (index === -1) return -2;
+
+    const type = rangeHeader.slice(0, index);
+    const rangesStr = rangeHeader.slice(index + 1);
+    const parts = rangesStr.split(",");
+    const ranges: Array<{ start: number; end: number }> = [];
+
+    for (const part of parts) {
+      const trimmed = part.trim();
+      if (!trimmed) continue;
+
+      const dashIndex = trimmed.indexOf("-");
+      if (dashIndex === -1) continue;
+
+      const startStr = trimmed.slice(0, dashIndex);
+      const endStr = trimmed.slice(dashIndex + 1);
+
+      let start: number;
+      let end: number;
+
+      if (startStr === "") {
+        const suffixLength = parseInt(endStr, 10);
+        if (isNaN(suffixLength) || suffixLength <= 0) continue;
+        start = size - suffixLength;
+        end = size - 1;
+      } else {
+        start = parseInt(startStr, 10);
+        if (isNaN(start)) continue;
+
+        if (endStr === "") {
+          end = size - 1;
+        } else {
+          end = parseInt(endStr, 10);
+          if (isNaN(end)) continue;
+        }
+      }
+
+      if (end > size - 1) end = size - 1;
+
+      if (start > end || start < 0) continue;
+
+      ranges.push({ start, end });
+    }
+
+    if (ranges.length === 0) return -1;
+
+    if (options?.combine && ranges.length > 1) {
+      ranges.sort((a, b) => a.start - b.start);
+      const combined: Array<{ start: number; end: number }> = [ranges[0]!];
+      for (let i = 1; i < ranges.length; i++) {
+        const current = ranges[i]!;
+        const last = combined[combined.length - 1]!;
+        if (current.start <= last.end + 1) {
+          last.end = Math.max(last.end, current.end);
+        } else {
+          combined.push(current);
+        }
+      }
+      const result = combined as RangeSpec[] & { type: string };
+      result.type = type;
+      return result;
+    }
+
+    const result = ranges as RangeSpec[] & { type: string };
+    result.type = type;
+    return result;
   }
 
   isBodyParsed(): boolean {
