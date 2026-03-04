@@ -1,5 +1,6 @@
 User-agent: *
 Allow: /
+Disallow: /api/assets/
 
 # AI Crawlers
 User-agent: GPTBot
