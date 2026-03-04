@@ -7,6 +7,7 @@
 
 import { describe, expect, it, beforeEach } from "bun:test";
 import { BunRequest } from "../../../src/core/request";
+import { BunResponse } from "../../../src/core/response";
 
 describe("BunRequest (Unit)", () => {
   const createRequest = (url: string, options?: RequestInit): BunRequest => {
@@ -559,5 +560,412 @@ describe("BunRequest (Unit)", () => {
       req.setApp(mockApp);
       expect(req.app).toBe(mockApp);
     });
+  });
+});
+
+describe("req.fresh / req.stale", () => {
+  function createFreshReq(
+    url: string,
+    headers: Record<string, string>,
+    resStatus: number,
+    resHeaders: Record<string, string>
+  ): BunRequest {
+    const req = new BunRequest(
+      new Request(url, { method: "GET", headers }),
+      new URL(url).pathname
+    );
+    const res = new BunResponse();
+    res.status(resStatus);
+    for (const [k, v] of Object.entries(resHeaders)) {
+      res.set(k, v);
+    }
+    req.setRes(res);
+    return req;
+  }
+
+  it("returns false for POST requests", () => {
+    const req = new BunRequest(
+      new Request("http://localhost/test", { method: "POST", headers: { "if-none-match": '"abc"' } }),
+      "/test"
+    );
+    const res = new BunResponse();
+    res.status(200);
+    res.set("etag", '"abc"');
+    req.setRes(res);
+    expect(req.fresh).toBe(false);
+  });
+
+  it("returns false when status < 200", () => {
+    const req = createFreshReq(
+      "http://localhost/test",
+      { "if-none-match": '"abc"' },
+      100,
+      { "etag": '"abc"' }
+    );
+    expect(req.fresh).toBe(false);
+  });
+
+  it("returns false when status >= 300 and not 304", () => {
+    const req = createFreshReq(
+      "http://localhost/test",
+      { "if-none-match": '"abc"' },
+      400,
+      { "etag": '"abc"' }
+    );
+    expect(req.fresh).toBe(false);
+  });
+
+  it("returns true for 304 with matching ETag", () => {
+    const req = createFreshReq(
+      "http://localhost/test",
+      { "if-none-match": '"abc"' },
+      304,
+      { "etag": '"abc"' }
+    );
+    expect(req.fresh).toBe(true);
+  });
+
+  it("returns false with no cache headers", () => {
+    const req = createFreshReq("http://localhost/test", {}, 200, { "etag": '"abc"' });
+    expect(req.fresh).toBe(false);
+  });
+
+  it("returns true when If-None-Match matches ETag", () => {
+    const req = createFreshReq(
+      "http://localhost/test",
+      { "if-none-match": '"abc"' },
+      200,
+      { "etag": '"abc"' }
+    );
+    expect(req.fresh).toBe(true);
+  });
+
+  it("returns false when If-None-Match does not match ETag", () => {
+    const req = createFreshReq(
+      "http://localhost/test",
+      { "if-none-match": '"abc"' },
+      200,
+      { "etag": '"def"' }
+    );
+    expect(req.fresh).toBe(false);
+  });
+
+  it("handles weak ETag comparison (W/ prefix)", () => {
+    const req = createFreshReq(
+      "http://localhost/test",
+      { "if-none-match": 'W/"abc"' },
+      200,
+      { "etag": '"abc"' }
+    );
+    expect(req.fresh).toBe(true);
+  });
+
+  it("handles weak ETag on response side", () => {
+    const req = createFreshReq(
+      "http://localhost/test",
+      { "if-none-match": '"abc"' },
+      200,
+      { "etag": 'W/"abc"' }
+    );
+    expect(req.fresh).toBe(true);
+  });
+
+  it("If-None-Match: * matches any ETag", () => {
+    const req = createFreshReq(
+      "http://localhost/test",
+      { "if-none-match": "*" },
+      200,
+      { "etag": '"anything"' }
+    );
+    expect(req.fresh).toBe(true);
+  });
+
+  it("handles comma-separated If-None-Match list", () => {
+    const req = createFreshReq(
+      "http://localhost/test",
+      { "if-none-match": '"aaa", "bbb", "ccc"' },
+      200,
+      { "etag": '"bbb"' }
+    );
+    expect(req.fresh).toBe(true);
+  });
+
+  it("returns false when ETag not in list", () => {
+    const req = createFreshReq(
+      "http://localhost/test",
+      { "if-none-match": '"aaa", "bbb"' },
+      200,
+      { "etag": '"zzz"' }
+    );
+    expect(req.fresh).toBe(false);
+  });
+
+  it("returns true when If-Modified-Since matches Last-Modified", () => {
+    const date = new Date("2026-01-01T00:00:00Z");
+    const req = createFreshReq(
+      "http://localhost/test",
+      { "if-modified-since": date.toUTCString() },
+      200,
+      { "last-modified": date.toUTCString() }
+    );
+    expect(req.fresh).toBe(true);
+  });
+
+  it("returns false when Last-Modified is after If-Modified-Since", () => {
+    const req = createFreshReq(
+      "http://localhost/test",
+      { "if-modified-since": new Date("2026-01-01").toUTCString() },
+      200,
+      { "last-modified": new Date("2026-02-01").toUTCString() }
+    );
+    expect(req.fresh).toBe(false);
+  });
+
+  it("returns true when both ETag and Last-Modified match", () => {
+    const date = new Date("2026-01-01T00:00:00Z");
+    const req = createFreshReq(
+      "http://localhost/test",
+      {
+        "if-none-match": '"abc"',
+        "if-modified-since": date.toUTCString(),
+      },
+      200,
+      {
+        "etag": '"abc"',
+        "last-modified": date.toUTCString(),
+      }
+    );
+    expect(req.fresh).toBe(true);
+  });
+
+  it("returns true when ETag matches even if Last-Modified is newer (If-None-Match takes precedence)", () => {
+    const req = createFreshReq(
+      "http://localhost/test",
+      {
+        "if-none-match": '"abc"',
+        "if-modified-since": new Date("2026-01-01").toUTCString(),
+      },
+      200,
+      {
+        "etag": '"abc"',
+        "last-modified": new Date("2026-06-01").toUTCString(),
+      }
+    );
+    // When If-None-Match is present, If-Modified-Since is COMPLETELY IGNORED (RFC 2616 Section 14.26)
+    expect(req.fresh).toBe(true);
+  });
+
+  it("handles HEAD requests as fresh-eligible", () => {
+    const req = new BunRequest(
+      new Request("http://localhost/test", { method: "HEAD", headers: { "if-none-match": '"abc"' } }),
+      "/test"
+    );
+    const res = new BunResponse();
+    res.status(200);
+    res.set("etag", '"abc"');
+    req.setRes(res);
+    expect(req.fresh).toBe(true);
+  });
+
+  it("returns false when no res is set", () => {
+    const req = new BunRequest(
+      new Request("http://localhost/test", { headers: { "if-none-match": '"abc"' } }),
+      "/test"
+    );
+    expect(req.fresh).toBe(false);
+  });
+
+  it("handles invalid If-Modified-Since date gracefully", () => {
+    const req = createFreshReq(
+      "http://localhost/test",
+      { "if-modified-since": "not-a-date" },
+      200,
+      { "last-modified": new Date().toUTCString() }
+    );
+    expect(req.fresh).toBe(false);
+  });
+
+  it("req.stale is inverse of req.fresh", () => {
+    const req = createFreshReq(
+      "http://localhost/test",
+      { "if-none-match": '"abc"' },
+      200,
+      { "etag": '"abc"' }
+    );
+    expect(req.stale).toBe(false);
+    expect(req.fresh).toBe(true);
+  });
+
+  it("req.stale is true when not fresh", () => {
+    const req = createFreshReq("http://localhost/test", {}, 200, {});
+    expect(req.stale).toBe(true);
+  });
+
+  it("returns false when Cache-Control: no-cache is set (always stale)", () => {
+    const req = createFreshReq(
+      "http://localhost/test",
+      { "if-none-match": '"abc"', "cache-control": "no-cache" },
+      200,
+      { "etag": '"abc"' }
+    );
+    expect(req.fresh).toBe(false);
+  });
+
+  it("returns false when Cache-Control contains no-cache among directives", () => {
+    const req = createFreshReq(
+      "http://localhost/test",
+      { "if-none-match": '"abc"', "cache-control": "max-age=0, no-cache" },
+      200,
+      { "etag": '"abc"' }
+    );
+    expect(req.fresh).toBe(false);
+  });
+
+  it("If-None-Match: * returns true even with no server ETag", () => {
+    const req = createFreshReq(
+      "http://localhost/test",
+      { "if-none-match": "*" },
+      200,
+      {} // no etag set
+    );
+    expect(req.fresh).toBe(true);
+  });
+
+  it("If-None-Match completely ignores If-Modified-Since even when IMS says stale", () => {
+    const req = createFreshReq(
+      "http://localhost/test",
+      {
+        "if-none-match": '"v1"',
+        "if-modified-since": new Date("2020-01-01").toUTCString(),
+      },
+      200,
+      {
+        "etag": '"v1"',
+        "last-modified": new Date("2026-06-01").toUTCString(), // much newer than IMS
+      }
+    );
+    // ETag matches → fresh. IMS is completely ignored when INM is present.
+    expect(req.fresh).toBe(true);
+  });
+});
+
+describe("req.range()", () => {
+  function createRangeReq(rangeHeader?: string): BunRequest {
+    const headers: Record<string, string> = {};
+    if (rangeHeader) headers["range"] = rangeHeader;
+    return new BunRequest(
+      new Request("http://localhost/file", { headers }),
+      "/file"
+    );
+  }
+
+  it("returns undefined when no Range header", () => {
+    const req = createRangeReq();
+    expect(req.range(1000)).toBeUndefined();
+  });
+
+  it("parses single byte range", () => {
+    const req = createRangeReq("bytes=0-499");
+    const result = req.range(1000);
+    expect(result).not.toBe(-1);
+    expect(result).not.toBe(-2);
+    if (typeof result === "object" && Array.isArray(result)) {
+      expect(result.length).toBe(1);
+      expect(result[0]).toEqual({ start: 0, end: 499 });
+      expect(result.type).toBe("bytes");
+    }
+  });
+
+  it("parses multiple ranges", () => {
+    const req = createRangeReq("bytes=0-99, 200-299");
+    const result = req.range(1000);
+    if (typeof result === "object" && Array.isArray(result)) {
+      expect(result.length).toBe(2);
+      expect(result[0]).toEqual({ start: 0, end: 99 });
+      expect(result[1]).toEqual({ start: 200, end: 299 });
+    }
+  });
+
+  it("parses suffix range (-500)", () => {
+    const req = createRangeReq("bytes=-500");
+    const result = req.range(1000);
+    if (typeof result === "object" && Array.isArray(result)) {
+      expect(result.length).toBe(1);
+      expect(result[0]).toEqual({ start: 500, end: 999 });
+    }
+  });
+
+  it("parses open-ended range (500-)", () => {
+    const req = createRangeReq("bytes=500-");
+    const result = req.range(1000);
+    if (typeof result === "object" && Array.isArray(result)) {
+      expect(result.length).toBe(1);
+      expect(result[0]).toEqual({ start: 500, end: 999 });
+    }
+  });
+
+  it("returns -2 for malformed range (no =)", () => {
+    const req = createRangeReq("bytes 0-499");
+    expect(req.range(1000)).toBe(-2);
+  });
+
+  it("parses non-bytes range type (Express accepts any type)", () => {
+    const req = createRangeReq("items=0-10");
+    const result = req.range(1000);
+    if (typeof result === "object" && Array.isArray(result)) {
+      expect(result.length).toBe(1);
+      expect(result[0]).toEqual({ start: 0, end: 10 });
+      expect(result.type).toBe("items");
+    } else {
+      throw new Error("Expected parsed range array, got " + result);
+    }
+  });
+
+  it("returns -1 for unsatisfiable range", () => {
+    const req = createRangeReq("bytes=2000-3000");
+    expect(req.range(1000)).toBe(-1);
+  });
+
+  it("clamps end to size - 1", () => {
+    const req = createRangeReq("bytes=0-9999");
+    const result = req.range(100);
+    if (typeof result === "object" && Array.isArray(result)) {
+      expect(result[0]).toEqual({ start: 0, end: 99 });
+    }
+  });
+
+  it("suffix range larger than file size returns -1 (unsatisfiable — start < 0 is skipped)", () => {
+    const req = createRangeReq("bytes=-5000");
+    const result = req.range(100);
+    // start = 100 - 5000 = -4900, start < 0 → range skipped → no valid ranges → -1
+    expect(result).toBe(-1);
+  });
+
+  it("combines overlapping ranges with combine option", () => {
+    const req = createRangeReq("bytes=0-100, 50-200");
+    const result = req.range(1000, { combine: true });
+    if (typeof result === "object" && Array.isArray(result)) {
+      expect(result.length).toBe(1);
+      expect(result[0]).toEqual({ start: 0, end: 200 });
+    }
+  });
+
+  it("combines adjacent ranges", () => {
+    const req = createRangeReq("bytes=0-99, 100-199");
+    const result = req.range(1000, { combine: true });
+    if (typeof result === "object" && Array.isArray(result)) {
+      expect(result.length).toBe(1);
+      expect(result[0]).toEqual({ start: 0, end: 199 });
+    }
+  });
+
+  it("handles zero-length file", () => {
+    const req = createRangeReq("bytes=0-0");
+    expect(req.range(0)).toBe(-1);
+  });
+
+  it("returns -2 for completely empty range specifier", () => {
+    const req = createRangeReq("bytes=");
+    expect(req.range(1000)).toBe(-1);
   });
 });
