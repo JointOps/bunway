@@ -422,3 +422,71 @@ describe("Router (Unit)", () => {
     });
   });
 });
+
+describe("use() with array paths", () => {
+  it("registers middleware for all paths in array", async () => {
+    const router = new Router();
+    const log: string[] = [];
+    router.use(["/api", "/v2"], (req, res, next) => {
+      log.push(req.path);
+      res.json({ ok: true });
+    });
+    await router.handle(new Request("http://localhost/api"));
+    await router.handle(new Request("http://localhost/v2"));
+    expect(log).toEqual(["/api", "/v2"]);
+  });
+
+  it("single string still works (no regression)", async () => {
+    const router = new Router();
+    router.use("/api", (req, res) => res.json({ ok: true }));
+    const response = await router.handle(new Request("http://localhost/api"));
+    expect(response.status).toBe(200);
+  });
+
+  it("array with sub-router mount", async () => {
+    const router = new Router();
+    const sub = new Router();
+    sub.get("/test", (req, res) => res.json({ hit: true }));
+    router.use(["/v1", "/v2"], sub);
+
+    const r1 = await router.handle(new Request("http://localhost/v1/test"));
+    const r2 = await router.handle(new Request("http://localhost/v2/test"));
+    expect(r1.status).toBe(200);
+    expect(r2.status).toBe(200);
+  });
+
+  it("empty array is no-op", async () => {
+    const router = new Router();
+    router.use([], (req, res) => res.json({ ok: true }));
+    const response = await router.handle(new Request("http://localhost/test"));
+    expect(response.status).toBe(404);
+  });
+
+  it("array paths with multiple handlers", async () => {
+    const router = new Router();
+    const log: string[] = [];
+    router.use(
+      ["/a", "/b"],
+      (req, res, next) => { log.push("mw"); next(); },
+      (req, res) => res.json({ ok: true })
+    );
+    await router.handle(new Request("http://localhost/a"));
+    await router.handle(new Request("http://localhost/b"));
+    expect(log).toEqual(["mw", "mw"]);
+  });
+
+  it("array paths with route parameters", async () => {
+    const router = new Router();
+    const sub = new Router({ mergeParams: true });
+    sub.get("/info", (req, res) => res.json({ id: req.params.id }));
+    router.use(["/users/:id", "/accounts/:id"], sub);
+
+    const r1 = await router.handle(new Request("http://localhost/users/42/info"));
+    const body1 = await r1.json();
+    expect(body1.id).toBe("42");
+
+    const r2 = await router.handle(new Request("http://localhost/accounts/99/info"));
+    const body2 = await r2.json();
+    expect(body2.id).toBe("99");
+  });
+});
