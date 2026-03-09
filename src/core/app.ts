@@ -51,6 +51,8 @@ export class BunWayApp extends Router {
   public locals: Record<string, unknown> = {};
   private engines: Map<string, (path: string, options: Record<string, unknown>, callback: (err: Error | null, html?: string) => void) => void> = new Map();
   private _server: ReturnType<typeof Bun.serve> | null = null;
+  private _mountpath: string = "/";
+  private _parent?: BunWayApp;
 
   constructor(options?: BunWayOptions) {
     super(options);
@@ -72,18 +74,42 @@ export class BunWayApp extends Router {
     });
   }
 
+  /**
+   * The path pattern(s) on which a sub-app was mounted.
+   * Express compat: app.mountpath
+   */
+  get mountpath(): string {
+    return this._mountpath;
+  }
+
+  set mountpath(value: string) {
+    this._mountpath = value;
+  }
+
+  /**
+   * Returns the canonical path of the app, based on mountpath.
+   * Express compat: app.path()
+   */
+  path(): string {
+    const parent = this._parent;
+    if (!parent) return this._mountpath;
+    const parentPath = parent.path();
+    if (parentPath.endsWith("/")) return parentPath + this._mountpath.slice(1);
+    return parentPath + this._mountpath;
+  }
+
   set(setting: string, value: unknown): this {
     this.settings[setting] = value;
     return this;
   }
 
   override get(setting: string): unknown;
-  override get(path: string, ...handlers: Handler[]): this;
-  override get(pathOrSetting: string, ...handlers: Handler[]): this | unknown {
-    if (handlers.length === 0) {
+  override get(path: string | RegExp, ...handlers: Handler[]): this;
+  override get(pathOrSetting: string | RegExp, ...handlers: Handler[]): this | unknown {
+    if (handlers.length === 0 && typeof pathOrSetting === "string") {
       return this.settings[pathOrSetting];
     }
-    return super.get(pathOrSetting, ...handlers);
+    return super.get(pathOrSetting as string | RegExp, ...handlers);
   }
 
   enable(setting: string): this {
