@@ -116,6 +116,10 @@ app.listen(3000)
 - Catch-all: app.all("*", handler) matches all routes.
 - app.mountpath: set when sub-app is mounted. app.path() returns canonical path.
 - res.sendFile(path, options?, callback?): supports lastModified, cacheControl, immutable, acceptRanges options and error callback.
+- req.param(name): checks params → body → query, like Express's deprecated req.param().
+- res.download(path, filename, callback): callback support for error handling.
+- res.attachment("file.pdf"): auto-detects Content-Type from filename.
+- res.end(data, encoding, callback): encoding and callback support like Express.
 
 ## Key API Surface
 

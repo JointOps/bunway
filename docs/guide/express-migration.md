@@ -102,6 +102,10 @@ No more hunting through npm. No more version conflicts. It's all built-in.
 | `req.secure` | `req.secure` | Identical |
 | `req.fresh` / `req.stale` | `req.fresh` / `req.stale` | ETag + Last-Modified cache validation |
 | `req.range(size)` | `req.range(size)` | Range header parsing for partial content |
+| `req.param(name)` | `req.param(name)` | Checks params → body → query |
+| `req.acceptsCharsets()` | `req.acceptsCharsets()` | Identical |
+| `req.acceptsEncodings()` | `req.acceptsEncodings()` | Identical |
+| `req.acceptsLanguages()` | `req.acceptsLanguages()` | Identical |
 
 ### Response Object
 
@@ -116,6 +120,10 @@ No more hunting through npm. No more version conflicts. It's all built-in.
 | `res.sendStatus()` | `res.sendStatus()` | Identical |
 | `res.sendFile()` range | `res.sendFile()` range | Automatic 206 Partial Content with `Accept-Ranges: bytes` |
 | `res.jsonp(data)` | `res.jsonp(data)` | JSONP with configurable callback name |
+| `res.send()` chaining | `res.send()` chaining | Returns `this` for chaining |
+| `res.download(path, fn, cb)` | `res.download(path, fn, cb)` | Callback support for error handling |
+| `res.attachment(file)` | `res.attachment(file)` | Auto-detects Content-Type |
+| `res.end(data, enc, cb)` | `res.end(data, enc, cb)` | Encoding and callback support |
 
 ### Routing
 
@@ -370,6 +378,66 @@ const admin = bunway();
 app.use("/admin", admin);
 console.log(admin.mountpath); // "/admin"
 console.log(admin.path());   // "/admin"
+```
+
+### req.param() — Unified Parameter Lookup
+
+Like Express's deprecated `req.param()`, bunWay checks params, body, then query:
+
+```typescript
+// GET /users/42?role=admin  (body: { name: "Jo" })
+req.param("id");   // "42"   (from params)
+req.param("name"); // "Jo"   (from body)
+req.param("role"); // "admin" (from query)
+```
+
+### req.acceptsCharsets(), req.acceptsEncodings(), req.acceptsLanguages()
+
+Content negotiation helpers that mirror Express:
+
+```typescript
+req.acceptsCharsets("utf-8", "iso-8859-1"); // "utf-8"
+req.acceptsEncodings("gzip", "deflate");    // "gzip"
+req.acceptsLanguages("en", "fr");           // "en"
+```
+
+### res.send() / res.json() — Chainable
+
+`res.send()` and `res.json()` now return `this` for chaining:
+
+```typescript
+res.status(200).send("ok");
+res.status(201).json({ created: true });
+```
+
+### res.download() — Callback Support
+
+`res.download()` now accepts an optional callback for error handling:
+
+```typescript
+res.download("/files/report.pdf", "report.pdf", (err) => {
+  if (err) console.error("Download failed:", err);
+});
+```
+
+### res.attachment() — Content-Type Auto-Detection
+
+`res.attachment()` sets `Content-Disposition` and auto-detects `Content-Type`:
+
+```typescript
+res.attachment("photo.png");
+// Content-Disposition: attachment; filename="photo.png"
+// Content-Type: image/png
+```
+
+### res.end() — Encoding & Callback
+
+`res.end()` now supports encoding and callback arguments like Express:
+
+```typescript
+res.end("done", "utf-8", () => {
+  console.log("Response sent");
+});
 ```
 
 ## What's Different?
