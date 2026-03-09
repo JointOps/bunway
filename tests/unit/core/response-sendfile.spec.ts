@@ -84,6 +84,29 @@ describe("res.download() with callback", () => {
   });
 });
 
+describe("res.download() error handling", () => {
+  it("calls callback with error for missing file", async () => {
+    const res = new BunResponse();
+    let callbackErr: Error | undefined;
+    await res.download(join(FIXTURES, "nonexistent.txt"), "missing.txt", {}, (err) => {
+      callbackErr = err;
+    });
+    expect(callbackErr).toBeDefined();
+  });
+
+  it("sets Content-Disposition with custom filename vs basename", async () => {
+    const res = new BunResponse();
+    let callbackCalled = false;
+    await res.download(join(FIXTURES, "test.txt"), "custom-name.txt", {}, (err) => {
+      callbackCalled = true;
+    });
+    expect(callbackCalled).toBe(true);
+    const response = res.toResponse();
+    expect(response.headers.get("content-disposition")).toContain("custom-name.txt");
+    expect(response.headers.get("content-disposition")).not.toContain("test.txt");
+  });
+});
+
 describe("res.attachment() Content-Type", () => {
   it("sets Content-Type based on filename extension", () => {
     const res = new BunResponse();
@@ -105,6 +128,37 @@ describe("res.attachment() Content-Type", () => {
     res.attachment();
     const response = res.toResponse();
     expect(response.headers.get("content-disposition")).toBe("attachment");
+  });
+
+  it("handles unknown extension", () => {
+    const res = new BunResponse();
+    res.attachment("data.xyz123");
+    const response = res.toResponse();
+    expect(response.headers.get("content-disposition")).toContain("data.xyz123");
+  });
+
+  it("handles filename with no extension", () => {
+    const res = new BunResponse();
+    res.attachment("README");
+    const response = res.toResponse();
+    expect(response.headers.get("content-disposition")).toContain("README");
+  });
+});
+
+describe("res.sendFile() cache options", () => {
+  it("does NOT set Cache-Control when cacheControl=false", async () => {
+    const res = new BunResponse();
+    await res.sendFile(join(FIXTURES, "test.txt"), { cacheControl: false });
+    const response = res.toResponse();
+    expect(response.headers.get("cache-control")).toBeNull();
+  });
+
+  it("sets Cache-Control with max-age=0 when maxAge=0", async () => {
+    const res = new BunResponse();
+    await res.sendFile(join(FIXTURES, "test.txt"), { maxAge: 0 });
+    const response = res.toResponse();
+    const cc = response.headers.get("cache-control");
+    expect(cc).toContain("max-age=0");
   });
 });
 

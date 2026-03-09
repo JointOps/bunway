@@ -37,6 +37,11 @@ describe("BunRequest Content Negotiation", () => {
       const req = createRequest("http://localhost/", { Accept: "*/*" });
       expect(req.accepts("json")).toBe("json");
     });
+
+    it("returns first type with empty Accept header", () => {
+      const req = createRequest("http://localhost/", { Accept: "" });
+      expect(req.accepts("json", "html")).toBe("json");
+    });
   });
 
   describe("acceptsCharsets()", () => {
@@ -76,6 +81,14 @@ describe("BunRequest Content Negotiation", () => {
       });
       // "en" should match "en-US" via language range
       expect(req.acceptsLanguages("en", "fr")).toBe("en");
+    });
+
+    it("handles malformed language tags gracefully", () => {
+      const req = createRequest("http://localhost/", {
+        "Accept-Language": "en-US;q=abc, fr;q=0.5",
+      });
+      // Malformed q=abc should be treated as 0, so fr should win
+      expect(req.acceptsLanguages("en", "fr")).toBe("fr");
     });
   });
 
@@ -149,6 +162,18 @@ describe("BunRequest Content Negotiation", () => {
       req.body = { x: "body" };
       req.params = { x: "param" };
       expect(req.param("x")).toBe("param");
+    });
+
+    it("falls through to query when body is empty object", () => {
+      const req = createRequest("http://localhost/?name=query");
+      req.body = {};
+      expect(req.param("name")).toBe("query");
+    });
+
+    it("falls through to query when body is undefined", () => {
+      const req = createRequest("http://localhost/?name=query");
+      req.body = undefined;
+      expect(req.param("name")).toBe("query");
     });
   });
 });

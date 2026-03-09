@@ -55,6 +55,24 @@ describe("Content Negotiation Utils", () => {
       expect(result[1].value).toBe("application/json");
       expect(result[2].value).toBe("text/plain");
     });
+
+    it("treats malformed quality value (q=abc) as q=0", () => {
+      const result = parseAcceptHeader("text/html;q=abc, application/json");
+      // NaN from parseFloat("abc") should be treated as 0
+      const htmlEntry = result.find((e) => e.value === "text/html");
+      expect(htmlEntry!.quality).toBe(0);
+      expect(result[0].value).toBe("application/json");
+    });
+
+    it("clamps quality value > 1 to 1", () => {
+      const result = parseAcceptHeader("text/html;q=1.5, application/json;q=0.5");
+      const htmlEntry = result.find((e) => e.value === "text/html");
+      expect(htmlEntry!.quality).toBe(1);
+    });
+
+    it("returns empty array for empty Accept header", () => {
+      expect(parseAcceptHeader("")).toEqual([]);
+    });
   });
 
   describe("parseMediaType", () => {
