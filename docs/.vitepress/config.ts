@@ -3,7 +3,7 @@ import type { HeadConfig } from "vitepress";
 
 const CANONICAL_BASE = "https://bunway.jointops.dev/";
 const SITE_TITLE = "bunWay";
-const SITE_DESCRIPTION = "Express-compatible web framework for Bun. Drop-in Express replacement with zero rewrites, zero dependencies, and 16 built-in middleware. Same (req, res, next) API, 3-4x faster.";
+const SITE_DESCRIPTION = "Express-compatible web framework for Bun. Drop-in Express replacement with zero rewrites, zero dependencies, and 19 built-in middleware. Same (req, res, next) API, 3-4x faster.";
 
 function createCanonicalUrl(relativePath?: string): string {
   const base = CANONICAL_BASE.endsWith("/") ? CANONICAL_BASE : `${CANONICAL_BASE}/`;
@@ -134,6 +134,9 @@ export default defineConfig({
           { text: "Static Files", link: "/middleware/static" },
           { text: "Cookies", link: "/middleware/cookies" },
           { text: "File Uploads", link: "/middleware/file-uploads" },
+          { text: "Request Timeout", link: "/guide/middleware/timeout" },
+          { text: "HPP Protection", link: "/guide/middleware/hpp" },
+          { text: "Request Validation", link: "/guide/middleware/validation" },
           { text: "Error Handling", link: "/middleware/error-handler" },
         ],
       },
