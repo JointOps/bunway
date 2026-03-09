@@ -104,6 +104,175 @@ describe("BunRequest (Unit)", () => {
     });
   });
 
+  describe("Express-style Query Access (req.query.name)", () => {
+    it("should access single query param as string via property", () => {
+      const req = createRequest("http://localhost/?name=john");
+      const q = req.query as Record<string, unknown>;
+      expect(q.name).toBe("john");
+    });
+
+    it("should return array for duplicate query params", () => {
+      const req = createRequest("http://localhost/?tag=a&tag=b&tag=c");
+      const q = req.query as Record<string, unknown>;
+      expect(q.tag).toEqual(["a", "b", "c"]);
+    });
+
+    it("should return undefined for missing params via property access", () => {
+      const req = createRequest("http://localhost/?name=john");
+      const q = req.query as Record<string, unknown>;
+      expect(q.missing).toBeUndefined();
+    });
+
+    it("should support both .get() and property access simultaneously", () => {
+      const req = createRequest("http://localhost/?color=blue&width=10");
+      // URLSearchParams style
+      expect(req.query.get("color")).toBe("blue");
+      expect(req.query.get("width")).toBe("10");
+      // Express style
+      const q = req.query as Record<string, unknown>;
+      expect(q.color).toBe("blue");
+      expect(q.width).toBe("10");
+    });
+
+    it("should preserve URLSearchParams.size as param count (not shadowed)", () => {
+      // 'size' is a URLSearchParams property (param count)
+      // It is NOT shadowed by a query param named 'size' — use .get("size") instead
+      const req = createRequest("http://localhost/?size=large&other=1");
+      expect(req.query.size).toBe(2); // count of params
+      expect(req.query.get("size")).toBe("large"); // .get() works correctly
+    });
+
+    it("should handle encoded values via property access", () => {
+      const req = createRequest("http://localhost/?msg=hello%20world&email=a%40b.com");
+      const q = req.query as Record<string, unknown>;
+      expect(q.msg).toBe("hello world");
+      expect(q.email).toBe("a@b.com");
+    });
+
+    it("should work with Object.keys()", () => {
+      const req = createRequest("http://localhost/?a=1&b=2&c=3");
+      const keys = Object.keys(req.query);
+      expect(keys).toContain("a");
+      expect(keys).toContain("b");
+      expect(keys).toContain("c");
+      expect(keys.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it("should deduplicate keys in Object.keys() for duplicate params", () => {
+      const req = createRequest("http://localhost/?x=1&x=2&y=3");
+      const keys = Object.keys(req.query).filter(k => k === "x" || k === "y");
+      expect(keys).toEqual(["x", "y"]);
+    });
+
+    it("should work with destructuring", () => {
+      const req = createRequest("http://localhost/?page=5&limit=20");
+      const { page, limit } = req.query as Record<string, string>;
+      expect(page).toBe("5");
+      expect(limit).toBe("20");
+    });
+
+    it("should return empty object properties for no query string", () => {
+      const req = createRequest("http://localhost/");
+      const q = req.query as Record<string, unknown>;
+      expect(q.anything).toBeUndefined();
+      expect(Object.keys(req.query).filter(k => typeof k === "string" && !["get", "getAll", "has", "set", "append", "delete", "keys", "values", "entries", "forEach", "toString", "sort"].includes(k))).toEqual([]);
+    });
+
+    it("should handle query param with empty value", () => {
+      const req = createRequest("http://localhost/?flag=&name=test");
+      const q = req.query as Record<string, unknown>;
+      expect(q.flag).toBe("");
+      expect(q.name).toBe("test");
+    });
+
+    it("should handle query param with no value (key only)", () => {
+      const req = createRequest("http://localhost/?debug&verbose");
+      const q = req.query as Record<string, unknown>;
+      expect(q.debug).toBe("");
+      expect(q.verbose).toBe("");
+    });
+
+    it("should cache the query object (same reference on repeated access)", () => {
+      const req = createRequest("http://localhost/?a=1");
+      const q1 = req.query;
+      const q2 = req.query;
+      expect(q1).toBe(q2);
+    });
+
+    it("should keep .has() working correctly", () => {
+      const req = createRequest("http://localhost/?exists=1");
+      expect(req.query.has("exists")).toBe(true);
+      expect(req.query.has("nope")).toBe(false);
+    });
+
+    it("should keep .getAll() working correctly", () => {
+      const req = createRequest("http://localhost/?multi=a&multi=b");
+      expect(req.query.getAll("multi")).toEqual(["a", "b"]);
+      expect(req.query.getAll("missing")).toEqual([]);
+    });
+
+    it("should keep .toString() working correctly", () => {
+      const req = createRequest("http://localhost/?a=1&b=2");
+      const str = req.query.toString();
+      expect(str).toContain("a=1");
+      expect(str).toContain("b=2");
+    });
+
+    it("should keep .keys(), .values(), .entries() working", () => {
+      const req = createRequest("http://localhost/?x=10&y=20");
+      expect([...req.query.keys()]).toContain("x");
+      expect([...req.query.keys()]).toContain("y");
+      expect([...req.query.values()]).toContain("10");
+      expect([...req.query.values()]).toContain("20");
+      const entries = [...req.query.entries()];
+      expect(entries).toContainEqual(["x", "10"]);
+      expect(entries).toContainEqual(["y", "20"]);
+    });
+
+    it("should keep forEach working", () => {
+      const req = createRequest("http://localhost/?a=1&b=2");
+      const collected: Record<string, string> = {};
+      req.query.forEach((value, key) => {
+        collected[key] = value;
+      });
+      expect(collected.a).toBe("1");
+      expect(collected.b).toBe("2");
+    });
+
+    it("should handle special characters in param names", () => {
+      const req = createRequest("http://localhost/?user-name=john&item_id=42");
+      const q = req.query as Record<string, unknown>;
+      expect(q["user-name"]).toBe("john");
+      expect(q["item_id"]).toBe("42");
+    });
+
+    it("should handle numeric-looking values as strings", () => {
+      const req = createRequest("http://localhost/?count=42&price=9.99");
+      const q = req.query as Record<string, unknown>;
+      expect(q.count).toBe("42");
+      expect(typeof q.count).toBe("string");
+      expect(q.price).toBe("9.99");
+      expect(typeof q.price).toBe("string");
+    });
+
+    it("should handle boolean-looking values as strings", () => {
+      const req = createRequest("http://localhost/?active=true&deleted=false");
+      const q = req.query as Record<string, unknown>;
+      expect(q.active).toBe("true");
+      expect(q.deleted).toBe("false");
+    });
+
+    it("should handle complex query string with mixed single and duplicate params", () => {
+      const req = createRequest("http://localhost/?search=hello&tag=js&tag=ts&page=1");
+      const q = req.query as Record<string, unknown>;
+      expect(q.search).toBe("hello");
+      expect(q.tag).toEqual(["js", "ts"]);
+      expect(q.page).toBe("1");
+      // .get() returns first value for duplicates
+      expect(req.query.get("tag")).toBe("js");
+    });
+  });
+
   describe("Params", () => {
     it("should have empty params by default", () => {
       const req = createRequest("http://localhost/users/123");
