@@ -1,18 +1,13 @@
 {
   "name": "bunway",
-  "version": "1.0.6",
-  "description": "Express-compatible web framework for Bun. Same API, zero dependencies, 16 built-in middleware.",
+  "version": "1.0.7",
+  "description": "The Express-compatible web framework for Bun. Same API, zero dependencies, 19 built-in middleware, 97%+ Express parity.",
   "private": true,
   "type": "module",
   "module": "./src/index.ts",
   "license": "MIT",
-  "author": "JointOps <shayanhussain48@gmail.com>",
+  "author": "ShayanHussainSB <shayanhussain48@gmail.com>",
   "contributors": [
-    {
-      "name": "ShayanHussainSB",
-      "email": "shayanhussain48@gmail.com",
-      "url": "https://github.com/ShayanHussainSB"
-    },
     {
       "name": "MoizYousuf",
       "email": "moizyousuf24@gmail.com",
