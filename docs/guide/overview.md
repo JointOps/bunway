@@ -21,7 +21,7 @@ bunway uses the exact same `(req, res, next)` handler signature as Express. Your
 
 - **Express-compatible** – same `(req, res, next)` signature, familiar middleware patterns
 - **Bun-native** – built on Bun's Fetch primitives (`Request`, `Response`, `Bun.serve`)
-- **Batteries included** – 15+ middleware covering most production needs
+- **Batteries included** – 19 middleware covering most production needs
 - **Zero dependencies** – pure Bun, no Node polyfills
 
 ## Current capabilities
@@ -57,6 +57,9 @@ bunway ships with everything you need for production apps:
 | `passport()`     | Authentication                 | `passport`            |
 | `logger()`       | Request logging                | `morgan`              |
 | `upload()`       | File uploads (multipart)       | `multer`              |
+| `timeout()`      | Request timeout                | `connect-timeout`     |
+| `hpp()`          | HPP protection                 | `hpp`                 |
+| `validate()`     | Request validation             | `express-validator`   |
 | `errorHandler()` | Error handling                 | Custom middleware     |
 
 ## Quick example
@@ -85,6 +88,9 @@ app.listen({ port: 3000 });
 
 ### Request & Response
 
+- **Content Negotiation** — RFC 7231 quality-value parsing for Accept headers
+- **Regex Routes** — use RegExp as route patterns with named capture groups
+- **Catch-all Routes** — `app.all("*", handler)` for 404 handlers
 - **Cache Validation** — `req.fresh` / `req.stale` for 304 responses
 - **Range Requests** — `req.range()` + automatic `res.sendFile()` partial content (206)
 - **JSONP** — `res.jsonp()` for legacy cross-domain support
@@ -93,9 +99,8 @@ app.listen({ port: 3000 });
 
 ## What's next?
 
-Core features and request/response completeness are done. Active development focuses on:
+Core features, request/response completeness, and security middleware are done. Active development focuses on:
 
-- **Security middleware** — request validation, HPP protection, request timeout
 - **Developer experience** — SSE helpers, response time, request ID
 - **Performance** — continued optimization and benchmarking
 
