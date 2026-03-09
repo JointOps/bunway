@@ -72,6 +72,25 @@ describe("res.send() Content-Type auto-detection", () => {
   });
 });
 
+describe("res.send() edge cases", () => {
+  it("sends empty string with correct Content-Length", () => {
+    const res = new BunResponse();
+    res.send("");
+    const response = res.toResponse();
+    expect(response.headers.get("content-length")).toBe("0");
+    expect(res.headersSent).toBe(true);
+  });
+
+  it("sends Buffer (Uint8Array) body", () => {
+    const res = new BunResponse();
+    const buf = new Uint8Array([0x48, 0x65, 0x6c, 0x6c, 0x6f]); // "Hello"
+    res.send(buf);
+    const response = res.toResponse();
+    expect(response.headers.get("content-type")).toBe("application/octet-stream");
+    expect(res.headersSent).toBe(true);
+  });
+});
+
 describe("res.json() chaining", () => {
   it("returns this for chaining", () => {
     const res = new BunResponse();
@@ -84,5 +103,54 @@ describe("res.json() chaining", () => {
     res.json({ name: "test" });
     const response = res.toResponse();
     expect(response.headers.get("content-length")).toBeDefined();
+  });
+
+  it("sends empty object {}", async () => {
+    const res = new BunResponse();
+    res.json({});
+    const response = res.toResponse();
+    expect(response.headers.get("content-type")).toBe("application/json");
+    const text = await response.text();
+    expect(text).toBe("{}");
+  });
+
+  it("sends null", async () => {
+    const res = new BunResponse();
+    res.json(null);
+    const response = res.toResponse();
+    expect(response.headers.get("content-type")).toBe("application/json");
+    const text = await response.text();
+    expect(text).toBe("null");
+  });
+
+  it("sends array", async () => {
+    const res = new BunResponse();
+    res.json([1, "two", 3]);
+    const response = res.toResponse();
+    expect(response.headers.get("content-type")).toBe("application/json");
+    const text = await response.text();
+    expect(text).toBe('[1,"two",3]');
+  });
+});
+
+describe("res.end() overloads", () => {
+  it("calls callback parameter", () => {
+    const res = new BunResponse();
+    let called = false;
+    res.end("done", () => {
+      called = true;
+    });
+    expect(called).toBe(true);
+    expect(res.headersSent).toBe(true);
+  });
+
+  it("accepts encoding parameter", () => {
+    const res = new BunResponse();
+    let called = false;
+    res.end("done", "utf8", () => {
+      called = true;
+    });
+    expect(called).toBe(true);
+    expect(res.headersSent).toBe(true);
   });
 });
