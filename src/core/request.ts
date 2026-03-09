@@ -1,5 +1,6 @@
 import type { UploadedFile } from "../types";
 import type { BunResponse } from "./response";
+import { negotiateAccept, negotiateSimple, languageMatch, typeIs } from "../utils/content-negotiation";
 
 const DEFAULT_BODY_LIMIT = 1024 * 1024;
 
@@ -79,8 +80,10 @@ export class BunRequest {
   private _file: UploadedFile | null = null;
   private _files: UploadedFile[] | Record<string, UploadedFile[]> | null = null;
   private _res?: BunResponse;
+  private _queryObj: (URLSearchParams & Record<string, string | string[]>) | null = null;
 
   locals: Record<string, unknown> = {};
+  timedout: boolean = false;
 
   /**
    * Create a new BunRequest.
@@ -223,8 +226,30 @@ export class BunRequest {
     return this._pathname + search;
   }
 
-  get query(): URLSearchParams {
-    return this.parsedUrl.searchParams;
+  get query(): URLSearchParams & Record<string, string | string[]> {
+    if (this._queryObj === null) {
+      const params = this.parsedUrl.searchParams;
+      const obj: Record<string, string | string[]> = {};
+      // Express-style property access
+      for (const key of new Set<string>(params.keys())) {
+        const all = params.getAll(key);
+        obj[key] = all.length === 1 ? all[0] : all;
+      }
+      // Bind URLSearchParams methods so .get(), .has(), .toString(), iteration all work
+      const methodNames = [
+        "get", "getAll", "has", "set", "append", "delete", "keys", "values",
+        "entries", "forEach", "toString", "sort",
+      ] as const;
+      for (const name of methodNames) {
+        (obj as Record<string, unknown>)[name] = (params[name] as Function).bind(params);
+      }
+      // Enable for...of iteration
+      (obj as Record<string | symbol, unknown>)[Symbol.iterator] = params[Symbol.iterator].bind(params);
+      // Expose size if available
+      Object.defineProperty(obj, "size", { get: () => params.size, enumerable: false });
+      this._queryObj = obj as URLSearchParams & Record<string, string | string[]>;
+    }
+    return this._queryObj;
   }
 
   get headers(): Headers {
@@ -473,7 +498,13 @@ export class BunRequest {
   }
 
   param(name: string): string | undefined {
-    return this._params[name] ?? this.parsedUrl.searchParams.get(name) ?? undefined;
+    // Express order: params → body → query
+    if (this._params[name] !== undefined) return this._params[name];
+    if (this._bodyParsed && this._body && typeof this._body === "object" && !Array.isArray(this._body)) {
+      const bodyVal = (this._body as Record<string, unknown>)[name];
+      if (bodyVal !== undefined && bodyVal !== null) return String(bodyVal);
+    }
+    return this.parsedUrl.searchParams.get(name) ?? undefined;
   }
 
   get(header: string): string | undefined {
@@ -485,55 +516,23 @@ export class BunRequest {
   }
 
   is(...types: string[]): string | false {
-    const contentType = this.get("content-type");
-    if (!contentType) return false;
-    for (const type of types) {
-      if (contentType.includes(type)) return type;
-    }
-    return false;
+    return typeIs(this.get("content-type"), types);
   }
 
   accepts(...types: string[]): string | false {
-    const accept = this.get("accept");
-    if (!accept) return types[0] || false;
-    for (const type of types) {
-      if (accept.includes(type) || accept.includes("*/*")) return type;
-    }
-    return false;
+    return negotiateAccept(this.get("accept"), types);
   }
 
   acceptsCharsets(...charsets: string[]): string | false {
-    const acceptCharset = this.get("accept-charset");
-    if (!acceptCharset) return charsets[0] || false;
-    for (const charset of charsets) {
-      if (acceptCharset.toLowerCase().includes(charset.toLowerCase()) || acceptCharset.includes("*")) {
-        return charset;
-      }
-    }
-    return false;
+    return negotiateSimple(this.get("accept-charset"), charsets);
   }
 
   acceptsEncodings(...encodings: string[]): string | false {
-    const acceptEncoding = this.get("accept-encoding");
-    if (!acceptEncoding) return encodings[0] || false;
-    for (const encoding of encodings) {
-      if (acceptEncoding.toLowerCase().includes(encoding.toLowerCase()) || acceptEncoding.includes("*")) {
-        return encoding;
-      }
-    }
-    return false;
+    return negotiateSimple(this.get("accept-encoding"), encodings);
   }
 
   acceptsLanguages(...languages: string[]): string | false {
-    const acceptLanguage = this.get("accept-language");
-    if (!acceptLanguage) return languages[0] || false;
-    for (const lang of languages) {
-      const normalized = lang.toLowerCase();
-      if (acceptLanguage.toLowerCase().includes(normalized) || acceptLanguage.includes("*")) {
-        return lang;
-      }
-    }
-    return false;
+    return negotiateSimple(this.get("accept-language"), languages, languageMatch);
   }
 
   range(size: number, options?: { combine?: boolean }): RangeResult | undefined {
