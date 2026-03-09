@@ -1,16 +1,24 @@
 # bunWay
 
-**Your Express code. Bun's speed. Zero changes.**
+**Express API. Bun speed. Zero dependencies. 19 middleware built in.**
 
-bunWay exists for one reason: **you shouldn't have to rewrite your backend to get faster performance.** If you know Express, you already know bunWay. Same middleware. Same routing. Same `(req, res, next)`. Just swap the import and you're running on Bun.
+Stop choosing between rewriting your backend and missing out on Bun's performance. bunWay gives you a third option: **change your import and ship.**
 
-## The Problem
+```ts
+// before
+const express = require("express");
+const app = express();
 
-Migrating to Bun means choosing between:
-- **Rewriting everything** for a new framework's API
-- **Staying on Node.js** and missing out on Bun's speed
+// after
+import { bunway } from "bunway";
+const app = bunway();
 
-bunWay gives you a third option: **change nothing.**
+// everything else stays the same.
+```
+
+Same `(req, res, next)`. Same middleware. Same routing. Same muscle memory. **97% Express API parity** — verified by 1,662 tests.
+
+---
 
 ## Install
 
@@ -18,21 +26,20 @@ bunWay gives you a third option: **change nothing.**
 bun add bunway
 ```
 
-## 30-Second Setup
+## 30 Seconds to Production-Ready
 
 ```ts
-import { bunway, json, cors, helmet, logger } from "bunway";
+import { bunway, json, cors, helmet, logger, session, rateLimit, hpp } from "bunway";
 
 const app = bunway();
 
 app.use(cors());
 app.use(helmet());
+app.use(hpp());
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 app.use(logger("dev"));
 app.use(json());
-
-app.get("/", (req, res) => {
-  res.json({ message: "Hello from bunWay!" });
-});
+app.use(session({ secret: "keyboard cat" }));
 
 app.get("/users/:id", (req, res) => {
   res.json({ id: req.params.id });
@@ -41,83 +48,174 @@ app.get("/users/:id", (req, res) => {
 app.listen(3000);
 ```
 
-That's real, working code. If it looks like Express, that's the point.
+That's CORS, security headers, parameter pollution protection, rate limiting, logging, body parsing, and sessions. **One import. Zero npm packages to install.**
 
-## What You Get
+In Express, that's 8 separate `npm install` commands, 8 packages to audit, 8 sets of types to maintain.
 
-### 16 Built-in Middleware — No npm Install Required
+---
 
-| What You Need | Express (separate package) | bunWay (built-in) |
-|--------------|---------------------------|-------------------|
-| JSON parsing | `express.json()` | `json()` |
-| Form data | `express.urlencoded()` | `urlencoded()` |
-| File uploads | `multer` | `upload()` |
+## What Express Takes 8 Packages to Do, bunWay Does With One Import
+
+| What You Need | Express Ecosystem | bunWay |
+|---|---|---|
+| JSON & form parsing | `express.json()` + `express.urlencoded()` | `json()` + `urlencoded()` |
+| Text & binary bodies | `body-parser` | `text()` + `raw()` |
+| File uploads | `multer` | `upload()` — same API |
 | CORS | `cors` | `cors()` |
 | Security headers | `helmet` | `helmet()` |
 | Sessions | `express-session` | `session()` |
-| Auth | `passport` | `passport()` |
-| Logging | `morgan` | `logger()` |
+| Authentication | `passport` | `passport()` |
+| Logging | `morgan` | `logger()` — same format strings |
 | CSRF protection | `csurf` | `csrf()` |
 | Compression | `compression` | `compression()` |
 | Rate limiting | `express-rate-limit` | `rateLimit()` |
 | Static files | `express.static()` | `serveStatic()` |
 | Cookies | `cookie-parser` | `cookieParser()` |
-| Raw bodies | `body-parser.raw()` | `raw()` |
-| Text bodies | `body-parser.text()` | `text()` |
+| Request timeout | `connect-timeout` | `timeout()` |
+| HPP protection | `hpp` | `hpp()` |
+| Request validation | `express-validator` | `validate()` |
 | Error handling | Custom middleware | `errorHandler()` |
 
-One import. No version conflicts. No `node_modules` sprawl.
+**19 middleware. Zero dependencies. One `import` statement.**
 
-### Express API — Fully Compatible
+---
 
-Everything you expect from Express works:
+## Everything You Know About Express Works Here
+
+### Routing — All of It
 
 ```ts
-// Routing
-app.get("/users/:id", handler);
-app.route("/posts").get(list).post(auth, create);
+// Parameterized routes
+app.get("/users/:id", getUser);
 
-// Sub-routers
-const api = new Router({ mergeParams: true });
-app.use("/api", api);
+// Chainable routes
+app.route("/posts").get(list).post(auth, create).delete(auth, admin, remove);
 
-// Array paths
+// Regex routes with named capture groups
+app.get(/\/users\/(?<id>\d+)/, (req, res) => {
+  res.json({ id: req.params.id }); // captured from regex
+});
+
+// Sub-routers with param inheritance
+const posts = new Router({ mergeParams: true });
+posts.get("/", (req, res) => res.json({ userId: req.params.userId }));
+app.use("/users/:userId/posts", posts);
+
+// Array path mounting
 app.use(["/v1", "/v2"], apiRouter);
 
-// Cache validation
-if (req.fresh) { res.status(304).end(); return; }
+// Catch-all
+app.all("*", (req, res) => res.status(404).json({ error: "Not found" }));
+```
 
-// File streaming with automatic range support
-await res.sendFile("./video.mp4"); // Handles 206 Partial Content
+### Content Negotiation — RFC 7231 Compliant
 
-// JSONP
-res.jsonp({ data: "value" }); // ?callback=fn → fn({"data":"value"})
+```ts
+// Quality-value parsing, not substring matching
+const best = req.accepts("json", "html", "xml"); // picks highest q-value match
+req.is("text/*");                                 // wildcard MIME matching
+req.acceptsLanguages("en");                       // matches en-US, en-GB
+```
 
-// Native HTTPS
+### Response — Express-Identical Behavior
+
+```ts
+res.send("hello");          // → text/html; charset=utf-8
+res.send({ ok: true });     // → application/json
+res.send(buffer);           // → application/octet-stream
+res.status(201).json(data); // chainable
+
+// File serving with range support, caching, and callbacks
+await res.sendFile("./video.mp4", {
+  lastModified: true,
+  cacheControl: true,
+  immutable: true,
+}, (err) => { if (err) console.error(err); });
+// 200 full, 206 partial, 416 unsatisfiable — automatic
+
+res.download("./report.pdf", "Q1-Report.pdf", (err) => { /* ... */ });
+res.attachment("invoice.pdf"); // sets Content-Disposition + Content-Type
+```
+
+### Sub-App Mounting
+
+```ts
+const admin = bunway();
+admin.get("/dashboard", handler);
+app.use("/admin", admin);
+
+console.log(admin.mountpath); // "/admin"
+console.log(admin.path());    // "/admin"
+```
+
+### Request Validation — Declarative
+
+```ts
+app.post("/users", validate({
+  body: {
+    email: { required: true, isEmail: true },
+    age: { required: true, isInt: { min: 18 } },
+    name: { required: true, isLength: { min: 2, max: 50 } },
+  }
+}), createUser);
+// Invalid? → 422 with structured error response. No boilerplate.
+```
+
+### Security — Production-Ready Out of the Box
+
+```ts
+app.use(helmet());                                         // 11 security headers
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 })); // per-IP rate limiting
+app.use(hpp());                                             // parameter pollution protection
+app.use(csrf());                                            // CSRF tokens
+app.use(timeout(5000));                                     // 408 on slow requests
+```
+
+### Beyond Express
+
+```ts
+// Native HTTPS — no http.createServer ceremony
 app.listen({ port: 443, tls: { cert, key } });
 
+// WebSockets — built in
+app.ws("/chat", {
+  open(ws) { ws.send("connected"); },
+  message(ws, msg) { ws.send(`echo: ${msg}`); },
+});
+
 // Graceful shutdown
-await app.close();
+process.on("SIGTERM", () => app.close());
 ```
+
+---
+
+## The Numbers
+
+| | Value |
+|---|---|
+| Production dependencies | **0** |
+| Built-in middleware | **19** |
+| Express API parity | **97%+** |
+| Test suite | **1,662 tests** · 3,653 assertions |
+| TypeScript | **Strict mode** · no `any` · types included |
+
+---
 
 ## Who Is bunWay For?
 
-- **Express developers** who want Bun's speed without learning a new framework
-- **Teams migrating to Bun** who don't want to rewrite their backend
-- **New projects** that want Express patterns with modern performance
-- **Anyone tired** of installing 15 separate middleware packages
+- **Express developers** who want Bun's speed without learning a new API
+- **Teams migrating to Bun** who refuse to rewrite working code
+- **New projects** that want Express patterns without the dependency tree
+- **Anyone tired** of `npm install`-ing 15 packages before writing a single route
 
-## Our Mission
+---
 
-**Make Bun accessible to every Express developer.** No rewrites. No new patterns to memorize. No breaking changes to your mental model. You bring your Express knowledge — we bring Bun's performance.
+## The Mission
 
-## Learn More
+**Make Bun accessible to every Express developer on earth.** No rewrites. No new patterns to memorize. You bring your Express knowledge — bunWay brings Bun's performance.
 
-- **Documentation**: [bunway.jointops.dev](https://bunway.jointops.dev/)
-- **Express Migration Guide**: [bunway.jointops.dev/guide/express-migration](https://bunway.jointops.dev/guide/express-migration.html)
-- **GitHub**: [github.com/JointOps/bunway](https://github.com/JointOps/bunway)
-- **Discord**: [discord.gg/fTF4qjaMFT](https://discord.gg/fTF4qjaMFT)
+---
 
-## License
+[Documentation](https://bunway.jointops.dev/) · [Express Migration Guide](https://bunway.jointops.dev/guide/express-migration.html) · [GitHub](https://github.com/JointOps/bunway) · [Discord](https://discord.gg/fTF4qjaMFT)
 
 MIT © [JointOps](https://jointops.dev)
