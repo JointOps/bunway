@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import bunway, { Router } from "../../../src";
+import { json } from "../../../src/middleware/body-parser";
 
 describe("Content Negotiation", () => {
   describe("req.acceptsCharsets()", () => {
@@ -69,7 +70,8 @@ describe("Content Negotiation", () => {
         })
       );
       const data = await response.json();
-      expect(data.encoding).toBe("gzip");
+      // "br" is first in Accept-Encoding with equal quality, so it's preferred per RFC 7231
+      expect(data.encoding).toBe("br");
     });
   });
 
@@ -197,6 +199,33 @@ describe("Content Negotiation", () => {
       expect(response.status).toBe(200);
     });
 
+    it("res.format() works with proper content negotiation", async () => {
+      const app = bunway();
+      app.get("/api", (req, res) => {
+        res.format({
+          "text/html": () => res.send("<h1>HTML</h1>"),
+          "application/json": () => res.json({ format: "json" }),
+          default: () => res.status(406).send("Not Acceptable"),
+        });
+      });
+
+      const r1 = await app.handle(
+        new Request("http://localhost/api", {
+          headers: { Accept: "application/json" },
+        })
+      );
+      const body1 = await r1.json();
+      expect(body1.format).toBe("json");
+
+      const r2 = await app.handle(
+        new Request("http://localhost/api", {
+          headers: { Accept: "text/html" },
+        })
+      );
+      const text = await r2.text();
+      expect(text).toContain("HTML");
+    });
+
     it("handles full MIME type keys", async () => {
       const app = bunway();
       app.get("/", (_req, res) => {
@@ -214,6 +243,83 @@ describe("Content Negotiation", () => {
 
       const data = await response.json();
       expect(data.type).toBe("json");
+    });
+  });
+
+  describe("Quality-value content negotiation", () => {
+    it("accepts() returns correct type based on quality values", async () => {
+      const app = bunway();
+      app.get("/api", (req, res) => {
+        const type = req.accepts("json", "html");
+        res.json({ accepted: type });
+      });
+
+      const response = await app.handle(
+        new Request("http://localhost/api", {
+          headers: { Accept: "text/html;q=0.5, application/json;q=1.0" },
+        })
+      );
+      const body = await response.json();
+      expect(body.accepted).toBe("json");
+    });
+
+    it("is() properly checks Content-Type with MIME wildcards", async () => {
+      const app = bunway();
+      app.post("/api", (req, res) => {
+        res.json({
+          isJson: req.is("json"),
+          isText: req.is("text/*"),
+          isHtml: req.is("html"),
+        });
+      });
+
+      const response = await app.handle(
+        new Request("http://localhost/api", {
+          method: "POST",
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+          body: "{}",
+        })
+      );
+      const body = await response.json();
+      expect(body.isJson).toBe("json");
+      expect(body.isText).toBe(false);
+      expect(body.isHtml).toBe(false);
+    });
+
+    it("acceptsLanguages() respects quality values and range matching", async () => {
+      const app = bunway();
+      app.get("/api", (req, res) => {
+        const lang = req.acceptsLanguages("en", "fr", "de");
+        res.json({ lang });
+      });
+
+      const response = await app.handle(
+        new Request("http://localhost/api", {
+          headers: { "Accept-Language": "fr;q=1.0, en-US;q=0.8, de;q=0.5" },
+        })
+      );
+      const body = await response.json();
+      expect(body.lang).toBe("fr");
+    });
+
+    it("param() checks body after params", async () => {
+      const app = bunway();
+      app.use(json());
+      app.post("/api", (req, res) => {
+        res.json({
+          fromBody: req.param("name"),
+        });
+      });
+
+      const response = await app.handle(
+        new Request("http://localhost/api", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: "from-body" }),
+        })
+      );
+      const body = await response.json();
+      expect(body.fromBody).toBe("from-body");
     });
   });
 });

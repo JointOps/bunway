@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { BunRequest } from "../../../src";
+import bunway, { BunRequest } from "../../../src";
 
 function createRequest(url: string, init?: RequestInit): BunRequest {
   return new BunRequest(new Request(url, init));
@@ -205,6 +205,93 @@ describe("BunRequest", () => {
       const req = createRequest("http://localhost/users/123");
       req.route = { path: "/users/:id", method: "GET" };
       expect(req.route).toEqual({ path: "/users/:id", method: "GET" });
+    });
+  });
+
+  describe("Express-style req.query (integration)", () => {
+    it("supports property access in route handler", async () => {
+      const app = bunway();
+      app.get("/search", (req, res) => {
+        const q = req.query as Record<string, unknown>;
+        res.json({ name: q.name, age: q.age });
+      });
+
+      const response = await app.handle(
+        new Request("http://localhost/search?name=john&age=25")
+      );
+      const body = await response.json();
+      expect(body.name).toBe("john");
+      expect(body.age).toBe("25");
+    });
+
+    it("supports .get() alongside property access in handler", async () => {
+      const app = bunway();
+      app.get("/api", (req, res) => {
+        const q = req.query as Record<string, unknown>;
+        res.json({
+          propAccess: q.color,
+          getAccess: req.query.get("color"),
+          hasIt: req.query.has("color"),
+        });
+      });
+
+      const response = await app.handle(
+        new Request("http://localhost/api?color=red")
+      );
+      const body = await response.json();
+      expect(body.propAccess).toBe("red");
+      expect(body.getAccess).toBe("red");
+      expect(body.hasIt).toBe(true);
+    });
+
+    it("returns arrays for duplicate params in handler", async () => {
+      const app = bunway();
+      app.get("/filter", (req, res) => {
+        const q = req.query as Record<string, unknown>;
+        res.json({
+          tags: q.tags,
+          getFirst: req.query.get("tags"),
+          getAll: req.query.getAll("tags"),
+        });
+      });
+
+      const response = await app.handle(
+        new Request("http://localhost/filter?tags=js&tags=ts&tags=bun")
+      );
+      const body = await response.json();
+      expect(body.tags).toEqual(["js", "ts", "bun"]);
+      expect(body.getFirst).toBe("js");
+      expect(body.getAll).toEqual(["js", "ts", "bun"]);
+    });
+
+    it("supports destructuring in handler", async () => {
+      const app = bunway();
+      app.get("/paginate", (req, res) => {
+        const { page, limit } = req.query as Record<string, string>;
+        res.json({ page, limit });
+      });
+
+      const response = await app.handle(
+        new Request("http://localhost/paginate?page=3&limit=25")
+      );
+      const body = await response.json();
+      expect(body.page).toBe("3");
+      expect(body.limit).toBe("25");
+    });
+
+    it("returns undefined for missing params in handler", async () => {
+      const app = bunway();
+      app.get("/check", (req, res) => {
+        const q = req.query as Record<string, unknown>;
+        res.json({ exists: q.exists, missing: q.nope });
+      });
+
+      const response = await app.handle(
+        new Request("http://localhost/check?exists=yes")
+      );
+      const body = await response.json();
+      expect(body.exists).toBe("yes");
+      expect(body.missing).toBeUndefined();
     });
   });
 });
