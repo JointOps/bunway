@@ -159,42 +159,110 @@ export class Router {
     this.fastMatcher.add(method, path, handlers);
   }
 
-  get(path: string, ...handlers: Handler[]): this {
+  private addRegexRoute(method: string, regex: RegExp, handlers: Handler[]): void {
+    // Extract named capture groups if any
+    const keys: string[] = [];
+    const source = regex.source;
+    const namedGroupRegex = /\(\?<(\w+)>/g;
+    let match: RegExpExecArray | null;
+    while ((match = namedGroupRegex.exec(source)) !== null) {
+      keys.push(match[1]!);
+    }
+
+    const route: RouteDefinition = {
+      method,
+      path: regex.source,
+      regex,
+      keys,
+      handlers,
+    };
+
+    this.routes.push(route);
+
+    // Also add to fast matcher
+    this.fastMatcher.addRegexRoute(method, regex, keys, handlers);
+  }
+
+  get(path: string | RegExp, ...handlers: Handler[]): this {
+    if (path instanceof RegExp) {
+      this.addRegexRoute("GET", path, handlers);
+      return this;
+    }
+    if (path === "*") path = "/*";
     this.addRoute("GET", path, handlers);
     return this;
   }
 
-  post(path: string, ...handlers: Handler[]): this {
+  post(path: string | RegExp, ...handlers: Handler[]): this {
+    if (path instanceof RegExp) {
+      this.addRegexRoute("POST", path, handlers);
+      return this;
+    }
+    if (path === "*") path = "/*";
     this.addRoute("POST", path, handlers);
     return this;
   }
 
-  put(path: string, ...handlers: Handler[]): this {
+  put(path: string | RegExp, ...handlers: Handler[]): this {
+    if (path instanceof RegExp) {
+      this.addRegexRoute("PUT", path, handlers);
+      return this;
+    }
+    if (path === "*") path = "/*";
     this.addRoute("PUT", path, handlers);
     return this;
   }
 
-  delete(path: string, ...handlers: Handler[]): this {
+  delete(path: string | RegExp, ...handlers: Handler[]): this {
+    if (path instanceof RegExp) {
+      this.addRegexRoute("DELETE", path, handlers);
+      return this;
+    }
+    if (path === "*") path = "/*";
     this.addRoute("DELETE", path, handlers);
     return this;
   }
 
-  patch(path: string, ...handlers: Handler[]): this {
+  patch(path: string | RegExp, ...handlers: Handler[]): this {
+    if (path instanceof RegExp) {
+      this.addRegexRoute("PATCH", path, handlers);
+      return this;
+    }
+    if (path === "*") path = "/*";
     this.addRoute("PATCH", path, handlers);
     return this;
   }
 
-  options(path: string, ...handlers: Handler[]): this {
+  options(path: string | RegExp, ...handlers: Handler[]): this {
+    if (path instanceof RegExp) {
+      this.addRegexRoute("OPTIONS", path, handlers);
+      return this;
+    }
+    if (path === "*") path = "/*";
     this.addRoute("OPTIONS", path, handlers);
     return this;
   }
 
-  head(path: string, ...handlers: Handler[]): this {
+  head(path: string | RegExp, ...handlers: Handler[]): this {
+    if (path instanceof RegExp) {
+      this.addRegexRoute("HEAD", path, handlers);
+      return this;
+    }
+    if (path === "*") path = "/*";
     this.addRoute("HEAD", path, handlers);
     return this;
   }
 
-  all(path: string, ...handlers: Handler[]): this {
+  all(path: string | RegExp, ...handlers: Handler[]): this {
+    // Normalize bare '*' to '/*' for catch-all (Express compat)
+    if (path === "*") path = "/*";
+    if (path instanceof RegExp) {
+      const methods = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"];
+      for (const method of methods) {
+        this.addRegexRoute(method, path, handlers);
+      }
+      return this;
+    }
     const methods = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"];
     for (const method of methods) {
       this.addRoute(method, path, handlers);
@@ -234,6 +302,11 @@ export class Router {
     }
 
     if (routerOrHandler instanceof Router) {
+      // Set mountpath and parent for sub-apps (Express compat: app.mountpath, app.path())
+      if ("mountpath" in routerOrHandler && "_parent" in routerOrHandler) {
+        (routerOrHandler as Record<string, unknown>).mountpath = pathOrHandler;
+        (routerOrHandler as Record<string, unknown>)._parent = this;
+      }
       if (pathOrHandler.includes(":")) {
         const { regex, keys } = this.prefixToRegex(pathOrHandler);
         this.children.push({ prefix: pathOrHandler, router: routerOrHandler, prefixRegex: regex, prefixKeys: keys });

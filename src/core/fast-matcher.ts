@@ -59,6 +59,14 @@ export class FastMatcher {
   // Compiled matchers per method
   private compiledMatchers: Map<string, CompiledMatcher> = new Map();
 
+  // Regex routes (user-provided RegExp patterns)
+  private regexRoutes: Array<{
+    method: string;
+    regex: RegExp;
+    keys: string[];
+    handlers: Handler[];
+  }> = [];
+
   // Flag to track if routes have changed since last compilation
   private needsRebuild = true;
 
@@ -74,6 +82,13 @@ export class FastMatcher {
     } else {
       this.addDynamicRoute(method, path, handlers);
     }
+  }
+
+  /**
+   * Add a regex route (user-provided RegExp pattern)
+   */
+  addRegexRoute(method: string, regex: RegExp, keys: string[], handlers: Handler[]): void {
+    this.regexRoutes.push({ method, regex, keys, handlers });
   }
 
   /**
@@ -200,6 +215,15 @@ export class FastMatcher {
       if (dynamicAllResult) return dynamicAllResult;
     }
 
+    // 3. Try regex routes (user-provided RegExp patterns)
+    const regexResult = this.matchRegex(method, pathname);
+    if (regexResult) return regexResult;
+
+    if (method !== "ALL") {
+      const regexAllResult = this.matchRegex("ALL", pathname);
+      if (regexAllResult) return regexAllResult;
+    }
+
     return null;
   }
 
@@ -269,6 +293,31 @@ export class FastMatcher {
   }
 
   /**
+   * Match against regex routes (user-provided RegExp patterns)
+   */
+  private matchRegex(method: string, pathname: string): MatchResult | null {
+    for (const route of this.regexRoutes) {
+      if (route.method !== method && route.method !== "ALL") continue;
+      const match = route.regex.exec(pathname);
+      if (match) {
+        const params: Record<string, string> = {};
+        // Named groups
+        if (match.groups) {
+          Object.assign(params, match.groups);
+        }
+        // Positional groups mapped to keys
+        for (let i = 0; i < route.keys.length; i++) {
+          if (match[i + 1] !== undefined) {
+            params[route.keys[i]!] = match[i + 1]!;
+          }
+        }
+        return { handlers: route.handlers, params, path: route.regex.source, keys: route.keys };
+      }
+    }
+    return null;
+  }
+
+  /**
    * Get all routes that match the pathname (for 405 detection)
    */
   getMatchingMethods(pathname: string): string[] {
@@ -290,17 +339,24 @@ export class FastMatcher {
       }
     }
 
+    for (const route of this.regexRoutes) {
+      if (route.regex.test(pathname) && !methods.includes(route.method)) {
+        methods.push(route.method);
+      }
+    }
+
     return methods;
   }
 
   hasRoutes(): boolean {
-    return this.staticRoutes.size > 0 || this.dynamicRoutes.size > 0;
+    return this.staticRoutes.size > 0 || this.dynamicRoutes.size > 0 || this.regexRoutes.length > 0;
   }
 
   clear(): void {
     this.staticRoutes.clear();
     this.dynamicRoutes.clear();
     this.compiledMatchers.clear();
+    this.regexRoutes = [];
     this.needsRebuild = true;
   }
 }
