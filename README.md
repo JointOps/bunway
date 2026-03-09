@@ -4,7 +4,7 @@
 [![CI](https://github.com/JointOps/bunway/actions/workflows/ci.yml/badge.svg)](https://github.com/JointOps/bunway/actions/workflows/ci.yml)
 [![bun only](https://img.shields.io/badge/runtime-bun%201.1+-1e7c73?logo=bun&logoColor=white)](https://bun.sh)
 [![zero deps](https://img.shields.io/badge/dependencies-0-brightgreen)](https://www.npmjs.com/package/bunway)
-[![tests](https://img.shields.io/badge/tests-1385%20passing-brightgreen)]()
+[![tests](https://img.shields.io/badge/tests-1642%20passing-brightgreen)]()
 [![docs](https://img.shields.io/badge/docs-bunway.jointops.dev-3fc5b7)](https://bunway.jointops.dev/)
 [![license](https://img.shields.io/badge/license-MIT-lightgrey.svg)](./LICENSE)
 
@@ -36,7 +36,7 @@ If you've written Express before, you just wrote bunWay.
 
 ## Quick Links
 
-[Install](#getting-started) · [Express Migration](#express-compatibility) · [Middleware](#built-in-middleware-16) · [Architecture](#architecture) · [Docs](https://bunway.jointops.dev/)
+[Install](#getting-started) · [Express Migration](#express-compatibility) · [Middleware](#built-in-middleware-19) · [Architecture](#architecture) · [Docs](https://bunway.jointops.dev/)
 
 ---
 
@@ -46,7 +46,7 @@ If you've written Express before, you just wrote bunWay.
 |---|---------|--------|
 | **Runtime** | Node.js | Bun (3-4x faster) |
 | **Dependencies** | 30+ packages for a production stack | **0** production dependencies |
-| **Middleware** | Install separately from npm | 16 built-in, ready to import |
+| **Middleware** | Install separately from npm | 19 built-in, ready to import |
 | **TypeScript** | Needs `@types/express` + build step | Native, strict types included |
 | **TLS/HTTPS** | `https.createServer(opts, app)` | `app.listen({ tls: { cert, key } })` |
 | **Learning curve** | — | **None.** Same API. |
@@ -56,9 +56,9 @@ If you've written Express before, you just wrote bunWay.
 | Metric | Value |
 |--------|-------|
 | Production dependencies | **0** |
-| Built-in middleware | **16** |
-| Test suite | **1,385 tests**, 3,209 assertions |
-| Express API coverage | **95%+** (req, res, router, middleware) |
+| Built-in middleware | **19** |
+| Test suite | **1,642 tests**, 3,623 assertions |
+| Express API coverage | **97%+** (req, res, router, middleware) |
 | TypeScript coverage | **100%** strict mode |
 
 ---
@@ -103,7 +103,7 @@ bunWay implements the Express API surface. Your existing code works.
 | `Router({ mergeParams: true })` | Same | Identical |
 | `req.params`, `req.query`, `req.body` | Same | Identical |
 | `req.cookies`, `req.session`, `req.ip` | Same | Identical |
-| `req.get()`, `req.is()`, `req.accepts()` | Same | Identical |
+| `req.get()`, `req.is()`, `req.accepts()` | Same | RFC 7231 quality-value parsing |
 | `req.protocol`, `req.secure`, `req.hostname` | Same | Identical |
 | `req.fresh`, `req.stale` | Same | ETag + Last-Modified |
 | `req.range(size)` | Same | Range header parsing |
@@ -117,6 +117,11 @@ bunWay implements the Express API surface. Your existing code works.
 | `app.use([paths], handler)` | Same | Array path mounting |
 | `https.createServer(opts, app)` | `app.listen({ tls })` | Native TLS |
 | `server.close(cb)` | `app.close(cb)` | Graceful shutdown |
+| Content Negotiation | Same | RFC 7231 quality-value parsing (replaces `accepts` + `type-is`) |
+| Regex Routes | Same | `app.get(/pattern/, handler)` with named capture groups |
+| `res.send()` Auto-detect | Same | String→text/html, Object→JSON, Buffer→octet-stream |
+| `app.mountpath` | Same | Set on sub-app mount |
+| `res.sendFile()` Callback | Same | `res.sendFile(path, options, callback)` |
 
 ### Middleware Mapping
 
@@ -140,6 +145,9 @@ Every Express middleware has a built-in bunWay equivalent:
 | `cookie-parser` | `cookieParser()` | Cookie parsing |
 | `multer` | `upload()` | File uploads (multipart) |
 | Custom | `errorHandler()` | Error handling |
+| `connect-timeout` | `timeout()` | Request timeout |
+| `hpp` | `hpp()` | HPP protection |
+| `express-validator` | `validate()` | Request validation |
 
 No `npm install`. No version conflicts. One import.
 
@@ -147,7 +155,7 @@ No `npm install`. No version conflicts. One import.
 
 ---
 
-## Built-in Middleware (16)
+## Built-in Middleware (19)
 
 ```ts
 import {
@@ -167,6 +175,9 @@ import {
   serveStatic,    // Static file serving
   cookieParser,   // Cookie parsing
   errorHandler,   // Error handling middleware
+  timeout,        // Request timeout with req.timedout flag
+  hpp,            // HTTP Parameter Pollution protection
+  validate,       // Schema-based request validation
 } from "bunway";
 ```
 
@@ -284,6 +295,9 @@ src/
     ├── compression.ts    # Response compression
     ├── rate-limit.ts     # Rate limiting
     ├── upload.ts         # File uploads (multipart)
+    ├── timeout.ts        # Request timeout
+    ├── hpp.ts            # HTTP Parameter Pollution protection
+    ├── validation.ts     # Request validation
     └── error-handler.ts  # Error handling
 ```
 
@@ -429,7 +443,7 @@ app.ws("/chat", {
 ## Testing
 
 ```
-1,385 tests | 3,209 assertions | 74 test files | ~2s on M-series Mac
+1,642 tests | 3,623 assertions | 91 test files | ~4s on M-series Mac
 ```
 
 Test categories:
