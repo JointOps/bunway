@@ -130,16 +130,24 @@ export class BunResponse {
   attachment(filename?: string): this {
     if (filename) {
       this._headers.set("Content-Disposition", `attachment; filename="${filename}"`);
+      // Set Content-Type based on extension (Express behavior)
+      const mimeType = getBaseMimeType(filename);
+      if (mimeType && mimeType !== "application/octet-stream") {
+        this._headers.set("Content-Type", mimeType);
+      }
     } else {
       this._headers.set("Content-Disposition", "attachment");
     }
     return this;
   }
 
-  json(data: unknown): void {
+  json(data: unknown): this {
     this._headers.set("Content-Type", "application/json");
-    this._body = JSON.stringify(data);
+    const body = JSON.stringify(data);
+    this._headers.set("Content-Length", String(new TextEncoder().encode(body).byteLength));
+    this._body = body;
     this._sent = true;
+    return this;
   }
 
   jsonp(data: unknown): void {
@@ -186,9 +194,42 @@ export class BunResponse {
     this._sent = true;
   }
 
-  send(body: ResponseBody): void {
-    this._body = body;
+  send(body?: unknown): this {
+    // Express auto-detection: object → json(), string → text/html, Buffer/Uint8Array → octet-stream
+    if (body === undefined || body === null) {
+      this._body = "";
+      this._sent = true;
+      return this;
+    }
+
+    if (typeof body === "object" && !(body instanceof Uint8Array) && !(body instanceof ArrayBuffer) && !(body instanceof Blob)) {
+      // Object/array → delegate to json()
+      this.json(body);
+      return this;
+    }
+
+    if (typeof body === "string") {
+      // Only set Content-Type if not already set
+      if (!this._headers.has("Content-Type")) {
+        // Express sets text/html for strings
+        this._headers.set("Content-Type", "text/html; charset=utf-8");
+      }
+      // Set Content-Length
+      this._headers.set("Content-Length", String(new TextEncoder().encode(body).byteLength));
+      this._body = body;
+    } else if (body instanceof Uint8Array || body instanceof ArrayBuffer) {
+      if (!this._headers.has("Content-Type")) {
+        this._headers.set("Content-Type", "application/octet-stream");
+      }
+      const len = body instanceof Uint8Array ? body.byteLength : body.byteLength;
+      this._headers.set("Content-Length", String(len));
+      this._body = body;
+    } else {
+      this._body = body as ResponseBody;
+    }
+
     this._sent = true;
+    return this;
   }
 
   text(data: string): void {
@@ -313,114 +354,179 @@ export class BunResponse {
     });
   }
 
-  async sendFile(filePath: string, options: SendFileOptions = {}): Promise<void> {
-    const root = options.root || process.cwd();
-    const fullPath = filePath.startsWith("/") ? filePath : join(root, filePath);
+  async sendFile(filePath: string, options?: SendFileOptions): Promise<void>;
+  async sendFile(filePath: string, callback: (err?: Error) => void): Promise<void>;
+  async sendFile(filePath: string, options: SendFileOptions, callback: (err?: Error) => void): Promise<void>;
+  async sendFile(
+    filePath: string,
+    optionsOrCallback?: SendFileOptions | ((err?: Error) => void),
+    maybeCallback?: (err?: Error) => void
+  ): Promise<void> {
+    let options: SendFileOptions = {};
+    let callback: ((err?: Error) => void) | undefined;
 
-    if (options.dotfiles !== "allow" && basename(fullPath).startsWith(".")) {
-      if (options.dotfiles === "deny") {
-        this._statusCode = 403;
-        this.json({ error: "Forbidden" });
+    if (typeof optionsOrCallback === "function") {
+      callback = optionsOrCallback;
+    } else if (optionsOrCallback) {
+      options = optionsOrCallback;
+      callback = maybeCallback;
+    }
+
+    try {
+      const root = options.root || process.cwd();
+      const fullPath = filePath.startsWith("/") ? filePath : join(root, filePath);
+
+      if (options.dotfiles !== "allow" && basename(fullPath).startsWith(".")) {
+        if (options.dotfiles === "deny") {
+          this._statusCode = 403;
+          this.json({ error: "Forbidden" });
+          if (callback) callback();
+          return;
+        }
+        this._statusCode = 404;
+        this.json({ error: "Not Found" });
+        if (callback) callback();
         return;
       }
-      this._statusCode = 404;
-      this.json({ error: "Not Found" });
-      return;
-    }
 
-    if (!existsSync(fullPath)) {
-      this._statusCode = 404;
-      this.json({ error: "Not Found" });
-      return;
-    }
-
-    const stat = statSync(fullPath);
-    if (!stat.isFile()) {
-      this._statusCode = 404;
-      this.json({ error: "Not Found" });
-      return;
-    }
-
-    const fileSize = stat.size;
-    const mimeType = getBaseMimeType(fullPath);
-    this._headers.set("Content-Type", mimeType);
-    this._headers.set("Accept-Ranges", "bytes");
-
-    if (options.maxAge !== undefined) {
-      this._headers.set("Cache-Control", `max-age=${options.maxAge}`);
-    }
-
-    if (options.headers) {
-      for (const [key, value] of Object.entries(options.headers)) {
-        this._headers.set(key, value);
+      if (!existsSync(fullPath)) {
+        throw new Error(`ENOENT: no such file or directory, stat '${fullPath}'`);
       }
-    }
 
-    // Check for Range header
-    const rangeHeader = this._req?.get("range");
-    if (rangeHeader && fileSize > 0) {
-      const index = rangeHeader.indexOf("=");
-      if (index !== -1 && rangeHeader.slice(0, index) === "bytes") {
-        const rangesStr = rangeHeader.slice(index + 1);
-        const firstRange = rangesStr.split(",")[0]?.trim();
+      const stat = statSync(fullPath);
+      if (!stat.isFile()) {
+        throw new Error(`ENOENT: not a file, stat '${fullPath}'`);
+      }
 
-        if (firstRange) {
-          const dashIndex = firstRange.indexOf("-");
-          if (dashIndex !== -1) {
-            const startStr = firstRange.slice(0, dashIndex);
-            const endStr = firstRange.slice(dashIndex + 1);
+      const fileSize = stat.size;
+      const mimeType = getBaseMimeType(fullPath);
+      this._headers.set("Content-Type", mimeType);
 
-            let start: number;
-            let end: number;
+      // Add Accept-Ranges if acceptRanges !== false
+      if (options.acceptRanges !== false) {
+        this._headers.set("Accept-Ranges", "bytes");
+      }
 
-            if (startStr === "") {
-              const suffixLength = parseInt(endStr, 10);
-              if (!isNaN(suffixLength) && suffixLength > 0) {
-                start = Math.max(0, fileSize - suffixLength);
-                end = fileSize - 1;
+      // Add Last-Modified header if lastModified !== false
+      if (options.lastModified !== false) {
+        const file = Bun.file(fullPath);
+        if (file.lastModified) {
+          this._headers.set("Last-Modified", new Date(file.lastModified).toUTCString());
+        }
+      }
+
+      // Add Cache-Control header if cacheControl !== false
+      if (options.cacheControl !== false) {
+        const maxAge = options.maxAge !== undefined ? Math.floor(options.maxAge / 1000) : 0;
+        let cacheValue = `public, max-age=${maxAge}`;
+        if (options.immutable) cacheValue += ", immutable";
+        this._headers.set("Cache-Control", cacheValue);
+      }
+
+      if (options.headers) {
+        for (const [key, value] of Object.entries(options.headers)) {
+          this._headers.set(key, value);
+        }
+      }
+
+      // Check for Range header
+      const rangeHeader = this._req?.get("range");
+      if (rangeHeader && fileSize > 0) {
+        const index = rangeHeader.indexOf("=");
+        if (index !== -1 && rangeHeader.slice(0, index) === "bytes") {
+          const rangesStr = rangeHeader.slice(index + 1);
+          const firstRange = rangesStr.split(",")[0]?.trim();
+
+          if (firstRange) {
+            const dashIndex = firstRange.indexOf("-");
+            if (dashIndex !== -1) {
+              const startStr = firstRange.slice(0, dashIndex);
+              const endStr = firstRange.slice(dashIndex + 1);
+
+              let start: number;
+              let end: number;
+
+              if (startStr === "") {
+                const suffixLength = parseInt(endStr, 10);
+                if (!isNaN(suffixLength) && suffixLength > 0) {
+                  start = Math.max(0, fileSize - suffixLength);
+                  end = fileSize - 1;
+                } else {
+                  start = 0;
+                  end = fileSize - 1;
+                }
               } else {
-                start = 0;
-                end = fileSize - 1;
+                start = parseInt(startStr, 10);
+                end = endStr === "" ? fileSize - 1 : parseInt(endStr, 10);
               }
-            } else {
-              start = parseInt(startStr, 10);
-              end = endStr === "" ? fileSize - 1 : parseInt(endStr, 10);
-            }
 
-            if (!isNaN(start) && !isNaN(end) && start <= end && start < fileSize) {
-              if (end >= fileSize) end = fileSize - 1;
+              if (!isNaN(start) && !isNaN(end) && start <= end && start < fileSize) {
+                if (end >= fileSize) end = fileSize - 1;
 
-              const file = Bun.file(fullPath);
-              this._statusCode = 206;
-              this._headers.set("Content-Range", `bytes ${start}-${end}/${fileSize}`);
-              this._headers.set("Content-Length", String(end - start + 1));
-              this._body = await file.slice(start, end + 1).arrayBuffer();
+                const file = Bun.file(fullPath);
+                this._statusCode = 206;
+                this._headers.set("Content-Range", `bytes ${start}-${end}/${fileSize}`);
+                this._headers.set("Content-Length", String(end - start + 1));
+                this._body = await file.slice(start, end + 1).arrayBuffer();
+                this._sent = true;
+                if (callback) callback();
+                return;
+              }
+
+              // Unsatisfiable range
+              this._statusCode = 416;
+              this._headers.set("Content-Range", `bytes */${fileSize}`);
+              this._body = null;
               this._sent = true;
+              if (callback) callback();
               return;
             }
-
-            // Unsatisfiable range
-            this._statusCode = 416;
-            this._headers.set("Content-Range", `bytes */${fileSize}`);
-            this._body = null;
-            this._sent = true;
-            return;
           }
         }
       }
-    }
 
-    // No range or non-bytes range — send full file
-    this._headers.set("Content-Length", String(fileSize));
-    const file = Bun.file(fullPath);
-    this._body = await file.arrayBuffer();
-    this._sent = true;
+      // No range or non-bytes range — send full file
+      this._headers.set("Content-Length", String(fileSize));
+      const file = Bun.file(fullPath);
+      this._body = await file.arrayBuffer();
+      this._sent = true;
+      if (callback) callback();
+    } catch (err) {
+      if (callback) {
+        callback(err instanceof Error ? err : new Error(String(err)));
+      } else {
+        throw err;
+      }
+    }
   }
 
-  async download(filePath: string, filename?: string): Promise<void> {
-    const downloadName = filename || basename(filePath);
+  async download(filePath: string, filename?: string, options?: SendFileOptions | ((err?: Error) => void), callback?: (err?: Error) => void): Promise<void> {
+    let downloadName: string;
+    let opts: SendFileOptions = {};
+    let cb: ((err?: Error) => void) | undefined;
+
+    // Handle overloads: download(path), download(path, fn), download(path, name),
+    // download(path, name, fn), download(path, name, opts, fn)
+    if (typeof filename === "function") {
+      cb = filename as unknown as (err?: Error) => void;
+      downloadName = basename(filePath);
+    } else {
+      downloadName = filename || basename(filePath);
+      if (typeof options === "function") {
+        cb = options;
+      } else if (options) {
+        opts = options;
+        cb = callback;
+      }
+    }
+
     this._headers.set("Content-Disposition", `attachment; filename="${downloadName}"`);
-    await this.sendFile(filePath);
+
+    if (cb) {
+      await this.sendFile(filePath, opts, cb);
+    } else {
+      await this.sendFile(filePath, opts);
+    }
   }
 
   ok(data?: unknown): void {
@@ -539,8 +645,15 @@ export class BunResponse {
    * res.end(); // Just close
    * res.end('Final chunk'); // Write and close
    */
-  end(chunk?: string | Uint8Array | ArrayBuffer): void {
+  end(chunk?: string | Uint8Array | ArrayBuffer, encoding?: string | (() => void), callback?: () => void): void {
+    // Handle overloads: end(), end(chunk), end(chunk, encoding), end(chunk, cb), end(chunk, encoding, cb)
+    if (typeof encoding === "function") {
+      callback = encoding;
+      encoding = undefined;
+    }
+
     if (this._sent && !this._streaming) {
+      if (callback) callback();
       return;
     }
 
@@ -569,6 +682,8 @@ export class BunResponse {
       }
       this._sent = true;
     }
+
+    if (callback) callback();
   }
 
   /**
