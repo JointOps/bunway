@@ -56,6 +56,10 @@ export interface SendFileOptions {
   root?: string;
   headers?: Record<string, string>;
   dotfiles?: "allow" | "deny" | "ignore";
+  lastModified?: boolean;
+  cacheControl?: boolean;
+  immutable?: boolean;
+  acceptRanges?: boolean;
 }
 
 export interface UploadedFile {
