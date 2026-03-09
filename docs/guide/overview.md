@@ -96,6 +96,7 @@ app.listen({ port: 3000 });
 - **JSONP** — `res.jsonp()` for legacy cross-domain support
 - **Cross-References** — `req.res`, `res.req`, `res.app` for Express parity
 - **Array Paths** — `app.use(['/v1', '/v2'], router)` for multi-path mounting
+- **Sub-App Mounting** — `app.mountpath` property and `app.path()` method for mounted sub-apps
 
 ## What's next?
 
