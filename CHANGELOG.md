@@ -7,17 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.8] - 2026-03-09
+## [1.0.7] - 2026-03-09
 
-### Changed
-- **BREAKING (minor)**: `res.send()` now auto-detects Content-Type (string→text/html, object→JSON, buffer→octet-stream). If you relied on `res.send()` NOT setting Content-Type, use `res.end()` instead.
+The biggest release since 1.0 — security middleware, Express parity, and 97%+ API compatibility.
+
+### Security & Protection Middleware
+- **Request Timeout** — `timeout(ms, options?)` middleware with `req.timedout` flag, custom status/message, skip function
+- **HPP Protection** — `hpp(options?)` middleware for HTTP Parameter Pollution detection and body sanitization
+- **Request Validation** — `validate(schema, options?)` middleware with declarative schema for body, query, and params
+- **`req.timedout`** — typed boolean property on BunRequest for timeout detection
+
+### Express Parity
+- **`res.send()` auto-detection** — string→text/html, object→JSON, buffer→octet-stream (matches Express behavior)
 - **`res.send()`** and **`res.json()`** now return `this` for chaining
 - **`req.accepts()`** — rewritten with RFC 7231 quality-value parsing (replaces substring matching)
 - **`req.acceptsCharsets()`**, **`req.acceptsEncodings()`**, **`req.acceptsLanguages()`** — rewritten with quality-value parsing
-- **`req.is()`** — rewritten with proper MIME type matching and wildcard support
-- **`req.param()`** — now checks `req.body` (Express parity, deprecated but expected)
-
-### Added
+- **`req.is()`** — rewritten with proper MIME type matching and wildcard support (`text/*`, `*/json`)
+- **`req.param()`** — now checks params → body → query (Express parity)
 - **Regex route support** — `app.get(/pattern/, handler)` with named capture groups
 - **Catch-all `*` routes** — `app.all("*", handler)` and `app.get("*", handler)`
 - **`app.mountpath`** — property set on sub-app mount
@@ -25,39 +31,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`res.sendFile()` callback** — `res.sendFile(path, [options], callback)`
 - **`res.sendFile()` options** — `lastModified`, `cacheControl`, `immutable`, `acceptRanges`
 - **`res.download()` callback** — `res.download(path, [filename], [options], callback)`
-- **`res.attachment()` Content-Type** — sets Content-Type from filename extension
+- **`res.attachment()` Content-Type** — auto-detects from filename extension
 - **`res.end()` encoding + callback** — `res.end(data, encoding, callback)`
-- Content negotiation utility module (`src/utils/content-negotiation.ts`)
-
-### Testing
-- ~135 new tests (105 unit + 20 integration + 7 compat)
-- Total: ~1642 tests
-
-### Express Compatibility
-This release brings Express API compatibility from ~95% to ~97%.
-
-## [1.0.7] - 2026-03-09
-
-### Added
-- **Request Timeout** — `timeout(ms, options?)` middleware with `req.timedout` flag, custom status/message, skip function
-- **HPP Protection** — `hpp(options?)` middleware for HTTP Parameter Pollution detection and body sanitization
-- **Request Validation** — `validate(schema, options?)` middleware with declarative schema for body, query, and params
-- **`req.timedout`** — typed boolean property on BunRequest for timeout detection
+- Content negotiation engine (`src/utils/content-negotiation.ts`) — replaces `accepts` + `type-is` npm packages
 
 ### Documentation
-- New "Request Timeout" middleware guide
-- New "HPP Protection" middleware guide
-- New "Request Validation" middleware guide
-- Updated Express migration guide with Phase 3 middleware comparisons
-- Updated README with new features and middleware count (19 built-in)
-- Updated llms.txt and llms-full.txt
+- New middleware guides: Request Timeout, HPP Protection, Request Validation
+- Updated Express migration guide with full parity comparisons
+- Updated README, llms.txt, llms-full.txt
 
 ### Testing
-- 93 new tests (70 unit + 15 integration + 4 acceptance + 4 compat)
-- Total: ~1507 tests
+- 276 new tests across unit, integration, acceptance, and Express compatibility suites
+- Total: **1,662 tests**, 3,653 assertions, 91 test files, 0 failures
 
-### Phase 3 Complete
-This release completes Phase 3 (Security & Protection).
+### Express Compatibility
+This release brings Express API compatibility from ~93% to **~97%**.
 
 ## [1.0.6] - 2026-03-04
 
@@ -273,8 +261,7 @@ This release completes Phase 1 (Core Migration Blockers).
    - Creates GitHub release with auto-generated notes
    - Tags the release
 
-[Unreleased]: https://github.com/JointOps/bunway/compare/v1.0.8...HEAD
-[1.0.8]: https://github.com/JointOps/bunway/compare/v1.0.7...v1.0.8
+[Unreleased]: https://github.com/JointOps/bunway/compare/v1.0.7...HEAD
 [1.0.7]: https://github.com/JointOps/bunway/compare/v1.0.6...v1.0.7
 [1.0.6]: https://github.com/JointOps/bunway/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/JointOps/bunway/compare/v1.0.4...v1.0.5
