@@ -317,6 +317,61 @@ app.listen(3000, () => {
 
 That's it. You're running on Bun.
 
+## Content Negotiation (v1.0.8+)
+
+bunWay now implements RFC 7231 quality-value parsing for all `req.accepts*()` methods.
+This means headers like `Accept: text/html;q=0.9, application/json` are parsed correctly
+with proper priority ordering — identical to Express's `accepts` package.
+
+### req.is() — MIME Type Matching
+
+bunWay's `req.is()` now supports MIME type wildcards:
+
+```typescript
+// These all work like Express:
+req.is("json")           // matches "application/json"
+req.is("text/*")         // matches "text/html", "text/plain", etc.
+req.is("application/*")  // matches "application/json", "application/xml", etc.
+```
+
+### res.send() — Auto Content-Type Detection
+
+`res.send()` now auto-detects Content-Type like Express:
+
+```typescript
+res.send("Hello")        // → Content-Type: text/html; charset=utf-8
+res.send({ ok: true })   // → Content-Type: application/json (delegates to json())
+res.send(buffer)         // → Content-Type: application/octet-stream
+```
+
+### Regex Routes
+
+bunWay now supports regex route patterns:
+
+```typescript
+app.get(/\/fly$/, (req, res) => { ... });
+app.get(/\/users\/(?<id>\d+)/, (req, res) => {
+  res.json({ id: req.params.id }); // Named capture groups become params
+});
+```
+
+### Catch-all Routes
+
+```typescript
+app.all("*", (req, res) => {
+  res.status(404).json({ error: "Not Found" });
+});
+```
+
+### Sub-App Mounting
+
+```typescript
+const admin = bunway();
+app.use("/admin", admin);
+console.log(admin.mountpath); // "/admin"
+console.log(admin.path());   // "/admin"
+```
+
 ## What's Different?
 
 Just two things:
