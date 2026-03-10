@@ -190,7 +190,7 @@ app.ws("/chat", { open(ws) {}, message(ws, msg) {}, close(ws) {} })
 - Docs: https://bunway.jointops.dev
 - Discord: https://discord.gg/fTF4qjaMFT
 - License: MIT
-- Test suite: 1,642+ tests, 3,623+ assertions
+- Test suite: 1,662+ tests, 3,653+ assertions
 
 ## For comprehensive documentation
 

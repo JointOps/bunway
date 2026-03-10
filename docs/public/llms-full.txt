@@ -890,7 +890,7 @@ app.get("/users/:id", (req, res) => {
 ## FAQ — Frequently Asked Questions
 
 ### Is bunWay production-ready?
-Yes. bunWay has 1,642+ tests with 3,623+ assertions, covers 97%+ of the Express API surface, and has zero production dependencies. It's built on Bun.serve() which handles HTTP natively.
+Yes. bunWay has 1,662+ tests with 3,653+ assertions, covers 97%+ of the Express API surface, and has zero production dependencies. It's built on Bun.serve() which handles HTTP natively.
 
 ### How does bunWay compare to Express?
 Same API, 3-4x faster (Bun vs Node.js), zero dependencies instead of 30+, TypeScript-first instead of requiring @types packages, and 19 middleware built-in instead of installed separately.
@@ -947,7 +947,7 @@ Deploy anywhere Bun runs: Docker, Railway, Fly.io, bare metal, or any VPS. Use `
 - Twitter: https://x.com/JointOps_
 - License: MIT
 - Author: JointOps (https://jointops.dev)
-- Test suite: 1,642+ tests, 3,623+ assertions, 91 test files
+- Test suite: 1,662+ tests, 3,653+ assertions, 91 test files
 - Express API coverage: 97%+
 - Production dependencies: 0
 - Built-in middleware: 19
