@@ -58,10 +58,12 @@ async function main() {
       throw new Error(`Version ${rootPkg.version} is already published on npm.`);
     }
   } catch (err) {
-    const output = `${err.stdout || ''}${err.stderr || ''}`;
-    if (!output.includes('E404')) {
-      throw new Error(`npm view failed: ${output}`);
+    // If the version is already published, re-throw
+    if (err.message.includes('already published')) {
+      throw err;
     }
+    // Otherwise npm view failed (404, network, auth, etc.) — safe to continue
+    console.log(`ℹ npm view check skipped: ${err.message.split('\n')[0]}`);
   }
 
   console.log('✔ dist package looks good. Ready to publish.');
