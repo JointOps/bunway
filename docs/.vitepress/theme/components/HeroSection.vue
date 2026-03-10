@@ -27,7 +27,7 @@ const copyInstall = async () => {
       <!-- Badge -->
       <a href="https://github.com/JointOps/bunway/releases" target="_blank" class="badge">
         <span class="pulse"></span>
-        v1.0.6 — Phase 2 complete
+        v1.0.7 — Phase 3 complete
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M5 12h14M12 5l7 7-7 7"/>
         </svg>
