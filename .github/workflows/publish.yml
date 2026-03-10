@@ -5,6 +5,11 @@ on:
     branches: [main]
     paths:
       - 'VERSION'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (leave empty to read from VERSION file)'
+        required: false
 
 jobs:
   # First, verify the version actually changed
@@ -23,7 +28,15 @@ jobs:
       - name: Check if VERSION changed
         id: check
         run: |
-          if git diff HEAD~1 --name-only | grep -q "^VERSION$"; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            if [ -z "$VERSION" ]; then
+              VERSION=$(cat VERSION)
+            fi
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "✓ Manual dispatch — publishing v$VERSION"
+          elif git diff HEAD~1 --name-only | grep -q "^VERSION$"; then
             echo "changed=true" >> $GITHUB_OUTPUT
             echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
             echo "✓ VERSION file changed to $(cat VERSION)"
