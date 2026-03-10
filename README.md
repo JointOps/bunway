@@ -5,7 +5,6 @@
 [![bun only](https://img.shields.io/badge/runtime-bun%201.1+-1e7c73?logo=bun&logoColor=white)](https://bun.sh)
 [![zero deps](https://img.shields.io/badge/dependencies-0-brightgreen)](https://www.npmjs.com/package/bunway)
 [![tests](https://img.shields.io/badge/tests-1662%20passing-brightgreen)]()
-[![Express parity](https://img.shields.io/badge/Express%20parity-97%25+-blue)]()
 [![docs](https://img.shields.io/badge/docs-bunway.jointops.dev-3fc5b7)](https://bunway.jointops.dev/)
 [![license](https://img.shields.io/badge/license-MIT-lightgrey.svg)](./LICENSE)
 
