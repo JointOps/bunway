@@ -233,7 +233,7 @@ export class BunRequest {
       // Express-style property access
       for (const key of new Set<string>(params.keys())) {
         const all = params.getAll(key);
-        obj[key] = all.length === 1 ? all[0] : all;
+        obj[key] = all.length === 1 ? all[0]! : all;
       }
       // Bind URLSearchParams methods so .get(), .has(), .toString(), iteration all work
       const methodNames = [
