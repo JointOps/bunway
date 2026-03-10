@@ -1,4 +1,5 @@
 import type { Handler } from "../types";
+import type { BunResponse } from "../core/response";
 import { gzipSync, deflateSync } from "zlib";
 
 export interface CompressionOptions {
@@ -93,7 +94,7 @@ export function compression(options: CompressionOptions = {}): Handler {
       return { data: buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer, encoding: null };
     };
 
-    res.json = (data: unknown): void => {
+    res.json = (data: unknown): BunResponse => {
       const jsonStr = JSON.stringify(data);
       const result = compress(jsonStr, "application/json");
       if (result.encoding) {
@@ -102,6 +103,7 @@ export function compression(options: CompressionOptions = {}): Handler {
       }
       res.set("Content-Type", "application/json");
       res.send(result.data);
+      return res;
     };
 
     res.text = (data: string): void => {

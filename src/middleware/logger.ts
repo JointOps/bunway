@@ -261,14 +261,16 @@ export function logger(
     };
 
     // Wrap response methods
-    res.json = (data: unknown) => {
+    res.json = (data: unknown): BunResponse => {
       originalJson(data);
       logRequest();
+      return res;
     };
 
-    res.send = (body: string | ArrayBuffer | Uint8Array | Blob | null) => {
+    res.send = (body?: unknown): BunResponse => {
       originalSend(body);
       logRequest();
+      return res;
     };
 
     res.text = (data: string) => {
