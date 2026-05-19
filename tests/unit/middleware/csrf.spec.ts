@@ -92,6 +92,26 @@ describe("csrf middleware (Unit)", () => {
       const cookieToken = extractCsrfToken(res);
       expect(token).toBe(cookieToken);
     });
+
+    it("CSRF cookie is NOT httpOnly by default (double-submit pattern requires JS access)", () => {
+      const req = createRequest("GET");
+      const res = new BunResponse();
+
+      csrf()(req, res, noop);
+
+      const setCookie = getSetCookieHeader(res) ?? "";
+      expect(setCookie.toLowerCase()).not.toContain("httponly");
+    });
+
+    it("CSRF cookie IS httpOnly when explicitly set to true", () => {
+      const req = createRequest("GET");
+      const res = new BunResponse();
+
+      csrf({ cookie: { httpOnly: true } })(req, res, noop);
+
+      const setCookie = getSetCookieHeader(res) ?? "";
+      expect(setCookie.toLowerCase()).toContain("httponly");
+    });
   });
 
   describe("safe methods (ignored)", () => {
