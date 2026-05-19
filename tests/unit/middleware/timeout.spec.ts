@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "bun:test";
+import { describe, it, expect, mock } from "bun:test";
 import { timeout } from "../../../src/middleware/timeout";
 import { BunRequest } from "../../../src/core/request";
 import { BunResponse } from "../../../src/core/response";
@@ -11,6 +11,52 @@ function createReqRes(url = "http://localhost/test", method = "GET") {
 }
 
 describe("timeout middleware", () => {
+  it("req.timedout starts as false", () => {
+    const { req, res } = createReqRes();
+    timeout(1000)(req, res, () => {});
+    expect(req.timedout).toBe(false);
+  });
+
+  it("timer is cleared when response commits before timeout fires", async () => {
+    const { req, res } = createReqRes();
+    const next = mock(() => {
+      res.toResponse();
+    });
+    timeout(200)(req, res, next);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(req.timedout).toBe(false);
+  });
+
+  it("fires 408 when handler never commits response", async () => {
+    const { req, res } = createReqRes();
+    timeout(20)(req, res, () => {});
+    await new Promise((r) => setTimeout(r, 80));
+    expect(req.timedout).toBe(true);
+    expect(res.statusCode).toBe(408);
+  });
+
+  it("skip() prevents timeout from being applied", async () => {
+    const { req, res } = createReqRes("http://localhost/health");
+    timeout(20, { skip: (r) => r.path === "/health" })(req, res, () => {});
+    await new Promise((r) => setTimeout(r, 80));
+    expect(req.timedout).toBe(false);
+  });
+
+  it("respond:false sets timedout but sends no body", async () => {
+    const { req, res } = createReqRes();
+    timeout(20, { respond: false })(req, res, () => {});
+    await new Promise((r) => setTimeout(r, 80));
+    expect(req.timedout).toBe(true);
+    expect(res.headersSent).toBe(false);
+  });
+
+  it("custom statusCode is used on timeout", async () => {
+    const { req, res } = createReqRes();
+    timeout(20, { statusCode: 503 })(req, res, () => {});
+    await new Promise((r) => setTimeout(r, 80));
+    expect(res.statusCode).toBe(503);
+  });
+
   it("calls next() immediately if not timed out", async () => {
     const mw = timeout(5000);
     const { req, res } = createReqRes();
