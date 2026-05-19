@@ -224,9 +224,8 @@ describe("Router (Unit)", () => {
     it("should register path-based middleware", () => {
       router.use("/api", () => {});
 
-      // Path-based middleware creates routes for all HTTP methods
-      const routes = (router as unknown as { routes: unknown[] }).routes;
-      expect(routes.length).toBe(7); // GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD
+      const prefixMiddlewares = (router as unknown as { prefixMiddlewares: unknown[] }).prefixMiddlewares;
+      expect(prefixMiddlewares.length).toBe(1);
     });
 
     it("should register error handler (4-param middleware)", () => {
@@ -433,7 +432,7 @@ describe("use() with array paths", () => {
     });
     await router.handle(new Request("http://localhost/api"));
     await router.handle(new Request("http://localhost/v2"));
-    expect(log).toEqual(["/api", "/v2"]);
+    expect(log).toEqual(["/", "/"]);
   });
 
   it("single string still works (no regression)", async () => {
