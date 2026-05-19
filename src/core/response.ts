@@ -62,7 +62,7 @@ export class BunResponse {
   }
 
   get headersSent(): boolean {
-    return this._sent;
+    return this._sent || this._headersFlushed;
   }
 
   status(code: number): this {
@@ -81,6 +81,10 @@ export class BunResponse {
 
   get(name: string): string | undefined {
     return this._headers.get(name) ?? undefined;
+  }
+
+  getHeader(name: string): string | undefined {
+    return this.get(name);
   }
 
   append(name: string, value: string): this {
@@ -245,8 +249,34 @@ export class BunResponse {
   }
 
   sendStatus(code: number): void {
+    const STATUS_TEXTS: Record<number, string> = {
+      100: "Continue",
+      101: "Switching Protocols",
+      200: "OK",
+      201: "Created",
+      202: "Accepted",
+      204: "No Content",
+      301: "Moved Permanently",
+      302: "Found",
+      304: "Not Modified",
+      400: "Bad Request",
+      401: "Unauthorized",
+      403: "Forbidden",
+      404: "Not Found",
+      405: "Method Not Allowed",
+      408: "Request Timeout",
+      409: "Conflict",
+      410: "Gone",
+      422: "Unprocessable Entity",
+      429: "Too Many Requests",
+      500: "Internal Server Error",
+      502: "Bad Gateway",
+      503: "Service Unavailable",
+      504: "Gateway Timeout",
+    };
     this._statusCode = code;
-    this._body = String(code);
+    this._headers.set("Content-Type", "text/plain; charset=utf-8");
+    this._body = STATUS_TEXTS[code] ?? String(code);
     this._sent = true;
   }
 
