@@ -16,6 +16,10 @@ export class HttpError extends Error {
     this.headers = options.headers ? { ...options.headers } : {};
     this.body = options.body ?? (message ? { error: message } : undefined);
   }
+
+  get statusCode(): number {
+    return this.status;
+  }
 }
 
 export function isHttpError(value: unknown): value is HttpError {
