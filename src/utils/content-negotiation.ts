@@ -57,8 +57,11 @@ export function parseAcceptHeader(header: string): Array<{ value: string; qualit
     entries.push({ value, quality, params });
   }
 
-  // Sort by quality descending, then by specificity (original order as tiebreaker)
-  entries.sort((a, b) => b.quality - a.quality);
+  entries.sort((a, b) => {
+    if (b.quality !== a.quality) return b.quality - a.quality;
+    const spec = (t: string) => t === "*/*" ? 0 : t.endsWith("/*") ? 1 : 2;
+    return spec(b.value) - spec(a.value);
+  });
   return entries;
 }
 
