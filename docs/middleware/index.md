@@ -14,6 +14,7 @@ bunWay ships with a complete set of Express-compatible middleware—no npm hunti
 | [`json()`](body-parsing.md) | `express.json()` | Parse JSON request bodies |
 | [`urlencoded()`](body-parsing.md) | `express.urlencoded()` | Parse URL-encoded form data |
 | [`text()`](body-parsing.md) | `express.text()` | Parse plain text bodies |
+| [`raw()`](body-parsing.md) | `body-parser.raw()` | Parse raw binary request bodies |
 | [`cors()`](cors.md) | `cors` | Handle CORS headers and preflight |
 | [`helmet()`](security.md) | `helmet` | Set security headers |
 | [`session()`](session.md) | `express-session` | Session management with stores |
@@ -23,8 +24,16 @@ bunWay ships with a complete set of Express-compatible middleware—no npm hunti
 | [`rateLimit()`](rate-limit.md) | `express-rate-limit` | Rate limiting |
 | [`serveStatic()`](static.md) | `express.static()` | Serve static files |
 | [`cookieParser()`](cookies.md) | `cookie-parser` | Parse and sign cookies |
-| [`compression()`](security.md#compression) | `compression` | Gzip/deflate responses |
+| [`compression()`](compression.md)           | `compression` | Gzip/Brotli/deflate response compression |
 | [`upload()`](file-uploads.md) | `multer` | File uploads (multipart/form-data) |
+| [`timeout()`](/guide/middleware/timeout)     | `connect-timeout`     | Request timeout with `req.timedout` |
+| [`hpp()`](/guide/middleware/hpp)             | `hpp`                 | HTTP Parameter Pollution protection |
+| [`validate()`](/guide/middleware/validation) | `express-validator`   | Schema-based request validation     |
+| [`sse()`](sse.md)                            | `express-sse`         | Server-Sent Events with heartbeat   |
+| [`responseTime()`](response-time.md)         | `response-time`       | X-Response-Time header              |
+| [`requestId()`](request-id.md)               | `express-request-id`  | X-Request-Id generation             |
+| [`methodOverride()`](method-override.md)     | `method-override`     | PUT/DELETE/PATCH from HTML forms    |
+| [`favicon()`](favicon.md)                    | `serve-favicon`       | Serve favicon.ico with ETag         |
 | [`errorHandler()`](error-handler.md) | Custom | Catch-all error handling |
 
 ## Quick Reference

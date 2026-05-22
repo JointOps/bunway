@@ -119,7 +119,7 @@ interface CsrfOptions {
     name?: string;       // Cookie name (default: '_csrf')
     path?: string;       // Cookie path (default: '/')
     secure?: boolean;    // HTTPS only (default: true)
-    httpOnly?: boolean;  // HTTP only (default: true)
+    httpOnly?: boolean;  // HTTP only (default: false — required for double-submit cookie pattern)
     sameSite?: 'strict' | 'lax' | 'none';  // SameSite (default: 'strict')
   };
   ignoreMethods?: string[];  // Methods to skip (default: ['GET', 'HEAD', 'OPTIONS'])

@@ -1,7 +1,7 @@
 ---
 layout: home
 title: "bunWay — Express-Compatible Web Framework for Bun"
-description: "bunWay is an Express-compatible web framework built natively for Bun. Drop-in replacement with zero rewrites, zero dependencies, and 16 built-in middleware. Same (req, res, next) API you know, 3-4x faster."
+description: "bunWay is an Express-compatible web framework built natively for Bun. Drop-in replacement with zero rewrites, zero dependencies, and 24 built-in middleware. Same (req, res, next) API you know, 3-4x faster."
 hero:
   name: "The fastest way"
   text: "to Express"
@@ -26,13 +26,13 @@ hero:
   </div>
 
 ```ts
-import { bunway, helmet, cors } from 'bunway'
+import { bunway, helmet, cors, json } from 'bunway'
 
 const app = bunway()
 
 app.use(helmet())
 app.use(cors())
-app.use(app.json())
+app.use(json())
 
 app.get('/api', (req, res) => {
   res.json({ message: 'Hello, World!' })

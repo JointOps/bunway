@@ -21,7 +21,7 @@ bunway uses the exact same `(req, res, next)` handler signature as Express. Your
 
 - **Express-compatible** – same `(req, res, next)` signature, familiar middleware patterns
 - **Bun-native** – built on Bun's Fetch primitives (`Request`, `Response`, `Bun.serve`)
-- **Batteries included** – 19 middleware covering most production needs
+- **Batteries included** – 24 middleware covering most production needs
 - **Zero dependencies** – pure Bun, no Node polyfills
 
 ## Current capabilities
@@ -57,10 +57,16 @@ bunway ships with everything you need for production apps:
 | `passport()`     | Authentication                 | `passport`            |
 | `logger()`       | Request logging                | `morgan`              |
 | `upload()`       | File uploads (multipart)       | `multer`              |
-| `timeout()`      | Request timeout                | `connect-timeout`     |
-| `hpp()`          | HPP protection                 | `hpp`                 |
-| `validate()`     | Request validation             | `express-validator`   |
-| `errorHandler()` | Error handling                 | Custom middleware     |
+| `timeout()`        | Request timeout                    | `connect-timeout`     |
+| `hpp()`            | HPP protection                     | `hpp`                 |
+| `validate()`       | Request validation                 | `express-validator`   |
+| `errorHandler()`   | Error handling                     | Custom middleware     |
+| `raw()`            | Raw binary body parsing            | `body-parser.raw()`   |
+| `sse()`            | Server-Sent Events with heartbeat  | `express-sse`         |
+| `responseTime()`   | X-Response-Time header             | `response-time`       |
+| `requestId()`      | X-Request-Id generation            | `express-request-id`  |
+| `methodOverride()` | PUT/DELETE/PATCH from HTML forms   | `method-override`     |
+| `favicon()`        | Serve favicon.ico with ETag        | `serve-favicon`       |
 
 ## Quick example
 
@@ -102,8 +108,8 @@ app.listen({ port: 3000 });
 
 Core features, request/response completeness, and security middleware are done. Active development focuses on:
 
-- **Developer experience** — SSE helpers, response time, request ID
 - **Performance** — continued optimization and benchmarking
+- **Ecosystem** — broader compatibility and integrations
 
 See [Roadmap & Contributions](../community/build-together.md) for the full picture.
 

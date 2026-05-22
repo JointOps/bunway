@@ -125,7 +125,7 @@ const middleware = [
             <span class="express-pkg">{{ m.express }}</span>
           </div>
           <div class="table-footer">
-            <a href="/middleware/">See all 16 middleware →</a>
+            <a href="/middleware/">See all 24 middleware →</a>
           </div>
         </div>
       </div>
