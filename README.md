@@ -10,7 +10,7 @@
 
 **Express API. Bun speed. Zero dependencies.**
 
-bunWay is a web framework for Bun that speaks Express fluently. Same `(req, res, next)` signature. Same middleware patterns. Same routing. Just faster, lighter, and with 19 middleware built right in. No rewrites. No new API to learn. Drop it in and ship.
+bunWay is a web framework for Bun that speaks Express fluently. Same `(req, res, next)` signature. Same middleware patterns. Same routing. Just faster, lighter, and with 24 middleware built right in. No rewrites. No new API to learn. Drop it in and ship.
 
 ```ts
 import { bunway, cors, helmet, logger, json, session } from "bunway";
@@ -36,7 +36,7 @@ If you've written Express before, you just wrote bunWay.
 
 ## Quick Links
 
-[Install](#getting-started) · [Why bunWay?](#why-bunway) · [Express Compatibility](#express-compatibility) · [Middleware](#built-in-middleware-19) · [Routing](#routing) · [Docs](https://bunway.jointops.dev/)
+[Install](#getting-started) · [Why bunWay?](#why-bunway) · [Express Compatibility](#express-compatibility) · [Middleware](#built-in-middleware-24) · [Routing](#routing) · [Docs](https://bunway.jointops.dev/)
 
 ---
 
@@ -54,7 +54,7 @@ bunWay ships all of that in a single import with zero dependencies.
 |---|---|---|
 | **Runtime** | Node.js | Bun (native speed) |
 | **Production dependencies** | 30+ packages for a real app | **0** |
-| **Middleware** | Install, configure, and maintain separately | **19 built-in**, one import |
+| **Middleware** | Install, configure, and maintain separately | **24 built-in**, one import |
 | **TypeScript** | `@types/express` + build step | Native. Strict types included. |
 | **TLS/HTTPS** | `https.createServer(opts, app)` | `app.listen({ tls: { cert, key } })` |
 | **API compatibility** | — | **97%+** Express 4.x parity |
@@ -176,7 +176,7 @@ bunWay implements the Express 4.x API surface. Your existing code, middleware pa
 
 ---
 
-## Built-in Middleware (19)
+## Built-in Middleware (24)
 
 Every middleware Express developers reach for is built in. One import. No version conflicts. No supply chain risk.
 
@@ -208,8 +208,15 @@ import {
   // Observability
   logger,         // Request logging (morgan format strings)
   timeout,        // Request timeout with req.timedout flag
-  compression,    // Gzip/deflate response compression
+  compression,    // Brotli / gzip / deflate response compression
+  responseTime,   // X-Response-Time header
+  requestId,      // X-Request-Id generation and passthrough
   errorHandler,   // Error handling middleware
+
+  // DX Utilities
+  sse,            // Server-Sent Events (res.sendEvent, heartbeat, abort cleanup)
+  methodOverride, // PUT/DELETE/PATCH from HTML forms via header/query/body
+  favicon,        // Serve favicon.ico with ETag and Cache-Control
 } from "bunway";
 ```
 
@@ -242,8 +249,8 @@ app.use(logger(":method :url :status :response-time ms"));
 // Request validation — declarative schema
 app.post("/users", validate({
   body: {
-    email: { required: true, isEmail: true },
-    age: { required: true, isInt: { min: 18 } },
+    email: { required: true, type: "email" },
+    age: { required: true, type: "integer", min: 18 },
   }
 }), createUser);
 
@@ -264,6 +271,24 @@ app.post("/upload", upload.single("avatar"), (req, res) => {
 // Static files
 app.use(serveStatic("public"));
 app.use("/assets", serveStatic("assets", { maxAge: 86400000 }));
+
+// Favicon — cached at startup, ETag + Cache-Control out of the box
+app.use(favicon("./public/favicon.ico"));
+
+// Request ID — generates UUID, sets req.id and X-Request-Id header
+app.use(requestId());
+
+// Response time — writes X-Response-Time on every response
+app.use(responseTime());
+
+// Method override — PUT/DELETE from HTML forms
+app.use(methodOverride()); // reads X-HTTP-Method-Override header
+
+// Server-Sent Events
+app.get("/events", sse({ heartbeatInterval: 15_000 }), (req, res) => {
+  res.sendEvent("update", { data: "hello" });
+  res.end();
+});
 ```
 
 ---
@@ -496,16 +521,21 @@ src/
     ├── static.ts         # Static file serving
     ├── cookie-parser.ts  # Cookie parsing
     ├── session.ts        # Session management
-    ├── auth.ts           # Passport-style authentication
+    ├── passport.ts       # Passport authentication strategies
     ├── logger.ts         # Request logging
     ├── csrf.ts           # CSRF protection
-    ├── security.ts       # Helmet security headers
+    ├── helmet.ts         # Security headers (CSP, HSTS, etc.)
     ├── compression.ts    # Response compression
     ├── rate-limit.ts     # Rate limiting
     ├── upload.ts         # File uploads (multipart)
     ├── timeout.ts        # Request timeout
     ├── hpp.ts            # HTTP Parameter Pollution protection
     ├── validation.ts     # Request validation
+    ├── favicon.ts        # Serve favicon.ico with ETag caching
+    ├── method-override.ts # PUT/DELETE/PATCH from HTML forms
+    ├── request-id.ts     # X-Request-Id generation
+    ├── response-time.ts  # X-Response-Time header
+    ├── sse.ts            # Server-Sent Events with heartbeat
     └── error-handler.ts  # Error handling
 ```
 
