@@ -1,0 +1,60 @@
+{
+  "timestamp": "2026-05-20T23:55:18.789Z",
+  "config": {
+    "iterations": 3000,
+    "warmupIterations": 500,
+    "concurrency": 50,
+    "endpoints": [
+      "/json",
+      "/plaintext"
+    ]
+  },
+  "environment": {
+    "os": "darwin",
+    "arch": "arm64",
+    "bunVersion": "1.3.10",
+    "nodeVersion": "v24.3.0"
+  },
+  "results": [
+    {
+      "name": "bunway",
+      "displayName": "bunWay",
+      "runtime": "bun",
+      "endpoints": {
+        "/json": {
+          "rps": 39256.22538307534,
+          "latencyAvg": 0.7169127986666667,
+          "latencyP99": 3.049666000000002,
+          "errors": 0
+        },
+        "/plaintext": {
+          "rps": 43251.89362196767,
+          "latencyAvg": 0.6564757129999991,
+          "latencyP99": 1.424874999999986,
+          "errors": 0
+        }
+      },
+      "timestamp": "2026-05-20T23:55:18.789Z"
+    },
+    {
+      "name": "hono",
+      "displayName": "Hono",
+      "runtime": "bun",
+      "endpoints": {
+        "/json": {
+          "rps": 58303.8432494177,
+          "latencyAvg": 0.5534990586666672,
+          "latencyP99": 2.3902080000000296,
+          "errors": 0
+        },
+        "/plaintext": {
+          "rps": 62171.22560665352,
+          "latencyAvg": 0.5461890229999967,
+          "latencyP99": 2.135833000000048,
+          "errors": 0
+        }
+      },
+      "timestamp": "2026-05-20T23:55:18.789Z"
+    }
+  ]
+}

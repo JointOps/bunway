@@ -1,0 +1,19 @@
+{
+  "timestamp": "2026-05-20T23:37:37.546Z",
+  "config": {
+    "iterations": 3000,
+    "warmupIterations": 500,
+    "concurrency": 50,
+    "endpoints": [
+      "/json",
+      "/plaintext"
+    ]
+  },
+  "environment": {
+    "os": "darwin",
+    "arch": "arm64",
+    "bunVersion": "1.3.10",
+    "nodeVersion": "v24.3.0"
+  },
+  "results": []
+}
