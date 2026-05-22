@@ -790,17 +790,19 @@ export class Router {
       }
     }
 
+    const effectiveMethod = req.method.toUpperCase();
+
     // Fast route matching - O(1) for static routes, single regex for dynamic
-    const matchResult = this.fastMatcher.match(method, pathname);
+    const matchResult = this.fastMatcher.match(effectiveMethod, pathname);
 
     if (matchResult) {
-      const routed = await this.dispatchMatchingRoutes(req, res, method, pathname, mergeWith);
+      const routed = await this.dispatchMatchingRoutes(req, res, effectiveMethod, pathname, mergeWith);
       if (routed) return routed;
 
       return new Response(
         JSON.stringify({
           error: "Not Found",
-          message: `Cannot ${method} ${pathname}`,
+          message: `Cannot ${effectiveMethod} ${pathname}`,
         }),
         {
           status: 404,
@@ -816,7 +818,7 @@ export class Router {
       return new Response(
         JSON.stringify({
           error: "Method Not Allowed",
-          message: `${method} is not allowed for ${pathname}`,
+          message: `${effectiveMethod} is not allowed for ${pathname}`,
           allowedMethods,
         }),
         {
@@ -833,7 +835,7 @@ export class Router {
     return new Response(
       JSON.stringify({
         error: "Not Found",
-        message: `Cannot ${method} ${pathname}`,
+        message: `Cannot ${effectiveMethod} ${pathname}`,
       }),
       {
         status: 404,
