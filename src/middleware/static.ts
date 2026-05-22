@@ -176,14 +176,13 @@ export function serveStatic(root: string, options: StaticOptions = {}): Handler 
       cacheControl += ", immutable";
     }
     res.set("Cache-Control", cacheControl);
+    res.set("Accept-Ranges", "bytes");
 
     if (req.method === "HEAD") {
       res.status(200).send(null);
       return;
     }
 
-    const file = Bun.file(filePath);
-    const content = await file.arrayBuffer();
-    res.status(200).send(content);
+    res.status(200).send(Bun.file(filePath));
   };
 }
