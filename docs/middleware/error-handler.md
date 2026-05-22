@@ -126,33 +126,6 @@ In development mode (default when `NODE_ENV !== "production"`), errors include:
 app.use(errorHandler({ development: true }));
 ```
 
-## Mapping custom errors
-
-Use the `map` option to translate domain exceptions into `HttpError` instances:
-
-```ts
-app.use(
-  errorHandler({
-    logger: console.error,
-    map: (err) => {
-      if (err instanceof SyntaxError) return new HttpError(400, "Invalid JSON payload");
-      if (err instanceof AuthError) return new HttpError(401, err.message);
-      return null; // fallback to default handling
-    },
-  })
-);
-```
-
-The mapping function may return:
-
-- `HttpError` – used directly
-- `Error` – re-thrown so the standard branch handles it
-- `null`/`undefined` – skip mapping
-
-::: tip Custom responses
-Need to return a custom `Response`? Throw or return the `Response` directly inside the handler—`errorHandler()` passes it through untouched.
-:::
-
 ## Logging
 
 Provide `logger` to capture unexpected errors. bunway wraps calls in `try/catch` so logging failures don't crash the app:

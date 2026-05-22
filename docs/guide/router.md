@@ -26,10 +26,10 @@ Define routes using familiar HTTP verb helpers. Each handler receives the Expres
 const app = bunway();
 
 app.get("/health", (req, res) => res.text("OK"));
-app.post("/users", async (req, res) => res.created(await req.parseBody()));
+app.post("/users", (req, res) => res.created(req.body));
 app.patch("/users/:id", async (req, res) => {
   const id = req.param("id");
-  const updates = await req.parseBody();
+  const updates = req.body;
   return res.json(await updateUser(id, updates));
 });
 ```
@@ -269,21 +269,6 @@ app.use((req, res) => res.status(404).json({ error: "Route not found" }));
 Be sure to register catch-all handlers last—bunway processes middleware in order, so earlier routes can short-circuit the response.
 :::
 
-## Body parser defaults
-
-Routers accept body parser defaults via constructor:
-
-```ts
-const router = new Router({
-  bodyParser: {
-    json: { limit: 2 * 1024 * 1024 },
-    text: { enabled: true },
-  },
-});
-```
-
-Handlers can override parsing dynamically with `req.applyBodyParserOverrides()`.
-
 ## Recipes
 
 ### Request logger
@@ -325,13 +310,12 @@ admin.get("/stats", (req, res) => {
 app.use("/admin", admin);
 ```
 
-### Per-request body parser override
+### Raw body access
 
 ```ts
 app.post("/webhook", async (req, res) => {
-  req.applyBodyParserOverrides({ text: { enabled: true }, json: { enabled: false } });
-  const payload = await req.parseBody();
-  return res.ok({ received: payload });
+  const payload = await req.rawText();
+  return res.status(200).json({ received: payload });
 });
 ```
 

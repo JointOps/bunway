@@ -54,9 +54,8 @@ Every handler receives `(req, res, next)`:
 ::: code-group
 
 ```ts [Server]
-app.post("/echo", async (req, res) => {
-  const body = await req.parseBody();
-  return res.json({ received: body });
+app.post("/echo", (req, res) => {
+  return res.json({ received: req.body });
 });
 ```
 
