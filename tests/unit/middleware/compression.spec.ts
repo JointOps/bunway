@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { compression } from "../../../src/middleware/compression";
 import { BunRequest } from "../../../src/core/request";
 import { BunResponse } from "../../../src/core/response";
-import { gunzipSync, inflateSync } from "zlib";
+import { brotliDecompressSync, gunzipSync, inflateSync } from "zlib";
 
 const createRequest = (
   headers: Record<string, string> = {},
@@ -115,6 +115,51 @@ describe("compression middleware (Unit)", () => {
       res.json({ data: LARGE_STRING });
 
       expect(getHeader(res, "Content-Encoding")).toBe("gzip");
+    });
+  });
+
+  describe("brotli compression", () => {
+    it("uses br encoding when Accept-Encoding includes br", () => {
+      const req = createRequest({ "accept-encoding": "br, gzip, deflate" });
+      const res = new BunResponse();
+
+      compression()(req, res, noop);
+      res.json({ data: LARGE_STRING });
+
+      expect(getHeader(res, "Content-Encoding")).toBe("br");
+      expect(getHeader(res, "Vary")).toBe("Accept-Encoding");
+    });
+
+    it("falls back to gzip when br is not accepted", () => {
+      const req = createRequest({ "accept-encoding": "gzip, deflate" });
+      const res = new BunResponse();
+
+      compression()(req, res, noop);
+      res.json({ data: LARGE_STRING });
+
+      expect(getHeader(res, "Content-Encoding")).toBe("gzip");
+    });
+
+    it("brotli-compressed body decompresses to original content", async () => {
+      const req = createRequest({ "accept-encoding": "br" });
+      const res = new BunResponse();
+
+      compression()(req, res, noop);
+      res.json({ data: LARGE_STRING });
+
+      const compressed = new Uint8Array(await res.toResponse().arrayBuffer());
+      const decompressed = brotliDecompressSync(compressed).toString("utf8");
+      expect(JSON.parse(decompressed)).toEqual({ data: LARGE_STRING });
+    });
+
+    it("does not compress responses below threshold", () => {
+      const req = createRequest({ "accept-encoding": "br" });
+      const res = new BunResponse();
+
+      compression({ threshold: 10_000 })(req, res, noop);
+      res.json({ ok: true });
+
+      expect(getHeader(res, "Content-Encoding")).toBeNull();
     });
   });
 
