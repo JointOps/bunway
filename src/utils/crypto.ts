@@ -88,7 +88,7 @@ export function generateSessionId(): string {
  * @returns A weak ETag string
  */
 export function generateETag(size: number, mtimeMs: number): string {
-  const mtime = mtimeMs.toString(16);
+  const mtime = Math.floor(mtimeMs).toString(16);
   const sizeHex = size.toString(16);
   return `W/"${sizeHex}-${mtime}"`;
 }
