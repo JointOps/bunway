@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.8] - 2026-05-21
+
+### Fixed
+- **`timeout`**: timer now cleared on fast responses — no more leaked `setTimeout` after handler completes
+- **`validate`**: sanitizers (`trim`, `toLowerCase`, `toNumber`) now write back to `req.body` / `req.query` / `req.params`
+- **`csrf`**: CSRF cookie no longer `HttpOnly` by default — double-submit cookie pattern requires JS-readable cookie
+- **`HttpError.statusCode`**: added getter alias mirroring `.status` — compatible with `http-errors` / `boom` ecosystem
+- **`handleError`**: now async; reads `.status` / `.statusCode` from any error shape; hides 5xx message unless `err.expose: true`
+- **`HEAD` requests**: auto-served from `GET` handlers when no explicit `HEAD` route is registered (RFC 7231 §4.3.2)
+- **Trailing slash tolerance**: `GET /users/` now matches a `GET /users` route (strict routing off by default)
+- **`app.use(path, handler)`**: now correctly prefix-matches all routes under the path, not only the exact path
+- **`next('route')`**: skips to next matching route definition instead of throwing a 500
+- **`res.sendStatus(code)`**: now sends status text (`"Not Found"`) instead of numeric string (`"404"`)
+- **`req.accepts()`**: specificity ranking when q-values are equal — `text/html` > `text/*` > `*/*` (RFC 7231)
+- **HTTP method dispatch**: method normalised to uppercase before matching — `req.method` is now always uppercase regardless of client casing
+
+### Added
+- **`sse(options?)`** — Server-Sent Events middleware: sets SSE headers, optional heartbeat ping, `res.sendEvent(event, data, id?)`, auto-cleanup on client abort
+- **`responseTime(options?)`** — writes elapsed handler time to `X-Response-Time` header; configurable header name, decimal places, and suffix
+- **`requestId(options?)`** — generates `crypto.randomUUID()` per request, sets `req.id` and `X-Request-Id` header; reuses incoming header value if present
+- **`methodOverride(options?)`** — allows `PUT` / `DELETE` / `PATCH` from HTML forms via header, query param, or body field; preserves original method on `req._originalMethod`
+- **`favicon(path, options?)`** — serves `favicon.ico` from memory with `ETag`, `Cache-Control`, and `304` conditional-GET support; throws at startup if file missing
+- **Brotli compression**: `compression()` now prefers `br` encoding over `gzip` when `Accept-Encoding` includes `br`
+
+### Improved
+- **Static file serving**: `serveStatic()` now streams files via `Bun.file()` — zero memory buffering for large files
+- **Static file serving**: `Accept-Ranges: bytes` header now set on all served files
+
+### Documentation
+- **New middleware guides**: dedicated pages for `compression`, `sse`, `responseTime`, `requestId`, `methodOverride`, and `favicon` — each with full options reference and usage examples
+- **Landing page redesign**: new hero section and layout reflecting the full 24-middleware offering and Bun-native positioning
+- **Roadmap updated**: `build-together` page overhauled — phases 3–5 marked complete, Phase 6 (middleware hardening & Express parity) and Phase 7 (performance) added; contribution section rewritten to invite community issues and PRs
+- **API reference regenerated**: TypeDoc output refreshed to include all 24 middleware; broken relative `/api/index.html` links replaced with absolute URLs across sidebar, router guide, auth, body-parsing, cors, and error-handler pages
+- **Express migration guide**: restructured with grouped middleware comparison tables; corrected middleware count from 19 to 24 throughout README and docs
+- **Removed phantom references**: eliminated links to non-existent API pages in body-parsing, router, and guide docs
+- **Benchmark data**: v1.0.8 vs Express comparison results documented
+
+### Testing
+- Added integration and acceptance tests for `sse`, `responseTime`, `requestId`, `methodOverride`, `favicon`, and updated `compression` / `serveStatic` coverage
+
 ## [1.0.7] - 2026-03-09
 
 The biggest release since 1.0 — security middleware, Express parity, and 97%+ API compatibility.
