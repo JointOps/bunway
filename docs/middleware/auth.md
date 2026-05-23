@@ -269,4 +269,4 @@ app.get("/dashboard", (req, res) => {
 app.listen({ port: 3000 });
 ```
 
-For type details see `AuthenticateOptions` and `Strategy` in the [API Reference](/api/index.html).
+For type details see `AuthenticateOptions` and `Strategy` in the [API Reference](https://bunway.jointops.dev/api/index.html).

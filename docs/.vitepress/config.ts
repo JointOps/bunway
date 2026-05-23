@@ -152,7 +152,7 @@ export default defineConfig({
       },
       {
         text: "📚 Reference",
-        items: [{ text: "API Reference", link: "/api/index.html" }],
+        items: [{ text: "API Reference", link: "https://bunway.jointops.dev/api/index.html" }],
       },
     ],
     socialLinks: [

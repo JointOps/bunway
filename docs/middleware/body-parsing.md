@@ -203,4 +203,4 @@ If parsing fails (invalid JSON, payload too large), bunway returns a `413` or `4
 
 ---
 
-Next: explore the [`cors()` middleware](cors.md) or browse the [API Reference](/api/index.html) for option type definitions.
+Next: explore the [`cors()` middleware](cors.md) or browse the [API Reference](https://bunway.jointops.dev/api/index.html) for option type definitions.

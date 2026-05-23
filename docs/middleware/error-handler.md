@@ -184,4 +184,4 @@ In development mode, the response includes additional context:
 - Use `req.locals` to pass debugging info to the logger.
 - Keep error messages client-safe; internal stack traces shouldn't leak to users in production.
 
-For option details see `ErrorHandlerOptions` in the [API Reference](/api/index.html).
+For option details see `ErrorHandlerOptions` in the [API Reference](https://bunway.jointops.dev/api/index.html).

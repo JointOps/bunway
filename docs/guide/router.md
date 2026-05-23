@@ -327,4 +327,4 @@ app.post("/webhook", async (req, res) => {
 
 ---
 
-Continue to [Middleware Overview](/middleware/index) or explore type-level details in the [API Reference](/api/index.html).
+Continue to [Middleware Overview](/middleware/index) or explore type-level details in the [API Reference](https://bunway.jointops.dev/api/index.html).
