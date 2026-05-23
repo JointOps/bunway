@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from "bun:test";
+import { describe, expect, it, beforeEach, mock } from "bun:test";
 import { FastMatcher } from "../../../src/core/fast-matcher";
 import type { Handler } from "../../../src/types";
 
@@ -162,6 +162,54 @@ describe("FastMatcher (Unit)", () => {
       const result = matcher.match("PUT", "/items/5");
       expect(result).not.toBeNull();
       expect(result!.params.id).toBe("5");
+    });
+  });
+
+  describe("HEAD → GET fallback (RFC 7231 §4.3.2)", () => {
+    it("HEAD request is served by GET handler when no HEAD route registered", () => {
+      const handler = mock(() => {});
+      matcher.add("GET", "/users", [handler]);
+      const result = matcher.match("HEAD", "/users");
+      expect(result).not.toBeNull();
+      expect(result?.handlers).toEqual([handler]);
+    });
+
+    it("explicit HEAD handler takes precedence over GET fallback", () => {
+      const getH = mock(() => {});
+      const headH = mock(() => {});
+      matcher.add("GET", "/users", [getH]);
+      matcher.add("HEAD", "/users", [headH]);
+      const result = matcher.match("HEAD", "/users");
+      expect(result?.handlers[0]).toBe(headH);
+    });
+
+    it("HEAD fallback works for dynamic routes", () => {
+      const handler = mock(() => {});
+      matcher.add("GET", "/users/:id", [handler]);
+      const result = matcher.match("HEAD", "/users/42");
+      expect(result).not.toBeNull();
+      expect(result?.params.id).toBe("42");
+    });
+  });
+
+  describe("trailing slash tolerance", () => {
+    it("GET /users/ matches GET /users route", () => {
+      matcher.add("GET", "/users", [mock(() => {})]);
+      expect(matcher.match("GET", "/users/")).not.toBeNull();
+    });
+
+    it("GET /users matches GET /users/ route", () => {
+      matcher.add("GET", "/users/", [mock(() => {})]);
+      expect(matcher.match("GET", "/users")).not.toBeNull();
+    });
+
+    it("trailing slash tolerance does not confuse /users and /users/profile", () => {
+      const usersH = mock(() => {});
+      const profileH = mock(() => {});
+      matcher.add("GET", "/users", [usersH]);
+      matcher.add("GET", "/users/profile", [profileH]);
+      expect(matcher.match("GET", "/users/")?.handlers[0]).toBe(usersH);
+      expect(matcher.match("GET", "/users/profile")).not.toBeNull();
     });
   });
 

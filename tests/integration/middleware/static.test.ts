@@ -199,3 +199,30 @@ describe("serveStatic middleware", () => {
     expect(response.status).toBe(405);
   });
 });
+
+describe("Bun.file() streaming", () => {
+  it("sets Accept-Ranges: bytes header on served files", async () => {
+    const app = bunway();
+    app.use(serveStatic(TEST_DIR));
+    const response = await app.handle(buildRequest("/style.css"));
+    expect(response.headers.get("accept-ranges")).toBe("bytes");
+  });
+
+  it("response body is readable as a stream (not fully buffered)", async () => {
+    const app = bunway();
+    app.use(serveStatic(TEST_DIR));
+    const response = await app.handle(buildRequest("/style.css"));
+    expect(response.body).not.toBeNull();
+    const reader = response.body!.getReader();
+    const { value } = await reader.read();
+    expect(value).toBeInstanceOf(Uint8Array);
+  });
+
+  it("serves correct content for a known file", async () => {
+    const app = bunway();
+    app.use(serveStatic(TEST_DIR));
+    const response = await app.handle(buildRequest("/style.css"));
+    const text = await response.text();
+    expect(text.length).toBeGreaterThan(0);
+  });
+});

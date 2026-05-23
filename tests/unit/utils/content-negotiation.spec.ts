@@ -73,6 +73,28 @@ describe("Content Negotiation Utils", () => {
     it("returns empty array for empty Accept header", () => {
       expect(parseAcceptHeader("")).toEqual([]);
     });
+
+    describe("specificity ranking when q-values are equal", () => {
+      it("text/html ranks above text/* at equal quality", () => {
+        const entries = parseAcceptHeader("text/html, text/*");
+        expect(entries[0]!.value).toBe("text/html");
+      });
+
+      it("text/* ranks above */* at equal quality", () => {
+        const entries = parseAcceptHeader("text/*, */*");
+        expect(entries[0]!.value).toBe("text/*");
+      });
+
+      it("full type wins over wildcard in negotiateAccept", () => {
+        const result = negotiateAccept("text/html, */*", ["json", "html"]);
+        expect(result).toBe("html");
+      });
+
+      it("q-value takes precedence over specificity", () => {
+        const entries = parseAcceptHeader("text/html;q=0.5, */*;q=0.9");
+        expect(entries[0]!.value).toBe("*/*");
+      });
+    });
   });
 
   describe("parseMediaType", () => {

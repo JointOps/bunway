@@ -4,9 +4,10 @@
 
 | Version | Supported |
 | ------- | --------- |
-| 0.x     | ✅        |
+| 1.x     | ✅        |
+| 0.x     | ❌        |
 
-bunWay follows semantic versioning. All currently published versions under `0.x` receive security updates on a best-effort basis.
+bunWay follows semantic versioning. All `1.x` releases receive security updates on a best-effort basis. Versions below `1.0.0` are no longer maintained.
 
 ## Reporting a vulnerability
 

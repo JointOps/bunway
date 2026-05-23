@@ -184,9 +184,9 @@ describe("BunResponse (Unit)", () => {
     });
 
     it("should stringify object", () => {
-      res.json({ a: 1, b: 2 });
-      const response = res.toResponse();
-      // Body should be JSON string
+      const data = { a: 1, b: 2 };
+      res.json(data);
+      expect(res._body).toBe(JSON.stringify(data));
     });
 
     it("should handle arrays", () => {
@@ -252,10 +252,24 @@ describe("BunResponse (Unit)", () => {
       expect(res.isSent()).toBe(true);
     });
 
-    it("should set body to status code string", () => {
+    it("sendStatus sends status text, not the numeric string", async () => {
       res.sendStatus(200);
-      // Body should be "200"
-      expect(res.isSent()).toBe(true);
+      const response = res.toResponse();
+      expect(await response.text()).toBe("OK");
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Content-Type")).toContain("text/plain");
+    });
+
+    it("sendStatus 404 sends 'Not Found'", async () => {
+      res.sendStatus(404);
+      const response = res.toResponse();
+      expect(await response.text()).toBe("Not Found");
+    });
+
+    it("sendStatus unknown code falls back to numeric string", async () => {
+      res.sendStatus(599);
+      const response = res.toResponse();
+      expect(await response.text()).toBe("599");
     });
   });
 
@@ -415,8 +429,10 @@ describe("BunResponse (Unit)", () => {
     });
 
     it("should flush headers", () => {
+      res.set("X-Test", "yes");
       res.flushHeaders();
-      // Just verify it doesn't throw
+      expect(res.headersSent).toBe(true);
+      expect(res.getHeader("X-Test")).toBe("yes");
     });
 
     it("should have stream after write", () => {

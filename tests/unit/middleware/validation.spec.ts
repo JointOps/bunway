@@ -1,4 +1,4 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, mock } from "bun:test";
 import { validate } from "../../../src/middleware/validation";
 import type { ValidationSchema, ValidationError } from "../../../src/middleware/validation";
 import { BunRequest } from "../../../src/core/request";
@@ -329,6 +329,38 @@ describe("validate middleware", () => {
       let nextCalled = false;
       await mw(req, res, () => { nextCalled = true; });
       expect(nextCalled).toBe(true);
+    });
+  });
+
+  describe("sanitizer write-back to req.body", () => {
+    it("trim writes back trimmed value to req.body", async () => {
+      const { req, res } = createReqRes("http://localhost/test", { body: { name: "  hello  " } });
+      const next = mock(() => {});
+      await validate({ body: { name: { trim: true } } })(req, res, next);
+      expect((req.body as Record<string, unknown>).name).toBe("hello");
+    });
+
+    it("toLowerCase writes back lowercase value to req.body", async () => {
+      const { req, res } = createReqRes("http://localhost/test", { body: { email: "USER@EXAMPLE.COM" } });
+      const next = mock(() => {});
+      await validate({ body: { email: { toLowerCase: true } } })(req, res, next);
+      expect((req.body as Record<string, unknown>).email).toBe("user@example.com");
+    });
+
+    it("toNumber converts string to number type in req.body", async () => {
+      const { req, res } = createReqRes("http://localhost/test", { body: { age: "25" } });
+      const next = mock(() => {});
+      await validate({ body: { age: { toNumber: true } } })(req, res, next);
+      expect(typeof (req.body as Record<string, unknown>).age).toBe("number");
+      expect((req.body as Record<string, unknown>).age).toBe(25);
+    });
+
+    it("sanitizers still run and validation errors still caught", async () => {
+      const { req, res } = createReqRes("http://localhost/test", { body: { age: "notanumber" } });
+      const next = mock(() => {});
+      await validate({ body: { age: { toNumber: true, type: "number" } } })(req, res, next);
+      expect(next).not.toHaveBeenCalled();
+      expect(res.statusCode).toBe(422);
     });
   });
 

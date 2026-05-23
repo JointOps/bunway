@@ -13,6 +13,11 @@ import { upload } from "./middleware/upload";
 import { timeout } from "./middleware/timeout";
 import { hpp } from "./middleware/hpp";
 import { validate } from "./middleware/validation";
+import { sse } from "./middleware/sse";
+import { responseTime } from "./middleware/response-time";
+import { requestId } from "./middleware/request-id";
+import { methodOverride } from "./middleware/method-override";
+import { favicon } from "./middleware/favicon";
 
 interface BunwayFactory {
   (options?: BunWayOptions): BunWayApp;
@@ -33,6 +38,11 @@ interface BunwayFactory {
   timeout: typeof timeout;
   hpp: typeof hpp;
   validate: typeof validate;
+  sse: typeof sse;
+  responseTime: typeof responseTime;
+  requestId: typeof requestId;
+  methodOverride: typeof methodOverride;
+  favicon: typeof favicon;
 }
 
 const bunway = ((options?: BunWayOptions) => createBunway(options)) as BunwayFactory;
@@ -54,6 +64,11 @@ bunway.upload = upload;
 bunway.timeout = timeout;
 bunway.hpp = hpp;
 bunway.validate = validate;
+bunway.sse = sse;
+bunway.responseTime = responseTime;
+bunway.requestId = requestId;
+bunway.methodOverride = methodOverride;
+bunway.favicon = favicon;
 
 export default bunway;
 export { bunway };
@@ -81,6 +96,11 @@ export { upload, memoryStorage, diskStorage } from "./middleware/upload";
 export { timeout } from "./middleware/timeout";
 export { hpp } from "./middleware/hpp";
 export { validate } from "./middleware/validation";
+export { sse } from "./middleware/sse";
+export { responseTime } from "./middleware/response-time";
+export { requestId } from "./middleware/request-id";
+export { methodOverride } from "./middleware/method-override";
+export { favicon } from "./middleware/favicon";
 
 export type { Handler, ErrorHandler, NextFunction, RouterOptions, ListenOptions, TlsOptions, CookieOptions, SendFileOptions } from "./types";
 export type { RangeResult, RangeSpec } from "./core/request";
@@ -103,6 +123,11 @@ export type { UploadOptions, UploadLimits, DiskStorageOptions, FieldSpec, Storag
 export type { TimeoutOptions } from "./middleware/timeout";
 export type { HppOptions } from "./middleware/hpp";
 export type { ValidationSchema, ValidationOptions, ValidationError, FieldRule, ValidationSource } from "./middleware/validation";
+export type { SseOptions } from "./middleware/sse";
+export type { ResponseTimeOptions } from "./middleware/response-time";
+export type { RequestIdOptions } from "./middleware/request-id";
+export type { MethodOverrideOptions } from "./middleware/method-override";
+export type { FaviconOptions } from "./middleware/favicon";
 
 // WebSocket types
 export type { WebSocketData, WebSocketHandlers, WebSocketRouteDefinition, BunWebSocket } from "./types";

@@ -40,39 +40,33 @@ export function timeout(ms: number, options: Omit<TimeoutOptions, "ms"> = {}): H
   const skip = options.skip;
 
   return (req: BunRequest, res: BunResponse, next: NextFunction) => {
-    if (skip && skip(req)) {
-      next();
-      return;
-    }
+    req.timedout = false;
 
-    let timedOut = false;
+    if (skip?.(req)) return next();
 
     const timer = setTimeout(() => {
-      timedOut = true;
-      (req as BunRequest & { timedout: boolean }).timedout = true;
-
-      // Check if response was already sent by the handler
-      const alreadyResponded = res.headersSent;
+      if (res.headersSent) return;
+      req.timedout = true;
 
       if (respond) {
-        if (!alreadyResponded) {
-          res.status(statusCode);
-          if (typeof message === "string") {
-            res.set("Content-Type", "text/plain");
-            res.send(message);
-          } else {
-            res.json(message);
-          }
+        res.status(statusCode);
+        if (typeof message === "string") {
+          res.set("Content-Type", "text/plain");
+          res.send(message);
+        } else {
+          res.json(message);
         }
       }
 
-      // Only propagate error if handler hasn't already responded
-      if (!alreadyResponded) {
-        next(Object.assign(new Error("Request timeout"), { status: statusCode, code: "ETIMEDOUT" }));
-      }
+      next(Object.assign(new Error("Request timeout"), { status: statusCode, code: "ETIMEDOUT" }));
     }, ms);
 
-    // Continue the middleware chain — timer runs in the background
+    const orig = res.toResponse.bind(res);
+    (res as any).toResponse = () => {
+      clearTimeout(timer);
+      return orig();
+    };
+
     next();
   };
 }

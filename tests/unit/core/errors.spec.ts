@@ -24,6 +24,20 @@ describe("HttpError (Unit)", () => {
       expect(err.status).toBe(403);
     });
 
+    it("HttpError.statusCode mirrors .status", () => {
+      const err = new HttpError(404, "Not Found");
+      expect(err.status).toBe(404);
+      expect(err.statusCode).toBe(404);
+      expect(err.statusCode).toBe(err.status);
+    });
+
+    it("HttpError.statusCode works for all standard status codes", () => {
+      for (const code of [400, 401, 403, 404, 422, 500, 503]) {
+        const err = new HttpError(code, "msg");
+        expect(err.statusCode).toBe(code);
+      }
+    });
+
     it("should be an instance of Error", () => {
       const err = new HttpError(500);
       expect(err).toBeInstanceOf(Error);

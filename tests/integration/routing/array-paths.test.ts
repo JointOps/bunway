@@ -15,7 +15,7 @@ describe("Integration: array paths in use()", () => {
 
     await app.handle(new Request("http://localhost/api"));
     await app.handle(new Request("http://localhost/v2"));
-    expect(log).toEqual(["/api", "/v2"]);
+    expect(log).toEqual(["/", "/"]);
   });
 
   it("sub-router mounted on multiple paths", async () => {

@@ -52,7 +52,6 @@ app.get("/users/:id", async (req, res) => {
 | `params`       | `Record<string, string>` | Route parameters (`:id`, `:slug`)     |
 | `query`        | `URLSearchParams`        | Query string (`?foo=bar`)             |
 | `body`         | `unknown`                | Parsed request body                   |
-| `bodyType`     | `string \| null`         | Parser used: `json`, `urlencoded`, `text` |
 | `locals`       | `Record<string, any>`    | Per-request storage for middleware    |
 | `path`         | `string`                 | URL pathname                          |
 | `method`       | `string`                 | HTTP method                           |
@@ -70,13 +69,14 @@ req.param("id"); // Get route parameter
 req.get("Content-Type"); // Get header value
 
 // Body parsing
-await req.parseBody(); // Parse with current options
-req.isBodyParsed(); // Check if already parsed
-req.applyBodyParserOverrides({ json: { limit: 5_000_000 } });
+req.isBodyParsed();                // Check if already parsed by middleware
+await req.parseJson();             // Manually parse JSON body
+await req.parseUrlencoded();       // Manually parse form body
+await req.parseText();             // Manually parse text body
 
 // Raw access
-await req.rawBody(); // Get raw body as ArrayBuffer
-await req.rawText(); // Get raw body as string
+await req.rawBody();               // Get raw body as Uint8Array
+await req.rawText();               // Get raw body as string
 ```
 
 ::: tip Locals

@@ -35,9 +35,12 @@ type ParamHandler = (
   name: string
 ) => void;
 
+const ROUTE_SIGNAL = "__bunway_route_skip__";
+
 export class Router {
   protected routes: RouteDefinition[] = [];
   protected middlewares: Handler[] = [];
+  protected prefixMiddlewares: Array<{ prefix: string; handlers: Handler[] }> = [];
   protected errorHandlers: ErrorHandler[] = [];
   protected children: SubRouter[] = [];
   protected routerOptions: RouterOptions;
@@ -86,16 +89,85 @@ export class Router {
     return this;
   }
 
-  /**
-   * Check if any param handlers are registered for the given params
-   */
-  private hasParamHandlersFor(params: Record<string, string>): boolean {
-    for (const name of Object.keys(params)) {
-      if (this.paramHandlers.has(name)) {
-        return true;
+  private collectRouteMatches(
+    method: string,
+    pathname: string
+  ): Array<{ route: RouteDefinition; params: Record<string, string> }> {
+    const methods = method === "HEAD" ? ["HEAD", "GET"] : [method];
+    const pathnames = pathname === "/"
+      ? [pathname]
+      : [pathname, pathname.endsWith("/") ? pathname.slice(0, -1) : pathname + "/"];
+    const matches: Array<{ route: RouteDefinition; params: Record<string, string> }> = [];
+    let matchedHead = false;
+
+    for (const route of this.routes) {
+      if (!methods.includes(route.method) && route.method !== "ALL") continue;
+      if (method === "HEAD" && matchedHead && route.method === "GET") continue;
+
+      let match: RegExpExecArray | null = null;
+      for (const candidate of pathnames) {
+        route.regex.lastIndex = 0;
+        match = route.regex.exec(candidate);
+        if (match) break;
       }
+      if (!match) continue;
+
+      if (method === "HEAD" && route.method === "HEAD") matchedHead = true;
+
+      const params: Record<string, string> = {};
+      route.keys.forEach((key, i) => {
+        params[key] = match[i + 1] ?? "";
+      });
+      matches.push({ route, params });
     }
-    return false;
+
+    return matches.filter(({ route }) => {
+      if (method !== "HEAD") return true;
+      return matchedHead ? route.method === "HEAD" || route.method === "ALL" : true;
+    });
+  }
+
+  private async dispatchMatchingRoutes(
+    req: BunRequest,
+    res: BunResponse,
+    method: string,
+    pathname: string,
+    mergeWith?: Record<string, string>
+  ): Promise<Response | null> {
+    const matches = this.collectRouteMatches(method, pathname);
+
+    for (const { route, params } of matches) {
+      req.params = mergeWith ? { ...mergeWith, ...params } : params;
+      req.route = { path: route.path, method };
+
+      const paramMiddleware: Handler[] = [];
+      for (const [name, value] of Object.entries(params)) {
+        const handlers = this.paramHandlers.get(name);
+        if (handlers) {
+          for (const handler of handlers) {
+            paramMiddleware.push((r, s, n) => handler(r, s, n, value, name));
+          }
+        }
+      }
+
+      try {
+        await this.runPipeline([...paramMiddleware, ...route.handlers], req, res);
+      } catch (err) {
+        if (err === ROUTE_SIGNAL) continue;
+        return await this.handleError(err, req, res);
+      }
+
+      if (res.isSent()) {
+        if (res.isStreaming()) {
+          return res.toStreamingResponse();
+        }
+        return res.toResponse();
+      }
+
+      return new Response(null, { status: 200 });
+    }
+
+    return null;
   }
 
   private matchChild(
@@ -318,7 +390,7 @@ export class Router {
 
     if (typeof routerOrHandler === "function") {
       const handlers = [routerOrHandler, ...rest];
-      this.all(pathOrHandler, ...handlers);
+      this.prefixMiddlewares.push({ prefix: pathOrHandler, handlers });
     }
 
     return this;
@@ -498,7 +570,7 @@ export class Router {
     }
 
     // FAST PATH: If no middleware, check route existence before creating objects
-    if (this.middlewares.length === 0 && this.errorHandlers.length === 0) {
+    if (this.middlewares.length === 0 && this.prefixMiddlewares.length === 0 && this.errorHandlers.length === 0) {
       const matchResult = this.fastMatcher.match(method, pathname);
 
       if (!matchResult) {
@@ -547,58 +619,19 @@ export class Router {
         this._appContext.setApp(req, res);
       }
 
-      req.params = matchResult.params;
-      req.route = { path: matchResult.path, method };
+      const routed = await this.dispatchMatchingRoutes(req, res, method, pathname);
+      if (routed) return routed;
 
-      // FAST PATH: Single handler, no param handlers - direct invocation
-      const hasParamHandlers = this.hasParamHandlersFor(matchResult.params);
-      const singleHandler = matchResult.handlers.length === 1 ? matchResult.handlers[0] : null;
-      if (singleHandler && !hasParamHandlers) {
-        try {
-          const result = singleHandler(req, res, () => {}) as unknown;
-          if (result && typeof (result as Promise<void>).then === "function") {
-            await (result as Promise<void>);
-          }
-        } catch (err) {
-          return this.handleError(err, req, res);
+      return new Response(
+        JSON.stringify({
+          error: "Not Found",
+          message: `Cannot ${method} ${pathname}`,
+        }),
+        {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
         }
-
-        if (res.isSent()) {
-          if (res.isStreaming()) {
-            return res.toStreamingResponse();
-          }
-          return res.toResponse();
-        }
-        return new Response(null, { status: 200 });
-      }
-
-      // Build param middleware handlers
-      const paramMiddleware: Handler[] = [];
-      for (const [name, value] of Object.entries(matchResult.params)) {
-        const handlers = this.paramHandlers.get(name);
-        if (handlers) {
-          for (const handler of handlers) {
-            paramMiddleware.push((r, s, n) => handler(r, s, n, value, name));
-          }
-        }
-      }
-
-      const pipeline = [...paramMiddleware, ...matchResult.handlers];
-
-      try {
-        await this.runPipeline(pipeline, req, res);
-      } catch (err) {
-        return this.handleError(err, req, res);
-      }
-
-      if (res.isSent()) {
-        if (res.isStreaming()) {
-          return res.toStreamingResponse();
-        }
-        return res.toResponse();
-      }
-
-      return new Response(null, { status: 200 });
+      );
     }
 
     // STANDARD PATH: Has middleware, need req/res upfront
@@ -630,7 +663,7 @@ export class Router {
     const mergeWith = this.routerOptions.mergeParams && parentParams ? parentParams : undefined;
 
     // Fast path for no middleware
-    if (this.middlewares.length === 0 && this.errorHandlers.length === 0) {
+    if (this.middlewares.length === 0 && this.prefixMiddlewares.length === 0 && this.errorHandlers.length === 0) {
       const matchResult = this.fastMatcher.match(method, pathname);
 
       if (!matchResult) {
@@ -677,57 +710,19 @@ export class Router {
         this._appContext.setApp(req, res);
       }
 
-      req.params = mergeWith ? { ...mergeWith, ...matchResult.params } : matchResult.params;
-      req.route = { path: matchResult.path, method };
+      const routed = await this.dispatchMatchingRoutes(req, res, method, pathname, mergeWith);
+      if (routed) return routed;
 
-      // FAST PATH: Single handler, no param handlers - direct invocation
-      const hasParamHandlers = this.hasParamHandlersFor(matchResult.params);
-      const singleHandler = matchResult.handlers.length === 1 ? matchResult.handlers[0] : null;
-      if (singleHandler && !hasParamHandlers) {
-        try {
-          const result = singleHandler(req, res, () => {}) as unknown;
-          if (result && typeof (result as Promise<void>).then === "function") {
-            await (result as Promise<void>);
-          }
-        } catch (err) {
-          return this.handleError(err, req, res);
+      return new Response(
+        JSON.stringify({
+          error: "Not Found",
+          message: `Cannot ${method} ${pathname}`,
+        }),
+        {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
         }
-
-        if (res.isSent()) {
-          if (res.isStreaming()) {
-            return res.toStreamingResponse();
-          }
-          return res.toResponse();
-        }
-        return new Response(null, { status: 200 });
-      }
-
-      const paramMiddleware: Handler[] = [];
-      for (const [name, value] of Object.entries(matchResult.params)) {
-        const handlers = this.paramHandlers.get(name);
-        if (handlers) {
-          for (const handler of handlers) {
-            paramMiddleware.push((r, s, n) => handler(r, s, n, value, name));
-          }
-        }
-      }
-
-      const pipeline = [...paramMiddleware, ...matchResult.handlers];
-
-      try {
-        await this.runPipeline(pipeline, req, res);
-      } catch (err) {
-        return this.handleError(err, req, res);
-      }
-
-      if (res.isSent()) {
-        if (res.isStreaming()) {
-          return res.toStreamingResponse();
-        }
-        return res.toResponse();
-      }
-
-      return new Response(null, { status: 200 });
+      );
     }
 
     return this.handleWithMiddleware(original, pathname, method, server, mergeWith);
@@ -764,7 +759,7 @@ export class Router {
     try {
       await this.runPipeline([...this.middlewares], req, res);
     } catch (err) {
-      return this.handleError(err, req, res);
+      return await this.handleError(err, req, res);
     }
 
     if (res.isSent()) {
@@ -774,40 +769,46 @@ export class Router {
       return res.toResponse();
     }
 
+    for (const { prefix, handlers } of this.prefixMiddlewares) {
+      const norm = prefix.endsWith("/") ? prefix.slice(0, -1) : prefix;
+      if (pathname === norm || pathname.startsWith(norm + "/")) {
+        const savedPath = (req as any)._pathname;
+        (req as any)._pathname = pathname.slice(norm.length) || "/";
+        try {
+          await this.runPipeline(handlers, req, res);
+        } catch (err) {
+          return await this.handleError(err, req, res);
+        } finally {
+          (req as any)._pathname = savedPath;
+        }
+        if (res.isSent()) {
+          if (res.isStreaming()) {
+            return res.toStreamingResponse();
+          }
+          return res.toResponse();
+        }
+      }
+    }
+
+    const effectiveMethod = req.method.toUpperCase();
+
     // Fast route matching - O(1) for static routes, single regex for dynamic
-    const matchResult = this.fastMatcher.match(method, pathname);
+    const matchResult = this.fastMatcher.match(effectiveMethod, pathname);
 
     if (matchResult) {
-      req.params = mergeWith ? { ...mergeWith, ...matchResult.params } : matchResult.params;
-      req.route = { path: matchResult.path, method };
+      const routed = await this.dispatchMatchingRoutes(req, res, effectiveMethod, pathname, mergeWith);
+      if (routed) return routed;
 
-      // Build param middleware handlers
-      const paramMiddleware: Handler[] = [];
-      for (const [name, value] of Object.entries(matchResult.params)) {
-        const handlers = this.paramHandlers.get(name);
-        if (handlers) {
-          for (const handler of handlers) {
-            paramMiddleware.push((r, s, n) => handler(r, s, n, value, name));
-          }
+      return new Response(
+        JSON.stringify({
+          error: "Not Found",
+          message: `Cannot ${effectiveMethod} ${pathname}`,
+        }),
+        {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
         }
-      }
-
-      const pipeline = [...paramMiddleware, ...matchResult.handlers];
-
-      try {
-        await this.runPipeline(pipeline, req, res);
-      } catch (err) {
-        return this.handleError(err, req, res);
-      }
-
-      if (res.isSent()) {
-        if (res.isStreaming()) {
-          return res.toStreamingResponse();
-        }
-        return res.toResponse();
-      }
-
-      return new Response(null, { status: 200 });
+      );
     }
 
     // No match found - check for 405 Method Not Allowed
@@ -817,7 +818,7 @@ export class Router {
       return new Response(
         JSON.stringify({
           error: "Method Not Allowed",
-          message: `${method} is not allowed for ${pathname}`,
+          message: `${effectiveMethod} is not allowed for ${pathname}`,
           allowedMethods,
         }),
         {
@@ -834,7 +835,7 @@ export class Router {
     return new Response(
       JSON.stringify({
         error: "Not Found",
-        message: `Cannot ${method} ${pathname}`,
+        message: `Cannot ${effectiveMethod} ${pathname}`,
       }),
       {
         status: 404,
@@ -847,6 +848,7 @@ export class Router {
     let idx = 0;
 
     const next = async (err?: unknown): Promise<void> => {
+      if (err === "route" || err === "router") throw ROUTE_SIGNAL;
       if (err) throw err;
       if (res.isSent()) return;
 
@@ -859,7 +861,7 @@ export class Router {
           if (resolved) return;
           resolved = true;
           if (error) {
-            reject(error);
+            reject(error === "route" || error === "router" ? ROUTE_SIGNAL : error);
           } else {
             resolve();
           }
@@ -885,10 +887,11 @@ export class Router {
     await next();
   }
 
-  private handleError(err: unknown, req: BunRequest, res: BunResponse): Response {
+  private async handleError(err: unknown, req: BunRequest, res: BunResponse): Promise<Response> {
     for (const handler of this.errorHandlers) {
       try {
-        handler(err, req, res, () => {});
+        const result = handler(err, req, res, () => {}) as unknown;
+        if (result instanceof Promise) await result;
         if (res.isSent()) {
           return res.toResponse();
         }
@@ -906,9 +909,15 @@ export class Router {
       return new Response(err.message, { status: err.status, headers });
     }
 
-    const message = err instanceof Error ? err.message : "Internal Server Error";
+    const errStatus =
+      typeof (err as any)?.status === "number" ? (err as any).status :
+      typeof (err as any)?.statusCode === "number" ? (err as any).statusCode : 500;
+
+    const expose = (err as any)?.expose === true || errStatus < 500;
+    const message = expose && err instanceof Error ? err.message : "Internal Server Error";
+
     return new Response(JSON.stringify({ error: message }), {
-      status: 500,
+      status: errStatus,
       headers: { "Content-Type": "application/json" },
     });
   }

@@ -7,7 +7,7 @@ description: Understand how bunWay parses JSON, urlencoded, and text payloads au
 
 bunway includes lightweight helpers for parsing common content types, just like Express. Each helper exposes the same signature and respects router-level or per-request overrides.
 
-Every router ships with an auto parser that runs before your handlers. If a request matches an enabled content type, `req.body` is already waiting for you—no manual parsing required.
+Every router ships with an auto parser that runs before your handlers. If a request matches a configured content type, `req.body` is already waiting for you—no manual parsing required.
 
 ::: tip Coming from Express?
 These work exactly like `express.json()`, `express.urlencoded()`, and `body-parser.text()`.
@@ -29,7 +29,7 @@ app.use(raw());
 
 ```ts [Server]
 app.use(json());
-app.post("/echo", async (req, res) => res.json(await req.parseBody()));
+app.post("/echo", (req, res) => res.json(req.body));
 ```
 
 ```bash [Client]
@@ -44,7 +44,7 @@ curl -X POST http://localhost:7070/echo \
 `req.body` caches its value for the rest of the request. Bun's zero-copy buffers keep things fast without re-reading the stream.
 :::
 
-Behind the scenes each helper calls the matching `BunRequest.tryParse*` method. Parsed bodies land on `req.body`, and `req.bodyType` indicates which parser succeeded (`"json"`, `"urlencoded"`, `"text"`).
+Behind the scenes each helper calls the matching `BunRequest.tryParse*` method. Parsed bodies land on `req.body`.
 
 ## json()
 
@@ -64,9 +64,8 @@ Options:
 | --------- | ------------------------------------------------ | -------------------- | -------------------------------------- |
 | `limit`   | `number`                                         | 1 MiB                | Max payload size before returning 413  |
 | `type`    | `string \| RegExp \| ((contentType) => boolean)` | `"application/json"` | Match strategy for enabling the parser |
-| `enabled` | `boolean`                                        | `true`               | Force-enable/disable the parser        |
 
-If the payload exceeds the limit or JSON parsing fails, bunway sets `req.bodyParseError` and returns a `413` or `400` response.
+If the payload exceeds the limit or JSON parsing fails, bunway returns a `413` or `400` response automatically.
 
 ## urlencoded()
 
@@ -76,7 +75,15 @@ app.use(urlencoded({ limit: 64 * 1024 }));
 
 Parses `application/x-www-form-urlencoded` payloads (HTML forms) and converts them to plain objects via `Object.fromEntries(new URLSearchParams(...))`.
 
-Options mirror `json()` (limit, type, enabled). Invalid content types are skipped gracefully.
+Options mirror `json()` (limit, type). Invalid content types are skipped gracefully.
+
+Options:
+
+| Option     | Type                                                | Default                               | Description                           |
+| ---------- | --------------------------------------------------- | ------------------------------------- | ------------------------------------- |
+| `limit`    | `number`                                            | 1 MiB                                 | Max payload size before returning 413 |
+| `extended` | `boolean`                                           | `false`                               | Parse nested objects (qs-style)       |
+| `type`     | `string \| RegExp \| ((contentType) => boolean)`    | `"application/x-www-form-urlencoded"` | Match strategy for enabling the parser |
 
 ## text()
 
@@ -188,53 +195,12 @@ Each router inserts an auto body parser before your route handlers. The pipeline
 2. Auto parser resolves router defaults and `req.body` is populated when content types match.
 3. Your route-specific middleware/handlers run with the cached payload.
 
-Skip redundant work by calling `req.isBodyParsed()` inside custom middleware, or short-circuit with your own response if `req.bodyParseError` is set.
-
-## Router defaults & per-request overrides
-
-Router instances accept a `bodyParser` option at construction time:
-
-```ts
-const api = new Router({
-  bodyParser: {
-    json: { limit: 2 * 1024 * 1024 },
-    text: { enabled: true },
-  },
-});
-```
-
-Inside handlers you can tweak behaviour dynamically:
-
-```ts
-app.post("/webhook", async (req, res) => {
-  req.applyBodyParserOverrides({ text: { enabled: true } });
-  const payload = await req.parseBody();
-  return res.ok({ received: payload });
-});
-```
-
-::: tip Router defaults
-Use router-level overrides for consistent behaviour across groups of routes (e.g., enable text parsing for webhook routers). Handlers can still adjust per-request behaviour as needed.
-:::
-
-`req.isBodyParsed()` lets you detect whether a parser already ran; use this in custom middleware to avoid duplicate work.
+Skip redundant work by calling `req.isBodyParsed()` inside custom middleware to avoid duplicate parsing.
 
 ## Error handling
 
-If parsing fails (invalid JSON, payload too large), bunway marks `req.bodyParseError` and responds with the appropriate HTTP status. Downstream middleware can check `req.bodyParseError` for custom behaviour:
-
-```ts
-app.use((req, res, next) => {
-  if (req.bodyParseError) {
-    return res.status(req.bodyParseError.status).json({
-      error: req.bodyParseError.message,
-      details: "Custom error handling",
-    });
-  }
-  next();
-});
-```
+If parsing fails (invalid JSON, payload too large), bunway returns a `413` or `400` response automatically.
 
 ---
 
-Next: explore the [`cors()` middleware](cors.md) or browse the [API Reference](/api/index.html) for option type definitions.
+Next: explore the [`cors()` middleware](cors.md) or browse the [API Reference](https://bunway.jointops.dev/api/index.html) for option type definitions.

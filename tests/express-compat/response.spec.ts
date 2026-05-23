@@ -171,7 +171,7 @@ describe("Express Compatibility: Response Object", () => {
 
     const response = await app.handle(buildRequest("/test"));
     expect(response.status).toBe(404);
-    expect(await response.text()).toBe("404");
+    expect(await response.text()).toBe("Not Found");
   });
 
   test("res.format() works like Express", async () => {

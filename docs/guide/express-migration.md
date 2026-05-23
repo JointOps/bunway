@@ -61,31 +61,64 @@ The difference? One `import` statement. Everything else is the same.
 
 ## Middleware Mapping
 
-Every Express middleware you know has a bunWay equivalent—built right in:
+bunWay ships 24 built-in middleware that replace the most common Express ecosystem packages.
 
-| Express | bunWay | What it does |
-|---------|--------|--------------|
-| `express.json()` | `json()` | Parse JSON request bodies |
-| `express.urlencoded()` | `urlencoded()` | Parse URL-encoded form data |
-| `express.text()` | `text()` | Parse text request bodies |
-| `express.raw()` | `raw()` | Parse raw binary bodies (webhooks) |
-| `express.static()` | `serveStatic()` | Serve static files |
-| `cors` | `cors()` | Handle CORS headers |
-| `helmet` | `helmet()` | Set security headers |
-| `morgan` | `logger()` | Request logging |
-| `express-session` | `session()` | Session management |
-| `passport` | `passport()` | Authentication |
-| `csurf` | `csrf()` | CSRF protection |
-| `compression` | `compression()` | Gzip/deflate compression |
-| `express-rate-limit` | `rateLimit()` | Rate limiting |
-| `cookie-parser` | `cookieParser()` | Parse cookies |
-| `multer` | `upload()` | File uploads (multipart) |
+### Body Parsing
+
+| Express package | bunWay | Notes |
+|----------------|--------|-------|
+| `express.json()` | `json()` | Same options |
+| `express.urlencoded()` | `urlencoded()` | Same options; `extended` supported |
+| `body-parser.text()` | `text()` | Same options |
+| `body-parser.raw()` | `raw()` | Adds `verify` callback for signature validation |
+
+### Security
+
+| Express package | bunWay | Notes |
+|----------------|--------|-------|
+| `helmet` | `helmet()` | Same options |
+| `csurf` | `csrf()` | `httpOnly` defaults to `false` (double-submit requires JS access) |
+| `express-rate-limit` | `rateLimit()` | Same API; returns handler with `reset()` and `size` |
+| `hpp` | `hpp()` | Same API; adds `checkBody` option |
+
+### Session & Auth
+
+| Express package | bunWay | Notes |
+|----------------|--------|-------|
+| `express-session` | `session()` | Same API; `MemoryStore` and `FileStore` built in |
+| `passport` | `passport()` | Same strategies API |
+| `cookie-parser` | `cookieParser()` | Same options |
+
+### Files & Static
+
+| Express package | bunWay | Notes |
+|----------------|--------|-------|
+| `express.static()` | `serveStatic()` | Same options |
+| `multer` | `upload()` | `diskStorage()` and `memoryStorage()` built in |
+| `serve-favicon` | `favicon(path, opts)` | ETag + Cache-Control built in |
+
+### Observability & Utilities
+
+| Express package | bunWay | Notes |
+|----------------|--------|-------|
+| `morgan` | `logger(format, opts)` | Same format tokens |
+| `compression` | `compression()` | Adds Brotli; same threshold/level API |
+| `response-time` | `responseTime()` | Same header; configurable digits |
+| `express-request-id` | `requestId()` | Reads existing header or generates UUID |
+| `method-override` | `methodOverride()` | Header, query, or body getter |
+| `cors` | `cors()` | Same options |
+| `connect-timeout` | `timeout(ms, opts)` | Same API; adds `skip` and `respond` options |
+| `express-sse` (or similar) | `sse()` | `res.sendEvent()` + configurable heartbeat |
+| `express-validator` | `validate(schema, opts)` | Built-in schema; `type:` values not Express-validator syntax |
+| Custom 4-arg middleware | `errorHandler()` | `development` auto-detected; no `map` option |
 
 No more hunting through npm. No more version conflicts. It's all built-in.
 
 ## API Comparison
 
 ### Request Object
+
+#### Core Request Properties
 
 | Express | bunWay | Notes |
 |---------|--------|-------|
@@ -95,11 +128,16 @@ No more hunting through npm. No more version conflicts. It's all built-in.
 | `req.cookies` | `req.cookies` | Identical |
 | `req.path` | `req.path` | Identical |
 | `req.method` | `req.method` | Identical |
-| `req.get('header')` | `req.get('header')` | Identical |
 | `req.ip` | `req.ip` | Identical |
 | `req.session` | `req.session` | With session middleware |
 | `req.protocol` | `req.protocol` | Identical (respects X-Forwarded-Proto with trust proxy) |
 | `req.secure` | `req.secure` | Identical |
+
+#### Request Methods
+
+| Express | bunWay | Notes |
+|---------|--------|-------|
+| `req.get('header')` | `req.get('header')` | Identical |
 | `req.fresh` / `req.stale` | `req.fresh` / `req.stale` | ETag + Last-Modified cache validation |
 | `req.range(size)` | `req.range(size)` | Range header parsing for partial content |
 | `req.param(name)` | `req.param(name)` | Checks params → body → query |
@@ -108,6 +146,8 @@ No more hunting through npm. No more version conflicts. It's all built-in.
 | `req.acceptsLanguages()` | `req.acceptsLanguages()` | Identical |
 
 ### Response Object
+
+#### Core Response Methods
 
 | Express | bunWay | Notes |
 |---------|--------|-------|
@@ -118,14 +158,21 @@ No more hunting through npm. No more version conflicts. It's all built-in.
 | `res.cookie()` | `res.cookie()` | Identical |
 | `res.redirect()` | `res.redirect()` | Identical |
 | `res.sendStatus()` | `res.sendStatus()` | Identical |
+| `res.send()` chaining | `res.send()` chaining | Returns `this` for chaining |
+
+#### Advanced Response Methods
+
+| Express | bunWay | Notes |
+|---------|--------|-------|
 | `res.sendFile()` range | `res.sendFile()` range | Automatic 206 Partial Content with `Accept-Ranges: bytes` |
 | `res.jsonp(data)` | `res.jsonp(data)` | JSONP with configurable callback name |
-| `res.send()` chaining | `res.send()` chaining | Returns `this` for chaining |
 | `res.download(path, fn, cb)` | `res.download(path, fn, cb)` | Callback support for error handling |
 | `res.attachment(file)` | `res.attachment(file)` | Auto-detects Content-Type |
 | `res.end(data, enc, cb)` | `res.end(data, enc, cb)` | Encoding and callback support |
 
 ### Routing
+
+#### HTTP Methods
 
 | Express | bunWay | Notes |
 |---------|--------|-------|
@@ -133,6 +180,11 @@ No more hunting through npm. No more version conflicts. It's all built-in.
 | `app.post()` | `app.post()` | Identical |
 | `app.put()` | `app.put()` | Identical |
 | `app.delete()` | `app.delete()` | Identical |
+
+#### Middleware & Mounting
+
+| Express | bunWay | Notes |
+|---------|--------|-------|
 | `app.use()` | `app.use()` | Identical |
 | `app.route('/path')` | `app.route('/path')` | Chainable route definitions |
 | `express.Router()` | `bunway.Router()` | Same pattern |
@@ -140,6 +192,11 @@ No more hunting through npm. No more version conflicts. It's all built-in.
 | `req.res` / `res.req` | `req.res` / `res.req` | Cross-references set during dispatch |
 | `res.app` | `res.app` | Access app instance from response |
 | `app.use([paths], handler)` | `app.use([paths], handler)` | Array path mounting |
+
+#### Server Setup
+
+| Express | bunWay | Notes |
+|---------|--------|-------|
 | `https.createServer(opts, app)` | `app.listen({ tls: opts })` | Native TLS support |
 | `server.close(callback)` | `app.close(callback)` | Graceful shutdown |
 

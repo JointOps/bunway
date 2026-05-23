@@ -104,4 +104,4 @@ Audit CORS settings regularly. Accidentally allowing `*` with credentials or for
 
 - Combine with `errorHandler()` to log disallowed origins or unexpected headers.
 
-For type details see `CorsOptions` in the [API Reference](/api/index.html).
+For type details see `CorsOptions` in the [API Reference](https://bunway.jointops.dev/api/index.html).

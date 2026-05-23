@@ -196,7 +196,13 @@ export class FastMatcher {
    */
   match(method: string, pathname: string): MatchResult | null {
     this.buildMatchers();
+    const result = this._match(method, pathname);
+    if (result) return result;
+    if (method === "HEAD") return this._match("GET", pathname);
+    return null;
+  }
 
+  private _match(method: string, pathname: string): MatchResult | null {
     // 1. Try static routes first - O(1) hashmap lookup
     const staticResult = this.matchStatic(method, pathname);
     if (staticResult) return staticResult;
@@ -235,14 +241,13 @@ export class FastMatcher {
     if (!methodRoutes) return null;
 
     const route = methodRoutes.get(pathname);
-    if (!route) return null;
+    if (route) return { handlers: route.handlers, params: {}, path: route.path, keys: [] };
 
-    return {
-      handlers: route.handlers,
-      params: {},
-      path: route.path,
-      keys: [],
-    };
+    const alt = pathname.endsWith("/") ? pathname.slice(0, -1) : pathname + "/";
+    const altRoute = methodRoutes.get(alt);
+    if (altRoute) return { handlers: altRoute.handlers, params: {}, path: altRoute.path, keys: [] };
+
+    return null;
   }
 
   /**

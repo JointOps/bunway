@@ -104,7 +104,7 @@ async function validateField(
   rule: FieldRule,
   source: ValidationSource,
   req: BunRequest
-): Promise<ValidationError | null> {
+): Promise<{ error: ValidationError | null; sanitized: unknown }> {
   const customMsg = rule.message;
   let value: unknown = rawValue;
 
@@ -121,59 +121,59 @@ async function validateField(
   // Required check
   if (rule.required) {
     if (value === undefined || value === null || value === "") {
-      return { field, source, message: customMsg ?? `${field} is required`, value };
+      return { error: { field, source, message: customMsg ?? `${field} is required`, value }, sanitized: value };
     }
   }
 
   // Skip remaining validations if value is not present and not required
-  if (value === undefined || value === null || value === "") return null;
+  if (value === undefined || value === null || value === "") return { error: null, sanitized: value };
 
   // Type check
   if (rule.type && !validateType(value, rule.type)) {
-    return { field, source, message: customMsg ?? `${field} must be of type ${rule.type}`, value };
+    return { error: { field, source, message: customMsg ?? `${field} must be of type ${rule.type}`, value }, sanitized: value };
   }
 
   // Min/Max for strings (length) and numbers (value)
   if (rule.min !== undefined) {
     if (typeof value === "string" && value.length < rule.min) {
-      return { field, source, message: customMsg ?? `${field} must be at least ${rule.min} characters`, value };
+      return { error: { field, source, message: customMsg ?? `${field} must be at least ${rule.min} characters`, value }, sanitized: value };
     }
     if (typeof value === "number" && value < rule.min) {
-      return { field, source, message: customMsg ?? `${field} must be at least ${rule.min}`, value };
+      return { error: { field, source, message: customMsg ?? `${field} must be at least ${rule.min}`, value }, sanitized: value };
     }
   }
 
   if (rule.max !== undefined) {
     if (typeof value === "string" && value.length > rule.max) {
-      return { field, source, message: customMsg ?? `${field} must be at most ${rule.max} characters`, value };
+      return { error: { field, source, message: customMsg ?? `${field} must be at most ${rule.max} characters`, value }, sanitized: value };
     }
     if (typeof value === "number" && value > rule.max) {
-      return { field, source, message: customMsg ?? `${field} must be at most ${rule.max}`, value };
+      return { error: { field, source, message: customMsg ?? `${field} must be at most ${rule.max}`, value }, sanitized: value };
     }
   }
 
   // Pattern check
   if (rule.pattern && typeof value === "string" && !rule.pattern.test(value)) {
-    return { field, source, message: customMsg ?? `${field} does not match the required pattern`, value };
+    return { error: { field, source, message: customMsg ?? `${field} does not match the required pattern`, value }, sanitized: value };
   }
 
   // Enum check
   if (rule.enum && !rule.enum.includes(value)) {
-    return { field, source, message: customMsg ?? `${field} must be one of: ${rule.enum.join(", ")}`, value };
+    return { error: { field, source, message: customMsg ?? `${field} must be one of: ${rule.enum.join(", ")}`, value }, sanitized: value };
   }
 
   // Custom validator
   if (rule.custom) {
     const result = await rule.custom(value, req);
     if (result === false) {
-      return { field, source, message: customMsg ?? `${field} is invalid`, value };
+      return { error: { field, source, message: customMsg ?? `${field} is invalid`, value }, sanitized: value };
     }
     if (typeof result === "string") {
-      return { field, source, message: result, value };
+      return { error: { field, source, message: result, value }, sanitized: value };
     }
   }
 
-  return null;
+  return { error: null, sanitized: value };
 }
 
 function getSourceData(req: BunRequest, source: ValidationSource): Record<string, unknown> {
@@ -211,8 +211,15 @@ export function validate(schema: ValidationSchema, options: ValidationOptions = 
       const data = getSourceData(req, source);
 
       for (const [field, rule] of Object.entries(rules)) {
-        const value = data[field];
-        const error = await validateField(field, value, rule, source, req);
+        const { error, sanitized } = await validateField(field, data[field], rule, source, req);
+
+        if (sanitized !== data[field]) {
+          if (source === "body" || source === "params") {
+            data[field] = sanitized;
+          } else if (source === "query") {
+            (req.query as URLSearchParams).set(field, String(sanitized));
+          }
+        }
 
         if (error) {
           errors.push(error);

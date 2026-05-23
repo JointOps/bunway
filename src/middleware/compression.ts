@@ -1,6 +1,6 @@
 import type { Handler } from "../types";
 import type { BunResponse } from "../core/response";
-import { gzipSync, deflateSync } from "zlib";
+import { brotliCompressSync, deflateSync, gzipSync } from "zlib";
 
 export interface CompressionOptions {
   level?: number;
@@ -36,10 +36,11 @@ export function compression(options: CompressionOptions = {}): Handler {
     (res as any)[COMPRESSION_APPLIED] = true;
 
     const acceptEncoding = req.get("accept-encoding") || "";
+    const supportsBrotli = acceptEncoding.includes("br");
     const supportsGzip = acceptEncoding.includes("gzip");
     const supportsDeflate = acceptEncoding.includes("deflate");
 
-    if (!supportsGzip && !supportsDeflate) {
+    if (!supportsBrotli && !supportsGzip && !supportsDeflate) {
       next();
       return;
     }
@@ -76,6 +77,11 @@ export function compression(options: CompressionOptions = {}): Handler {
           return { data, encoding: null };
         }
         return { data: buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer, encoding: null };
+      }
+
+      if (supportsBrotli) {
+        const compressed = brotliCompressSync(buffer);
+        return { data: compressed.buffer.slice(compressed.byteOffset, compressed.byteOffset + compressed.byteLength) as ArrayBuffer, encoding: "br" };
       }
 
       if (supportsGzip) {

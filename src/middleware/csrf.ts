@@ -27,7 +27,7 @@ export function csrf(options: CsrfOptions = {}): Handler {
   const cookieName = cookie.name || "_csrf";
   const cookiePath = cookie.path || "/";
   const cookieSecure = cookie.secure ?? true;
-  const cookieHttpOnly = cookie.httpOnly ?? true;
+  const cookieHttpOnly = cookie.httpOnly ?? false;
   const cookieSameSite = cookie.sameSite || "strict";
 
   return (req, res, next) => {
