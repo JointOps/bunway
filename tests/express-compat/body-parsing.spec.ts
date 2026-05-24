@@ -208,4 +208,105 @@ describe("Express Compatibility: Body Parsing", () => {
     expect(data.hasBody).toBe(true);
     expect(data.body).toEqual({ test: true });
   });
+
+  test("bunway.raw() parses binary body like express.raw()", async () => {
+    const app = bunway();
+    app.use(bunway.raw());
+    app.post("/test", (req, res) => {
+      res.json({ isBuffer: Buffer.isBuffer(req.body), length: (req.body as Buffer).length });
+    });
+
+    const binaryData = new Uint8Array([1, 2, 3, 4, 5]);
+    const response = await app.handle(buildRequest("/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/octet-stream" },
+      body: binaryData
+    }));
+
+    const data = await response.json() as { isBuffer: boolean; length: number };
+    expect(data.isBuffer).toBe(true);
+    expect(data.length).toBe(5);
+  });
+
+  test("bunway.raw() skips non-matching content types like Express", async () => {
+    const app = bunway();
+    app.use(bunway.raw());
+    app.post("/test", (req, res) => {
+      res.json({ bodyParsed: req.body !== undefined });
+    });
+
+    const response = await app.handle(buildRequest("/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}"
+    }));
+
+    expect(await response.json()).toEqual({ bodyParsed: false });
+  });
+
+  test("bunway.urlencoded({ extended: true }) parses nested form data", async () => {
+    const app = bunway();
+    app.use(bunway.urlencoded({ extended: true }));
+    app.post("/test", (req, res) => {
+      res.json({ body: req.body });
+    });
+
+    const response = await app.handle(buildRequest("/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "name=test&value=123"
+    }));
+
+    const data = await response.json() as { body: Record<string, string> };
+    expect(data.body.name).toBe("test");
+    expect(data.body.value).toBe("123");
+  });
+
+  test("bunway.json({ type }) accepts custom type matcher like Express", async () => {
+    const app = bunway();
+    app.use(bunway.json({ type: "application/*" }));
+    app.post("/test", (req, res) => {
+      res.json({ body: req.body });
+    });
+
+    const response = await app.handle(buildRequest("/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/vnd.api+json" },
+      body: JSON.stringify({ api: true })
+    }));
+
+    expect(await response.json()).toEqual({ body: { api: true } });
+  });
+
+  test("body is parsed for PUT requests like Express", async () => {
+    const app = bunway();
+    app.use(bunway.json());
+    app.put("/test", (req, res) => {
+      res.json({ body: req.body });
+    });
+
+    const response = await app.handle(buildRequest("/test", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ updated: true })
+    }));
+
+    expect(await response.json()).toEqual({ body: { updated: true } });
+  });
+
+  test("body is parsed for PATCH requests like Express", async () => {
+    const app = bunway();
+    app.use(bunway.json());
+    app.patch("/test", (req, res) => {
+      res.json({ body: req.body });
+    });
+
+    const response = await app.handle(buildRequest("/test", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ field: "value" })
+    }));
+
+    expect(await response.json()).toEqual({ body: { field: "value" } });
+  });
 });

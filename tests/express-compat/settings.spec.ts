@@ -68,4 +68,58 @@ describe("Express Compatibility: App Settings", () => {
     const response2 = await app.handle(buildRequest("/test2"));
     expect(await response2.json()).toEqual({ setting: "value" });
   });
+
+  test("'json spaces' setting formats JSONP output with indentation like Express", async () => {
+    const app = bunway();
+    app.set("json spaces", 2);
+
+    app.get("/data", (req, res) => {
+      res.jsonp({ key: "value" });
+    });
+
+    const response = await app.handle(buildRequest("/data?callback=fn"));
+    const text = await response.text();
+    expect(text).toContain("fn(");
+    expect(text).toContain('"key"');
+  });
+
+  test("'case sensitive routing' setting is stored and retrievable like Express", async () => {
+    const app = bunway();
+    app.set("case sensitive routing", true);
+    expect(app.get("case sensitive routing")).toBe(true);
+  });
+
+  test("'strict routing' setting is stored and retrievable like Express", async () => {
+    const app = bunway();
+    app.set("strict routing", true);
+    expect(app.get("strict routing")).toBe(true);
+  });
+
+  test("'etag' can be disabled like Express", async () => {
+    const app = bunway();
+    app.set("etag", false);
+    expect(app.get("etag")).toBe(false);
+    expect(app.disabled("etag")).toBe(true);
+  });
+
+  test("'etag' supports weak and strong modes like Express", async () => {
+    const app = bunway();
+    app.set("etag", "weak");
+    expect(app.get("etag")).toBe("weak");
+    app.set("etag", "strong");
+    expect(app.get("etag")).toBe("strong");
+  });
+
+  test("'x-powered-by' disable removes setting like Express", async () => {
+    const app = bunway();
+    app.disable("x-powered-by");
+    expect(app.disabled("x-powered-by")).toBe(true);
+    expect(app.enabled("x-powered-by")).toBe(false);
+  });
+
+  test("'env' setting reflects NODE_ENV like Express", async () => {
+    const app = bunway();
+    const env = app.get("env") as string;
+    expect(env).toMatch(/^(development|test|production)$/);
+  });
 });

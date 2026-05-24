@@ -248,4 +248,133 @@ describe("Express Compatibility: Response Object", () => {
     const response = await app.handle(buildRequest("/test"));
     expect(await response.json()).toEqual({ user: { id: 1 } });
   });
+
+  test("res.append() adds to existing header like Express", async () => {
+    const app = bunway();
+    app.get("/test", (req, res) => {
+      res.append("X-Custom", "first");
+      res.append("X-Custom", "second");
+      res.json({ ok: true });
+    });
+
+    const response = await app.handle(buildRequest("/test"));
+    const header = response.headers.get("X-Custom");
+    expect(header).toContain("first");
+    expect(header).toContain("second");
+  });
+
+  test("res.end() terminates response like Express", async () => {
+    const app = bunway();
+    app.get("/test", (req, res) => {
+      res.status(204).end();
+    });
+
+    const response = await app.handle(buildRequest("/test"));
+    expect(response.status).toBe(204);
+  });
+
+  test("res.write() and res.end() enable streaming like Express", async () => {
+    const app = bunway();
+    app.get("/stream", (req, res) => {
+      res.set("Content-Type", "text/plain");
+      res.write("Hello ");
+      res.write("World");
+      res.end("!");
+    });
+
+    const response = await app.handle(buildRequest("/stream"));
+    expect(response.status).toBe(200);
+    const text = await response.text();
+    expect(text).toContain("Hello");
+    expect(text).toContain("World");
+  });
+
+  test("res.sendFile() serves a file like Express", async () => {
+    const app = bunway();
+    app.get("/file", async (req, res) => {
+      await res.sendFile("tests/express-compat/fixtures/public/test.txt", { root: process.cwd() });
+    });
+
+    const response = await app.handle(buildRequest("/file"));
+    expect(response.status).toBe(200);
+    const text = await response.text();
+    expect(text).toContain("Test");
+  });
+
+  test("res.sendFile() calls callback on success like Express", async () => {
+    const app = bunway();
+    let callbackCalled = false;
+    app.get("/file", async (req, res) => {
+      await res.sendFile("tests/express-compat/fixtures/public/test.txt", { root: process.cwd() }, (err) => {
+        if (!err) callbackCalled = true;
+      });
+    });
+
+    const response = await app.handle(buildRequest("/file"));
+    expect(response.status).toBe(200);
+    expect(callbackCalled).toBe(true);
+  });
+
+  test("res.download() sets Content-Disposition like Express", async () => {
+    const app = bunway();
+    app.get("/download", async (req, res) => {
+      await res.download("tests/express-compat/fixtures/public/test.txt", "myfile.txt", { root: process.cwd() });
+    });
+
+    const response = await app.handle(buildRequest("/download"));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Disposition")).toBe('attachment; filename="myfile.txt"');
+  });
+
+  test("res.download() uses filename from path when no name given like Express", async () => {
+    const app = bunway();
+    app.get("/download", async (req, res) => {
+      await res.download("tests/express-compat/fixtures/public/test.txt", { root: process.cwd() });
+    });
+
+    const response = await app.handle(buildRequest("/download"));
+    expect(response.headers.get("Content-Disposition")).toContain("test.txt");
+  });
+
+  test("res.render() calls view engine and sends HTML like Express", async () => {
+    const app = bunway();
+    app.engine("html", (path, options, callback) => {
+      callback(null, `<h1>Rendered: ${(options as any).title}</h1>`);
+    });
+    app.set("view engine", "html");
+    app.set("views", "tests/express-compat/fixtures/public");
+
+    app.get("/page", (req, res) => {
+      res.render("index", { title: "Test" });
+    });
+
+    const response = await app.handle(buildRequest("/page"));
+    expect(response.status).toBe(200);
+    const text = await response.text();
+    expect(text).toContain("Rendered: Test");
+  });
+
+  test("res.jsonp() sends JSONP response like Express", async () => {
+    const app = bunway();
+    app.get("/data", (req, res) => {
+      res.jsonp({ value: 42 });
+    });
+
+    const response = await app.handle(buildRequest("/data?callback=myFn"));
+    expect(response.status).toBe(200);
+    const text = await response.text();
+    expect(text).toContain("myFn");
+    expect(text).toContain("42");
+  });
+
+  test("res.jsonp() sends JSON without callback like Express", async () => {
+    const app = bunway();
+    app.get("/data", (req, res) => {
+      res.jsonp({ value: 42 });
+    });
+
+    const response = await app.handle(buildRequest("/data"));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ value: 42 });
+  });
 });
