@@ -1011,5 +1011,6 @@ describe("download()", () => {
     let cbErr: Error | undefined;
     await res.download(join(tmpDir, "missing.txt"), (err) => { cbErr = err; });
     expect(cbErr).toBeDefined();
+    expect(cbErr!.message).toMatch(/ENOENT/);
   });
 });

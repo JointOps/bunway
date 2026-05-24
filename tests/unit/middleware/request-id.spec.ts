@@ -113,4 +113,18 @@ describe("requestId middleware", () => {
     const id = response.headers.get("x-request-id") ?? "";
     expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   });
+
+  it("generator that throws propagates through the pipeline as a 500", async () => {
+    const app = bunway();
+    app.use(requestId({ generator: () => { throw new Error("id-gen failed"); } }));
+    app.get("/id", (_req, res) => res.json({ ok: true }));
+    app.use((_err: Error, _req: any, res: any, _next: any) => {
+      res.status(500).json({ caught: true });
+    });
+
+    const response = await app.handle(new Request("http://localhost/id"));
+    expect(response.status).toBe(500);
+    const body = await response.json();
+    expect(body.caught).toBe(true);
+  });
 });

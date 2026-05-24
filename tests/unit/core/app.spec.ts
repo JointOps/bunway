@@ -46,7 +46,7 @@ describe("BunWayApp (Unit)", () => {
 
     it("should have 'env' default to 'development' when NODE_ENV is unset", () => {
       const env = app.get("env");
-      expect(typeof env).toBe("string");
+      expect(env).toMatch(/^(development|test|production)$/);
     });
   });
 
