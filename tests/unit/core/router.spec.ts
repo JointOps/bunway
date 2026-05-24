@@ -422,6 +422,184 @@ describe("Router (Unit)", () => {
   });
 });
 
+describe("Router – handleError()", () => {
+  it("custom error handler receives error and can send response", async () => {
+    const router = new Router();
+    router.get("/test", (_req, _res, next) => next(new Error("boom")));
+    router.use((err: unknown, _req: any, res: any, _next: any) => {
+      res.status(500).json({ caught: (err as Error).message });
+    });
+
+    const response = await router.handle(new Request("http://localhost/test"));
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ caught: "boom" });
+  });
+
+  it("error handler that also calls next(err) propagates to next handler", async () => {
+    const router = new Router();
+    router.get("/test", (_req, _res, next) => next(new Error("original")));
+    router.use((err: unknown, _req: any, _res: any, next: any) => { next(err); });
+    router.use((err: unknown, _req: any, res: any, _next: any) => {
+      res.status(503).json({ final: true });
+    });
+
+    const response = await router.handle(new Request("http://localhost/test"));
+    expect(response.status).toBe(503);
+  });
+
+  it("HttpError with body is serialized as JSON", async () => {
+    const router = new Router();
+    const { HttpError } = await import("../../../src/core/errors");
+    router.get("/test", (_req, _res, next) => {
+      next(new HttpError(422, "Validation failed", { body: { field: "name", msg: "required" } }));
+    });
+
+    const response = await router.handle(new Request("http://localhost/test"));
+    expect(response.status).toBe(422);
+    const body = await response.json() as { field: string };
+    expect(body.field).toBe("name");
+  });
+
+  it("HttpError with no body sends message as text", async () => {
+    const router = new Router();
+    const { HttpError } = await import("../../../src/core/errors");
+    router.get("/test", (_req, _res, next) => {
+      next(new HttpError(404));
+    });
+
+    const response = await router.handle(new Request("http://localhost/test"));
+    expect(response.status).toBe(404);
+  });
+
+  it("error with .status < 500 exposes message (expose=true)", async () => {
+    const router = new Router();
+    router.get("/test", (_req, _res, next) => {
+      const err: any = new Error("Bad input");
+      err.status = 400;
+      next(err);
+    });
+
+    const response = await router.handle(new Request("http://localhost/test"));
+    expect(response.status).toBe(400);
+    const body = await response.json() as { error: string };
+    expect(body.error).toBe("Bad input");
+  });
+
+  it("error with .statusCode is used for status code", async () => {
+    const router = new Router();
+    router.get("/test", (_req, _res, next) => {
+      const err: any = new Error("Conflict");
+      err.statusCode = 409;
+      next(err);
+    });
+
+    const response = await router.handle(new Request("http://localhost/test"));
+    expect(response.status).toBe(409);
+  });
+});
+
+describe("Router – runPipeline() next('route') and next('router') signals", () => {
+  it("next('route') skips remaining handlers in current route match", async () => {
+    const router = new Router();
+    const log: string[] = [];
+    router.get("/test",
+      (_req, _res, next) => { log.push("first"); next("route"); },
+      (_req, _res, _next) => { log.push("second"); }
+    );
+    router.get("/test", (_req, res) => { log.push("fallback"); res.json({ log }); });
+
+    const response = await router.handle(new Request("http://localhost/test"));
+    expect(response.status).toBe(200);
+    expect(log).toContain("first");
+    expect(log).not.toContain("second");
+    expect(log).toContain("fallback");
+  });
+
+  it("next('router') skips remaining route matches", async () => {
+    const router = new Router();
+    router.get("/test",
+      (_req, _res, next) => { next("router"); }
+    );
+    router.get("/test", (_req, res) => { res.json({ shouldNotHit: true }); });
+
+    const response = await router.handle(new Request("http://localhost/test"));
+    expect(response.status).toBe(404);
+  });
+});
+
+describe("Router – prefixMiddlewares execution", () => {
+  it("prefix middleware rewrites req.path for matching sub-paths", async () => {
+    const router = new Router();
+    let capturedPath = "";
+    router.use("/api", (req, _res, next) => {
+      capturedPath = req.path;
+      next();
+    });
+    router.get("/api/users", (_req, res) => res.json({ ok: true }));
+
+    await router.handle(new Request("http://localhost/api/users"));
+    expect(capturedPath).toBe("/users");
+  });
+
+  it("prefix middleware does not run for non-matching paths", async () => {
+    const router = new Router();
+    let called = false;
+    router.use("/api", (_req, _res, next) => { called = true; next(); });
+    router.get("/other", (_req, res) => res.json({ ok: true }));
+
+    await router.handle(new Request("http://localhost/other"));
+    expect(called).toBe(false);
+  });
+});
+
+describe("Router – route() method", () => {
+  it("route() returns a Route instance supporting chained HTTP methods", async () => {
+    const router = new Router();
+    router.route("/tasks")
+      .get((_req, res) => res.json({ method: "GET" }))
+      .post((_req, res) => res.json({ method: "POST" }));
+
+    const getRes = await router.handle(new Request("http://localhost/tasks"));
+    expect(await getRes.json()).toEqual({ method: "GET" });
+
+    const postRes = await router.handle(new Request("http://localhost/tasks", { method: "POST" }));
+    expect(await postRes.json()).toEqual({ method: "POST" });
+  });
+});
+
+describe("Router – setAppContext()", () => {
+  it("setAppContext is called twice and overwrites previous context", () => {
+    const router = new Router();
+    const ctx1 = { setApp: () => {} };
+    const ctx2 = { setApp: () => {} };
+    router.setAppContext(ctx1);
+    router.setAppContext(ctx2);
+    expect((router as unknown as { _appContext: unknown })._appContext).toBe(ctx2);
+  });
+});
+
+describe("Router – param() execution", () => {
+  it("param handler is executed when matching param exists in route", async () => {
+    const router = new Router();
+    const seen: string[] = [];
+    router.param("id", (_req, _res, next, value) => { seen.push(value); next(); });
+    router.get("/users/:id", (_req, res) => res.json({ ok: true }));
+
+    await router.handle(new Request("http://localhost/users/99"));
+    expect(seen).toEqual(["99"]);
+  });
+
+  it("param handler is not executed for routes without the param", async () => {
+    const router = new Router();
+    let paramCalled = false;
+    router.param("id", (_req, _res, next, _value) => { paramCalled = true; next(); });
+    router.get("/static", (_req, res) => res.json({ ok: true }));
+
+    await router.handle(new Request("http://localhost/static"));
+    expect(paramCalled).toBe(false);
+  });
+});
+
 describe("use() with array paths", () => {
   it("registers middleware for all paths in array", async () => {
     const router = new Router();

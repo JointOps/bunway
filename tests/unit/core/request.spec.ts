@@ -695,17 +695,15 @@ describe("BunRequest (Unit)", () => {
   });
 
   describe("Raw Body", () => {
-    it("should provide raw body as Uint8Array", async () => {
+    it("should provide raw body as Uint8Array with correct content", async () => {
       const req = createRequest("http://localhost/", {
         method: "POST",
         body: "test body",
       });
 
-      // First parse to get raw body
-      await req.parseText();
-
-      // Raw body should be available
-      // Note: This depends on implementation storing raw body
+      const raw = await req.rawBody();
+      expect(raw).toBeInstanceOf(Uint8Array);
+      expect(new TextDecoder().decode(raw)).toBe("test body");
     });
   });
 
@@ -1136,5 +1134,207 @@ describe("req.range()", () => {
   it("returns -2 for completely empty range specifier", () => {
     const req = createRangeReq("bytes=");
     expect(req.range(1000)).toBe(-1);
+  });
+});
+
+describe("req.ip with trust proxy", () => {
+  function makeReqWithProxy(trust: unknown, xForwardedFor?: string, socketIp?: string): BunRequest {
+    const headers: Record<string, string> = {};
+    if (xForwardedFor) headers["x-forwarded-for"] = xForwardedFor;
+    const req = new BunRequest(new Request("http://localhost/", { headers }), "/");
+    if (socketIp) req.setSocketIp(socketIp);
+    req.setApp({
+      get: (key: string) => key === "trust proxy" ? trust : undefined,
+      getLogger: () => ({ info: () => {}, warn: () => {}, error: () => {} }),
+    });
+    return req;
+  }
+
+  it("trust=false returns socket IP", () => {
+    const req = makeReqWithProxy(false, "1.2.3.4", "10.0.0.1");
+    expect(req.ip).toBe("10.0.0.1");
+  });
+
+  it("trust=true returns leftmost untrusted (client) IP", () => {
+    const req = makeReqWithProxy(true, "1.2.3.4, 10.0.0.1", "10.0.0.1");
+    expect(req.ip).toBe("1.2.3.4");
+  });
+
+  it("trust=1 (number) trusts 1 hop — returns second-to-last IP as client", () => {
+    const req = makeReqWithProxy(1, "1.2.3.4, 10.0.0.1", "10.0.0.1");
+    expect(req.ip).toBe("1.2.3.4");
+  });
+
+  it("trust as string matches exact IP", () => {
+    const req = makeReqWithProxy("10.0.0.1", "1.2.3.4, 10.0.0.1", "10.0.0.1");
+    expect(req.ip).toBe("1.2.3.4");
+  });
+
+  it("trust as string[] with 'loopback' trusts localhost proxy", () => {
+    const req = makeReqWithProxy(["loopback"], "1.2.3.4", "127.0.0.1");
+    expect(req.ip).toBe("1.2.3.4");
+  });
+
+  it("trust as function receives ip and hop index", () => {
+    const seen: Array<[string, number]> = [];
+    const req = makeReqWithProxy(
+      (ip: string, i: number) => { seen.push([ip, i]); return ip === "10.0.0.1"; },
+      "1.2.3.4, 10.0.0.1",
+      "10.0.0.1"
+    );
+    const ip = req.ip;
+    expect(typeof ip).toBe("string");
+    expect(seen.length).toBeGreaterThan(0);
+  });
+
+  it("CIDR string matches subnet", () => {
+    const req = makeReqWithProxy(["192.168.0.0/16"], "1.2.3.4, 192.168.1.1", "192.168.1.1");
+    expect(req.ip).toBe("1.2.3.4");
+  });
+
+  it("no X-Forwarded-For with trust=true returns socket IP fallback", () => {
+    const req = makeReqWithProxy(true, undefined, "10.0.0.5");
+    expect(req.ip).toBe("10.0.0.5");
+  });
+});
+
+describe("req.ips with trust proxy", () => {
+  function makeIpsReq(trust: unknown, xForwardedFor?: string): BunRequest {
+    const headers: Record<string, string> = {};
+    if (xForwardedFor) headers["x-forwarded-for"] = xForwardedFor;
+    const req = new BunRequest(new Request("http://localhost/", { headers }), "/");
+    req.setApp({
+      get: (key: string) => key === "trust proxy" ? trust : undefined,
+      getLogger: () => ({ info: () => {}, warn: () => {}, error: () => {} }),
+    });
+    return req;
+  }
+
+  it("trust=false returns empty array", () => {
+    expect(makeIpsReq(false, "1.2.3.4").ips).toEqual([]);
+  });
+
+  it("no X-Forwarded-For with trust=true returns empty array", () => {
+    expect(makeIpsReq(true, undefined).ips).toEqual([]);
+  });
+
+  it("trust=true with all trusted IPs returns full list", () => {
+    const req = makeIpsReq(true, "1.2.3.4, 10.0.0.1");
+    expect(req.ips).toEqual(["1.2.3.4", "10.0.0.1"]);
+  });
+
+  it("partial trust — only trusted IPs included when some pass filter", () => {
+    const req = makeIpsReq(["loopback"], "1.2.3.4, 127.0.0.1");
+    const ips = req.ips;
+    expect(Array.isArray(ips)).toBe(true);
+  });
+});
+
+describe("req.param()", () => {
+  it("reads from params first", () => {
+    const req = new BunRequest(new Request("http://localhost/?id=99"), "/");
+    req.params = { id: "42" };
+    req.body = { id: "77" };
+    expect(req.param("id")).toBe("42");
+  });
+
+  it("falls back to body when not in params", () => {
+    const req = new BunRequest(new Request("http://localhost/"), "/");
+    req.params = {};
+    req.body = { name: "alice" };
+    expect(req.param("name")).toBe("alice");
+  });
+
+  it("falls back to query when not in params or body", () => {
+    const req = new BunRequest(new Request("http://localhost/?filter=active"), "/");
+    req.params = {};
+    expect(req.param("filter")).toBe("active");
+  });
+
+  it("returns undefined when not in any source", () => {
+    const req = new BunRequest(new Request("http://localhost/"), "/");
+    req.params = {};
+    expect(req.param("missing")).toBeUndefined();
+  });
+
+  it("body must be a plain object for lookup", () => {
+    const req = new BunRequest(new Request("http://localhost/"), "/");
+    req.params = {};
+    req.body = ["not", "an", "object"];
+    expect(req.param("0")).toBeUndefined();
+  });
+});
+
+describe("req.acceptsCharsets(), acceptsEncodings(), acceptsLanguages()", () => {
+  it("acceptsCharsets() returns charset when accepted", () => {
+    const req = new BunRequest(
+      new Request("http://localhost/", { headers: { "accept-charset": "utf-8, iso-8859-1" } }),
+      "/"
+    );
+    expect(req.acceptsCharsets("utf-8")).toBe("utf-8");
+  });
+
+  it("acceptsCharsets() returns false for non-accepted charset", () => {
+    const req = new BunRequest(
+      new Request("http://localhost/", { headers: { "accept-charset": "utf-8" } }),
+      "/"
+    );
+    expect(req.acceptsCharsets("latin1")).toBe(false);
+  });
+
+  it("acceptsEncodings() returns encoding when accepted", () => {
+    const req = new BunRequest(
+      new Request("http://localhost/", { headers: { "accept-encoding": "gzip, deflate" } }),
+      "/"
+    );
+    expect(req.acceptsEncodings("gzip")).toBe("gzip");
+  });
+
+  it("acceptsEncodings() returns false for unaccepted encoding", () => {
+    const req = new BunRequest(
+      new Request("http://localhost/", { headers: { "accept-encoding": "gzip" } }),
+      "/"
+    );
+    expect(req.acceptsEncodings("br")).toBe(false);
+  });
+
+  it("acceptsLanguages() returns language when accepted", () => {
+    const req = new BunRequest(
+      new Request("http://localhost/", { headers: { "accept-language": "en-US, fr;q=0.8" } }),
+      "/"
+    );
+    expect(req.acceptsLanguages("en")).toBe("en");
+  });
+
+  it("acceptsLanguages() returns false for non-accepted language", () => {
+    const req = new BunRequest(
+      new Request("http://localhost/", { headers: { "accept-language": "en-US" } }),
+      "/"
+    );
+    expect(req.acceptsLanguages("de")).toBe(false);
+  });
+});
+
+describe("req.cookies setter", () => {
+  it("cookies setter overrides parsed cookies", () => {
+    const req = new BunRequest(
+      new Request("http://localhost/", { headers: { cookie: "a=1; b=2" } }),
+      "/"
+    );
+    req.cookies = { custom: "value" };
+    expect(req.cookies).toEqual({ custom: "value" });
+    expect(req.cookies["a"]).toBeUndefined();
+  });
+});
+
+describe("req.subdomains edge cases", () => {
+  it("IP address with port returns empty subdomains", () => {
+    const req = new BunRequest(new Request("http://192.168.1.1:3000/"), "/");
+    expect(req.subdomains).toEqual([]);
+  });
+
+  it("localhost returns empty subdomains", () => {
+    const req = new BunRequest(new Request("http://localhost/"), "/");
+    expect(req.subdomains).toEqual([]);
   });
 });

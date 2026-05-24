@@ -256,6 +256,102 @@ describe("BunWayApp (Unit)", () => {
     });
   });
 
+  describe("path()", () => {
+    it("should return mountpath for root app", () => {
+      const app = new BunWayApp();
+      expect(app.path()).toBe("/");
+    });
+
+    it("should concatenate parent path with own mountpath", () => {
+      const parent = new BunWayApp();
+      const child = new BunWayApp();
+      parent.use("/api", child);
+      expect(child.path()).toBe("/api");
+    });
+
+    it("should handle nested sub-app paths", () => {
+      const root = new BunWayApp();
+      const api = new BunWayApp();
+      const v1 = new BunWayApp();
+      root.use("/api", api);
+      api.use("/v1", v1);
+      expect(v1.path()).toBe("/api/v1");
+    });
+
+    it("should handle trailing slash in parent path without doubling slash", () => {
+      const root = new BunWayApp();
+      root.mountpath = "/";
+      const child = new BunWayApp();
+      child.mountpath = "/child";
+      (child as unknown as { _parent: BunWayApp })._parent = root;
+      const result = child.path();
+      expect(result).not.toContain("//");
+    });
+  });
+
+  describe("mountpath setter", () => {
+    it("should set and read mountpath", () => {
+      const app = new BunWayApp();
+      app.mountpath = "/admin";
+      expect(app.mountpath).toBe("/admin");
+    });
+
+    it("should overwrite previous mountpath", () => {
+      const app = new BunWayApp();
+      app.mountpath = "/v1";
+      app.mountpath = "/v2";
+      expect(app.mountpath).toBe("/v2");
+    });
+  });
+
+  describe("Constructor 'env' setting", () => {
+    it("should match a valid environment string", () => {
+      const env = app.get("env") as string;
+      expect(env).toMatch(/^(development|test|production)$/);
+    });
+  });
+
+  describe("getLogger() functional validation", () => {
+    it("should return a logger with all required methods", () => {
+      const logger = app.getLogger();
+      expect(typeof logger.info).toBe("function");
+      expect(typeof logger.warn).toBe("function");
+      expect(typeof logger.error).toBe("function");
+    });
+
+    it("should return a logger that actually logs without throwing", () => {
+      const logger = app.getLogger();
+      expect(() => logger.info("test message")).not.toThrow();
+      expect(() => logger.warn("test warning")).not.toThrow();
+      expect(() => logger.error("test error")).not.toThrow();
+    });
+
+    it("custom logger returned by getLogger() has callable methods", () => {
+      const calls: string[] = [];
+      const customLogger = {
+        info: (msg: string) => calls.push(`info:${msg}`),
+        warn: (msg: string) => calls.push(`warn:${msg}`),
+        error: (msg: string) => calls.push(`error:${msg}`),
+      };
+      app.set("logger", customLogger);
+      const logger = app.getLogger();
+      logger.info("hello");
+      logger.warn("caution");
+      logger.error("oops");
+      expect(calls).toEqual(["info:hello", "warn:caution", "error:oops"]);
+    });
+  });
+
+  describe("listen() with hostname option", () => {
+    it("should start server with hostname option set", () => {
+      const a = new BunWayApp();
+      const server = a.listen({ port: 0, hostname: "127.0.0.1" });
+      expect(server).toBeDefined();
+      expect(typeof server.stop).toBe("function");
+      server.stop();
+    });
+  });
+
   describe("server lifecycle", () => {
     it("should have server as null before listen()", () => {
       const app = new BunWayApp();

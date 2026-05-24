@@ -94,6 +94,24 @@ describe("HttpError (Unit)", () => {
       const err = new HttpError(400);
       expect(err.cause).toBeUndefined();
     });
+
+    it("should accept non-Error cause (e.g. string)", () => {
+      const err = new HttpError(400, "Bad Request", { cause: "downstream timeout" });
+      expect(err.cause).toBe("downstream timeout");
+    });
+  });
+
+  describe("Body — null coalescing behaviour", () => {
+    it("falls back to message-based body when options.body is null", () => {
+      const err = new HttpError(400, "Bad Request", { body: null });
+      expect(err.body).toEqual({ error: "Bad Request" });
+    });
+
+    it("uses explicit options.body when set to a non-null value", () => {
+      const customBody = { code: "CUSTOM" };
+      const err = new HttpError(400, "Bad Request", { body: customBody });
+      expect(err.body).toBe(customBody);
+    });
   });
 
   describe("isHttpError()", () => {
@@ -120,6 +138,14 @@ describe("HttpError (Unit)", () => {
 
     it("should return false for strings", () => {
       expect(isHttpError("HttpError")).toBe(false);
+    });
+
+    it("should return true for subclasses of HttpError", () => {
+      class NotFoundError extends HttpError {
+        constructor(msg?: string) { super(404, msg ?? "Not Found"); }
+      }
+      const err = new NotFoundError();
+      expect(isHttpError(err)).toBe(true);
     });
   });
 });
