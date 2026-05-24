@@ -99,4 +99,27 @@ describe("server lifecycle acceptance", () => {
     expect(shutdownComplete).toBe(true);
     expect(app.server).toBeNull();
   });
+
+  it("listen() called twice replaces server reference", async () => {
+    app = bunway();
+    app.get("/ok", (_req, res) => res.json({ ok: true }));
+
+    const s1 = app.listen(0);
+    const port1 = s1.port;
+
+    const s2 = app.listen(0);
+    const port2 = s2.port;
+
+    expect(port2).not.toBe(port1);
+    expect(app.server?.port).toBe(port2);
+
+    const r = await fetch(`http://localhost:${port2}/ok`);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ ok: true });
+
+    // close both servers to avoid leaks
+    s1.stop(true);
+    await app.close();
+    expect(app.server).toBeNull();
+  });
 });

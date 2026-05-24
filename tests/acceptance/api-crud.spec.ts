@@ -782,4 +782,35 @@ describe("REST API CRUD (Acceptance)", () => {
       expect(list.data.length).toBe(10);
     });
   });
+
+  describe("Response Quality", () => {
+    it("JSON responses include application/json Content-Type", async () => {
+      const app = createProductApi();
+      const res = await app.handle(new Request("http://localhost/api/products"));
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toContain("application/json");
+    });
+
+    it("201 POST response includes Location header", async () => {
+      const app = createProductApi();
+      const res = await app.handle(
+        new Request("http://localhost/api/products", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: "Widget", price: 9.99, category: "Gadgets" }),
+        })
+      );
+      expect(res.status).toBe(201);
+      const location = res.headers.get("location");
+      expect(location).toBeTruthy();
+      expect(location).toMatch(/^\/api\/products\/\d+$/);
+    });
+
+    it("404 response includes application/json Content-Type", async () => {
+      const app = createProductApi();
+      const res = await app.handle(new Request("http://localhost/api/products/9999"));
+      expect(res.status).toBe(404);
+      expect(res.headers.get("content-type")).toContain("application/json");
+    });
+  });
 });
