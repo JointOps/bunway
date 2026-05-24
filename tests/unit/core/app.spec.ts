@@ -1,5 +1,7 @@
 import { describe, expect, it, beforeEach } from "bun:test";
 import { BunWayApp } from "../../../src/core/app";
+import { BunRequest } from "../../../src/core/request";
+import { BunResponse } from "../../../src/core/response";
 import type { Handler } from "../../../src/types";
 
 const noop: Handler = (_req, _res, next) => next();
@@ -429,6 +431,150 @@ describe("BunWayApp (Unit)", () => {
       let called = false;
       await app.close(() => { called = true; });
       expect(called).toBe(true);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // handleWebSocketUpgrade() and runUpgradePipeline()
+  // ---------------------------------------------------------------------------
+
+  function makeWsRequest(path = "/ws"): Request {
+    return new Request(`http://localhost${path}`, {
+      headers: { upgrade: "websocket" },
+    });
+  }
+
+  function makeMockServer({ upgradeResult = true } = {}) {
+    return {
+      requestIP: (_req: Request) => ({ address: "127.0.0.1", port: 0, family: "IPv4" }),
+      upgrade: (_req: Request, _data: unknown) => upgradeResult,
+    };
+  }
+
+  describe("handleWebSocketUpgrade()", () => {
+    it("returns 404 when no WS route matches the path", async () => {
+      const app = new BunWayApp();
+      const res = await (app as any).handleWebSocketUpgrade(makeWsRequest("/missing"), makeMockServer());
+      expect(res).toBeInstanceOf(Response);
+      expect((res as Response).status).toBe(404);
+    });
+
+    it("returns 403 when a middleware throws during the upgrade pipeline", async () => {
+      const app = new BunWayApp();
+      app.ws("/ws", { open: () => {} });
+      app.use((_req: any, _res: any, _next: any) => { throw new Error("auth denied"); });
+      const res = await (app as any).handleWebSocketUpgrade(makeWsRequest("/ws"), makeMockServer());
+      expect((res as Response).status).toBe(403);
+    });
+
+    it("returns the middleware response when middleware sends a response (isSent)", async () => {
+      const app = new BunWayApp();
+      app.ws("/ws", { open: () => {} });
+      app.use((_req: any, res: any) => { res.status(401).json({ error: "Unauthorized" }); });
+      const res = await (app as any).handleWebSocketUpgrade(makeWsRequest("/ws"), makeMockServer());
+      expect((res as Response).status).toBe(401);
+    });
+
+    it("returns 400 when server.upgrade() returns false", async () => {
+      const app = new BunWayApp();
+      app.ws("/ws", { open: () => {} });
+      const res = await (app as any).handleWebSocketUpgrade(makeWsRequest("/ws"), makeMockServer({ upgradeResult: false }));
+      expect((res as Response).status).toBe(400);
+    });
+
+    it("returns undefined on a successful upgrade (signals Bun that WS took over)", async () => {
+      const app = new BunWayApp();
+      app.ws("/ws", { open: () => {} });
+      const res = await (app as any).handleWebSocketUpgrade(makeWsRequest("/ws"), makeMockServer());
+      expect(res).toBeUndefined();
+    });
+
+    it("attaches route params to req before running middleware", async () => {
+      const app = new BunWayApp();
+      let capturedId: string | undefined;
+      app.ws("/chat/:roomId", (req: any, _res: any, next: any) => {
+        capturedId = req.params.roomId;
+        next();
+      }, { open: () => {} });
+      await (app as any).handleWebSocketUpgrade(makeWsRequest("/chat/42"), makeMockServer());
+      expect(capturedId).toBe("42");
+    });
+  });
+
+  describe("runUpgradePipeline()", () => {
+    it("runs all handlers in order and resolves", async () => {
+      const app = new BunWayApp();
+      const req = new BunRequest(new Request("http://localhost/"), "/");
+      const res = new BunResponse();
+      const order: number[] = [];
+      const pipeline = [
+        (_r: any, _s: any, next: any) => { order.push(1); next(); },
+        (_r: any, _s: any, next: any) => { order.push(2); next(); },
+      ];
+      await (app as any).runUpgradePipeline(pipeline, req, res);
+      expect(order).toEqual([1, 2]);
+    });
+
+    it("calling done() twice inside a handler does not resolve twice", async () => {
+      const app = new BunWayApp();
+      const req = new BunRequest(new Request("http://localhost/"), "/");
+      const res = new BunResponse();
+      let resolveCount = 0;
+      const pipeline = [
+        (_r: any, _s: any, next: any) => { next(); next(); resolveCount++; },
+      ];
+      await (app as any).runUpgradePipeline(pipeline, req, res);
+      expect(resolveCount).toBe(1);
+    });
+
+    it("async middleware is awaited before continuing", async () => {
+      const app = new BunWayApp();
+      const req = new BunRequest(new Request("http://localhost/"), "/");
+      const res = new BunResponse();
+      const order: number[] = [];
+      const pipeline = [
+        async (_r: any, _s: any, next: any) => {
+          await new Promise<void>(r => setTimeout(r, 10));
+          order.push(1);
+          next();
+        },
+        (_r: any, _s: any, next: any) => { order.push(2); next(); },
+      ];
+      await (app as any).runUpgradePipeline(pipeline, req, res);
+      expect(order).toEqual([1, 2]);
+    });
+
+    it("stops processing further handlers when res.isSent() is true", async () => {
+      const app = new BunWayApp();
+      const req = new BunRequest(new Request("http://localhost/"), "/");
+      const res = new BunResponse();
+      let secondCalled = false;
+      const pipeline = [
+        (_r: any, r: any, next: any) => { r.json({ ok: true }); next(); },
+        (_r: any, _s: any, _next: any) => { secondCalled = true; },
+      ];
+      await (app as any).runUpgradePipeline(pipeline, req, res);
+      expect(secondCalled).toBe(false);
+    });
+
+    it("rejects when a handler throws synchronously", async () => {
+      const app = new BunWayApp();
+      const req = new BunRequest(new Request("http://localhost/"), "/");
+      const res = new BunResponse();
+      const pipeline = [
+        () => { throw new Error("sync boom"); },
+      ];
+      await expect((app as any).runUpgradePipeline(pipeline, req, res)).rejects.toThrow("sync boom");
+    });
+
+    it("rejects when next() is called with an error", async () => {
+      const app = new BunWayApp();
+      const req = new BunRequest(new Request("http://localhost/"), "/");
+      const res = new BunResponse();
+      const pipeline = [
+        (_r: any, _s: any, next: any) => { next(new Error("next error")); },
+      ];
+      await expect((app as any).runUpgradePipeline(pipeline, req, res)).rejects.toThrow("next error");
     });
   });
 });
