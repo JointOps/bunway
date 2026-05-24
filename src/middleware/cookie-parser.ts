@@ -5,12 +5,16 @@ export interface CookieParserOptions {
   secret?: string | string[];
 }
 
-export function cookieParser(options: CookieParserOptions = {}): Handler {
-  const secrets = options.secret
-    ? Array.isArray(options.secret)
-      ? options.secret
-      : [options.secret]
-    : [];
+export function cookieParser(secretOrOptions?: string | string[] | CookieParserOptions): Handler {
+  let secrets: string[];
+  if (typeof secretOrOptions === "string") {
+    secrets = [secretOrOptions];
+  } else if (Array.isArray(secretOrOptions)) {
+    secrets = secretOrOptions;
+  } else {
+    const secret = secretOrOptions?.secret;
+    secrets = secret ? (Array.isArray(secret) ? secret : [secret]) : [];
+  }
 
   return (req, res, next) => {
     if (secrets.length > 0) {

@@ -540,6 +540,9 @@ export class BunResponse {
     if (typeof filename === "function") {
       cb = filename as unknown as (err?: Error) => void;
       downloadName = basename(filePath);
+    } else if (typeof filename === "object" && filename !== null) {
+      opts = filename as SendFileOptions;
+      downloadName = basename(filePath);
     } else {
       downloadName = filename || basename(filePath);
       if (typeof options === "function") {
