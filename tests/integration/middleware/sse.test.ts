@@ -48,9 +48,10 @@ describe("Integration: sse middleware", () => {
   });
 
   it("heartbeat fires within the configured interval", async () => {
+    const HB = 20;
     const app = bunway();
-    app.get("/events", sse({ heartbeatInterval: 20 }), async (_req, res) => {
-      await new Promise((r) => setTimeout(r, 60));
+    app.get("/events", sse({ heartbeatInterval: HB }), async (_req, res) => {
+      await new Promise((r) => setTimeout(r, HB * 10)); // 10× guarantees at least one ping
       res.end();
     });
 

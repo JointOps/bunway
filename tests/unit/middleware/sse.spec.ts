@@ -63,9 +63,10 @@ describe("sse middleware", () => {
   });
 
   it("heartbeat sends ping comment within interval", async () => {
+    const HB = 20; // heartbeat interval
     const app = bunway();
-    app.get("/events", sse({ heartbeatInterval: 20 }), async (_req, res) => {
-      await new Promise((resolve) => setTimeout(resolve, 60));
+    app.get("/events", sse({ heartbeatInterval: HB }), async (_req, res) => {
+      await new Promise((resolve) => setTimeout(resolve, HB * 10)); // 10× — guarantees at least one ping
       res.end();
     });
 
@@ -77,7 +78,7 @@ describe("sse middleware", () => {
   it("heartbeatInterval: 0 disables the ping timer", async () => {
     const app = bunway();
     app.get("/events", sse({ heartbeatInterval: 0 }), async (_req, res) => {
-      await new Promise((resolve) => setTimeout(resolve, 40));
+      await new Promise((resolve) => setTimeout(resolve, 200)); // long enough to see if ping fires
       res.end();
     });
 
