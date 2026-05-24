@@ -36,6 +36,7 @@ type ParamHandler = (
 ) => void;
 
 const ROUTE_SIGNAL = "__bunway_route_skip__";
+const ROUTER_SIGNAL = "__bunway_router_skip__";
 
 export class Router {
   protected routes: RouteDefinition[] = [];
@@ -154,6 +155,7 @@ export class Router {
         await this.runPipeline([...paramMiddleware, ...route.handlers], req, res);
       } catch (err) {
         if (err === ROUTE_SIGNAL) continue;
+        if (err === ROUTER_SIGNAL) break;
         return await this.handleError(err, req, res);
       }
 
@@ -635,7 +637,7 @@ export class Router {
     }
 
     // STANDARD PATH: Has middleware, need req/res upfront
-    return this.handleWithMiddleware(original, pathname, method, server);
+    return this.handleWithMiddleware(original, pathname, server);
   }
 
   /**
@@ -725,7 +727,7 @@ export class Router {
       );
     }
 
-    return this.handleWithMiddleware(original, pathname, method, server, mergeWith);
+    return this.handleWithMiddleware(original, pathname, server, mergeWith);
   }
 
   /**
@@ -734,7 +736,6 @@ export class Router {
   private async handleWithMiddleware(
     original: Request,
     pathname: string,
-    method: string,
     server?: BunServer<unknown>,
     mergeWith?: Record<string, string>
   ): Promise<Response> {
@@ -790,6 +791,7 @@ export class Router {
       }
     }
 
+    // Re-read method after middleware — e.g. methodOverride may have changed it
     const effectiveMethod = req.method.toUpperCase();
 
     // Fast route matching - O(1) for static routes, single regex for dynamic
@@ -848,7 +850,8 @@ export class Router {
     let idx = 0;
 
     const next = async (err?: unknown): Promise<void> => {
-      if (err === "route" || err === "router") throw ROUTE_SIGNAL;
+      if (err === "route") throw ROUTE_SIGNAL;
+      if (err === "router") throw ROUTER_SIGNAL;
       if (err) throw err;
       if (res.isSent()) return;
 
@@ -861,7 +864,7 @@ export class Router {
           if (resolved) return;
           resolved = true;
           if (error) {
-            reject(error === "route" || error === "router" ? ROUTE_SIGNAL : error);
+            reject(error === "route" ? ROUTE_SIGNAL : error === "router" ? ROUTER_SIGNAL : error);
           } else {
             resolve();
           }
