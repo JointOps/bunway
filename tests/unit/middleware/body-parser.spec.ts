@@ -371,5 +371,101 @@ describe("body-parser middleware (Unit)", () => {
       expect(called).toBe(true);
       expect(Buffer.isBuffer(req.body)).toBe(true);
     });
+
+    it("should use custom type matcher with function", async () => {
+      const payload = new Uint8Array([0xAB, 0xCD]);
+      const req = new BunRequest(
+        new Request("http://localhost/test", {
+          method: "POST",
+          headers: { "content-type": "application/x-custom" },
+          body: payload,
+        }),
+        "/test"
+      );
+      const res = new BunResponse();
+      let called = false;
+
+      await raw({ type: (ct) => ct.includes("x-custom") })(req, res, () => { called = true; });
+
+      expect(called).toBe(true);
+      expect(Buffer.isBuffer(req.body)).toBe(true);
+    });
+
+    it("should accept 'gb' string limit without rejecting small payload", async () => {
+      const payload = new Uint8Array([0x01, 0x02]);
+      const req = new BunRequest(
+        new Request("http://localhost/test", {
+          method: "POST",
+          headers: { "content-type": "application/octet-stream" },
+          body: payload,
+        }),
+        "/test"
+      );
+      const res = new BunResponse();
+      let called = false;
+
+      await raw({ limit: "1gb" })(req, res, () => { called = true; });
+
+      expect(called).toBe(true);
+      expect(Buffer.isBuffer(req.body)).toBe(true);
+    });
+
+    it("falls back to DEFAULT_LIMIT (1MB) for unrecognized limit string", async () => {
+      const payload = new Uint8Array(5);
+      const req = new BunRequest(
+        new Request("http://localhost/test", {
+          method: "POST",
+          headers: { "content-type": "application/octet-stream" },
+          body: payload,
+        }),
+        "/test"
+      );
+      const res = new BunResponse();
+      let called = false;
+
+      await raw({ limit: "not-a-valid-limit" as any })(req, res, () => { called = true; });
+
+      expect(called).toBe(true);
+    });
+  });
+
+  describe("text() type matchers", () => {
+    it("should accept RegExp type matcher", async () => {
+      const req = createPostRequest("text/markdown", "# Hello");
+      const res = new BunResponse();
+      let called = false;
+
+      await text({ type: /text\// })(req, res, () => { called = true; });
+
+      expect(called).toBe(true);
+      expect(req.body).toBe("# Hello");
+    });
+
+    it("should accept function type matcher", async () => {
+      const req = createPostRequest("text/csv", "a,b,c");
+      const res = new BunResponse();
+      let called = false;
+
+      await text({ type: (ct) => ct.startsWith("text/") })(req, res, () => { called = true; });
+
+      expect(called).toBe(true);
+      expect(req.body).toBe("a,b,c");
+    });
+  });
+
+  describe("urlencoded() type matchers", () => {
+    it("should accept RegExp type matcher", async () => {
+      const req = createPostRequest(
+        "application/x-www-form-urlencoded; charset=utf-8",
+        "name=test&val=1"
+      );
+      const res = new BunResponse();
+      let called = false;
+
+      await urlencoded({ type: /application\/x-www-form-urlencoded/ })(req, res, () => { called = true; });
+
+      expect(called).toBe(true);
+      expect((req.body as Record<string, string>).name).toBe("test");
+    });
   });
 });

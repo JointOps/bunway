@@ -187,4 +187,30 @@ describe("timeout middleware", () => {
     const { req } = createReqRes();
     expect(req.timedout).toBe(false);
   });
+
+  it("timer fires no-op when response is already committed", async () => {
+    const { req, res } = createReqRes();
+    timeout(50)(req, res, () => {
+      res.json({ ok: true });
+    });
+    const statusBefore = res.statusCode;
+    await new Promise((r) => setTimeout(r, 100));
+    // Status should not have changed to 408 after commit
+    expect(res.statusCode).toBe(statusBefore);
+    expect(req.timedout).toBe(false);
+  });
+
+  it("skip() returning undefined does not prevent timeout", async () => {
+    const { req, res } = createReqRes();
+    timeout(50, { skip: () => undefined as any })(req, res, () => {});
+    await new Promise((r) => setTimeout(r, 100));
+    expect(req.timedout).toBe(true);
+  });
+
+  it("skip() with no skip function applies timeout normally", async () => {
+    const { req, res } = createReqRes();
+    timeout(50)(req, res, () => {});
+    await new Promise((r) => setTimeout(r, 100));
+    expect(req.timedout).toBe(true);
+  });
 });

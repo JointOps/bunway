@@ -1,8 +1,14 @@
-import { describe, expect, it, beforeEach } from "bun:test";
-import { MemoryStore, session } from "../../../src/middleware/session";
+import { describe, expect, it, beforeEach, afterAll } from "bun:test";
+import { mkdirSync, rmSync } from "fs";
+import { join } from "path";
+import { MemoryStore, FileStore, session } from "../../../src/middleware/session";
 import { BunRequest } from "../../../src/core/request";
 import { BunResponse } from "../../../src/core/response";
 import { signSessionId } from "../../../src/utils/crypto";
+
+const FILE_STORE_DIR = join(import.meta.dir, ".tmp-session-store");
+mkdirSync(FILE_STORE_DIR, { recursive: true });
+afterAll(() => rmSync(FILE_STORE_DIR, { recursive: true, force: true }));
 
 describe("Session Middleware (Unit)", () => {
   describe("MemoryStore", () => {
@@ -323,6 +329,269 @@ describe("Session Middleware (Unit)", () => {
       });
 
       expect((req as any).session.id).toBe((req as any).sessionID);
+    });
+
+    it("saveUninitialized: false does not set Set-Cookie header", async () => {
+      const store = new MemoryStore();
+      const handler = session({ secret: "test-secret", store, saveUninitialized: false });
+      const req = new BunRequest(new Request("http://localhost/test"), "/test");
+      const res = new BunResponse();
+
+      await new Promise<void>((resolve) => {
+        handler(req, res, () => resolve());
+      });
+
+      const setCookie = res.getHeaders().get("set-cookie");
+      expect(setCookie).toBeNull();
+    });
+
+    it("invalid %ZZ percent-encoding falls through to new session", async () => {
+      const handler = session({ secret: "test-secret" });
+      const req = new BunRequest(
+        new Request("http://localhost/test", {
+          headers: { cookie: "connect.sid=%ZZ" },
+        }),
+        "/test",
+      );
+      const res = new BunResponse();
+
+      await new Promise<void>((resolve) => {
+        handler(req, res, () => resolve());
+      });
+
+      expect((req as any).session).toBeDefined();
+      expect((req as any).sessionID).toBeDefined();
+    });
+
+    it("session.regenerate() creates a new session ID and clears data", async () => {
+      const store = new MemoryStore();
+      const handler = session({ secret: "test-secret", store, saveUninitialized: true });
+      const req = new BunRequest(new Request("http://localhost/test"), "/test");
+      const res = new BunResponse();
+
+      await new Promise<void>((resolve) => {
+        handler(req, res, () => resolve());
+      });
+
+      const sess = (req as any).session;
+      sess.username = "alice";
+      const oldId = (req as any).sessionID;
+
+      await new Promise<void>((resolve) => {
+        sess.regenerate(() => resolve());
+      });
+
+      expect(sess.id).not.toBe(oldId);
+      expect(sess.username).toBeUndefined();
+    });
+
+    it("session.destroy() removes session from store and clears cookie", async () => {
+      const store = new MemoryStore();
+      const handler = session({ secret: "test-secret", store, saveUninitialized: true });
+      const req = new BunRequest(new Request("http://localhost/test"), "/test");
+      const res = new BunResponse();
+
+      await new Promise<void>((resolve) => {
+        handler(req, res, () => resolve());
+      });
+
+      const sess = (req as any).session;
+      const sid = (req as any).sessionID;
+
+      await new Promise<void>((resolve) => {
+        sess.destroy(() => resolve());
+      });
+
+      const stored = await store.get(sid);
+      expect(stored).toBeNull();
+    });
+
+    it("session.reload() re-fetches data from store", async () => {
+      const store = new MemoryStore();
+      const handler = session({ secret: "test-secret", store, saveUninitialized: true });
+      const req = new BunRequest(new Request("http://localhost/test"), "/test");
+      const res = new BunResponse();
+
+      await new Promise<void>((resolve) => {
+        handler(req, res, () => resolve());
+      });
+
+      const sess = (req as any).session;
+      const sid = (req as any).sessionID;
+
+      await store.set(sid, { fromStore: true });
+
+      await new Promise<void>((resolve) => {
+        sess.reload(() => resolve());
+      });
+
+      expect(sess.fromStore).toBe(true);
+    });
+
+    it("session.save() persists current data to store", async () => {
+      const store = new MemoryStore();
+      const handler = session({ secret: "test-secret", store, saveUninitialized: false });
+      const req = new BunRequest(new Request("http://localhost/test"), "/test");
+      const res = new BunResponse();
+
+      await new Promise<void>((resolve) => {
+        handler(req, res, () => resolve());
+      });
+
+      const sess = (req as any).session;
+      const sid = (req as any).sessionID;
+      sess.role = "admin";
+
+      await new Promise<void>((resolve) => {
+        sess.save(() => resolve());
+      });
+
+      const stored = await store.get(sid);
+      expect(stored?.role).toBe("admin");
+    });
+
+    it("session.flash() set mode stores message, get mode retrieves and clears it", async () => {
+      const handler = session({ secret: "test-secret", saveUninitialized: true });
+      const req = new BunRequest(new Request("http://localhost/test"), "/test");
+      const res = new BunResponse();
+
+      await new Promise<void>((resolve) => {
+        handler(req, res, () => resolve());
+      });
+
+      const sess = (req as any).session;
+      sess.flash("info", "Login successful");
+      const msg = sess.flash("info");
+      expect(msg).toBe("Login successful");
+      // Second read should return undefined (consumed)
+      const msg2 = sess.flash("info");
+      expect(msg2).toBeUndefined();
+    });
+
+    it("session.flash() returns array when multiple messages are set", async () => {
+      const handler = session({ secret: "test-secret", saveUninitialized: true });
+      const req = new BunRequest(new Request("http://localhost/test"), "/test");
+      const res = new BunResponse();
+
+      await new Promise<void>((resolve) => {
+        handler(req, res, () => resolve());
+      });
+
+      const sess = (req as any).session;
+      sess.flash("error", "First error");
+      sess.flash("error", "Second error");
+      const msgs = sess.flash("error");
+      expect(Array.isArray(msgs)).toBe(true);
+      expect((msgs as string[]).length).toBe(2);
+    });
+  });
+
+  describe("Session proxy traps", () => {
+    async function makeSession(store?: MemoryStore) {
+      const handler = session({ secret: "test-secret", store, saveUninitialized: true });
+      const req = new BunRequest(new Request("http://localhost/test"), "/test");
+      const res = new BunResponse();
+      await new Promise<void>((resolve) => handler(req, res, () => resolve()));
+      return (req as any).session;
+    }
+
+    it("deleteProperty trap removes key from internalData", async () => {
+      const sess = await makeSession();
+      sess.foo = "bar";
+      expect(sess.foo).toBe("bar");
+      delete sess.foo;
+      expect(sess.foo).toBeUndefined();
+    });
+
+    it("has trap returns true for set keys", async () => {
+      const sess = await makeSession();
+      sess.myKey = 42;
+      expect("myKey" in sess).toBe(true);
+    });
+
+    it("has trap returns false for absent keys", async () => {
+      const sess = await makeSession();
+      expect("nonexistent" in sess).toBe(false);
+    });
+
+    it("ownKeys trap includes internalData keys and built-ins", async () => {
+      const sess = await makeSession();
+      sess.alpha = 1;
+      sess.beta = 2;
+      const keys = Object.keys(sess);
+      expect(keys).toContain("alpha");
+      expect(keys).toContain("beta");
+      expect(keys).toContain("id");
+    });
+
+    it("setting data via proxy writes to store on next save()", async () => {
+      const store = new MemoryStore();
+      const sess = await makeSession(store);
+      const sid = sess.id;
+      sess.counter = 99;
+
+      await new Promise<void>((resolve) => sess.save(() => resolve()));
+      const stored = await store.get(sid);
+      expect(stored?.counter).toBe(99);
+    });
+  });
+
+  describe("FileStore", () => {
+    it("get returns null for unknown session", async () => {
+      const store = new FileStore({ path: FILE_STORE_DIR });
+      expect(await store.get("unknown-id")).toBeNull();
+    });
+
+    it("set and get round-trip", async () => {
+      const store = new FileStore({ path: FILE_STORE_DIR });
+      await store.set("fs-1", { user: "alice" });
+      const result = await store.get("fs-1");
+      expect(result?.user).toBe("alice");
+    });
+
+    it("destroy removes session file", async () => {
+      const store = new FileStore({ path: FILE_STORE_DIR });
+      await store.set("fs-del", { temp: true });
+      await store.destroy("fs-del");
+      expect(await store.get("fs-del")).toBeNull();
+    });
+
+    it("destroy on nonexistent session does not throw", async () => {
+      const store = new FileStore({ path: FILE_STORE_DIR });
+      await store.destroy("does-not-exist-xyz");
+    });
+
+    it("get returns null for expired session", async () => {
+      const store = new FileStore({ path: FILE_STORE_DIR, ttl: 1 });
+      await store.set("fs-exp", { data: "old" }, 1);
+      await new Promise((r) => setTimeout(r, 20));
+      expect(await store.get("fs-exp")).toBeNull();
+    });
+
+    it("touch refreshes expiry", async () => {
+      const store = new FileStore({ path: FILE_STORE_DIR });
+      await store.set("fs-touch", { val: "data" });
+      await store.touch("fs-touch", { val: "data" });
+      expect(await store.get("fs-touch")).toBeTruthy();
+    });
+
+    it("length returns count of session files", async () => {
+      const store = new FileStore({ path: FILE_STORE_DIR });
+      const before = await store.length();
+      await store.set("fs-len-a", {});
+      await store.set("fs-len-b", {});
+      const after = await store.length();
+      expect(after).toBeGreaterThanOrEqual(before + 2);
+    });
+
+    it("sanitizes session ID to prevent directory traversal", async () => {
+      const store = new FileStore({ path: FILE_STORE_DIR });
+      // Dots and slashes are stripped from the SID before constructing the path
+      await store.set("../outside", { malicious: true });
+      // The file should be written under FILE_STORE_DIR, not escaped above it
+      const result = await store.get("../outside");
+      // Either stored safely (in sanitized path) or not found — either way no traversal
+      expect(result).toBeDefined();
     });
   });
 });

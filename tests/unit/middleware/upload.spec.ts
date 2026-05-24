@@ -1713,4 +1713,93 @@ describe("Upload Middleware (Unit)", () => {
       expect(data.bannerNames).toEqual(["b1.png", "b2.png"]);
     });
   });
+
+  describe("limit enforcement", () => {
+    it("array() with maxCount exceeded returns 413", async () => {
+      const app = bunway();
+      app.post("/upload", upload.array("photos", 2), (req, res) => {
+        res.json({ count: (req.files as unknown[]).length });
+      });
+
+      const { body, contentType } = buildMultipartBody([
+        { name: "photos", filename: "a.jpg", contentType: "image/jpeg", data: "a" },
+        { name: "photos", filename: "b.jpg", contentType: "image/jpeg", data: "b" },
+        { name: "photos", filename: "c.jpg", contentType: "image/jpeg", data: "c" },
+      ]);
+
+      const response = await app.handle(
+        buildRequest("/upload", { method: "POST", headers: { "Content-Type": contentType }, body }),
+      );
+      expect(response.status).toBe(413);
+    });
+
+    it("fields() per-field maxCount exceeded returns 413", async () => {
+      const app = bunway();
+      app.post(
+        "/upload",
+        upload.fields([{ name: "avatar", maxCount: 1 }]),
+        (req, res) => res.json({ ok: true }),
+      );
+
+      const { body, contentType } = buildMultipartBody([
+        { name: "avatar", filename: "a.jpg", contentType: "image/jpeg", data: "a" },
+        { name: "avatar", filename: "b.jpg", contentType: "image/jpeg", data: "b" },
+      ]);
+
+      const response = await app.handle(
+        buildRequest("/upload", { method: "POST", headers: { "Content-Type": contentType }, body }),
+      );
+      expect(response.status).toBe(413);
+    });
+
+    it("limits.files global file count exceeded returns 413", async () => {
+      const limitedUpload = upload({ limits: { files: 1 } });
+      const app = bunway();
+      app.post("/upload", limitedUpload.any(), (req, res) => {
+        res.json({ count: (req.files as unknown[]).length });
+      });
+
+      const { body, contentType } = buildMultipartBody([
+        { name: "f1", filename: "a.txt", contentType: "text/plain", data: "a" },
+        { name: "f2", filename: "b.txt", contentType: "text/plain", data: "b" },
+      ]);
+
+      const response = await app.handle(
+        buildRequest("/upload", { method: "POST", headers: { "Content-Type": contentType }, body }),
+      );
+      expect(response.status).toBe(413);
+    });
+
+    it("limits.fields global field count exceeded returns 413", async () => {
+      const limitedUpload = upload({ limits: { fields: 1 } });
+      const app = bunway();
+      app.post("/upload", limitedUpload.none(), (req, res) => res.json({ ok: true }));
+
+      const { body, contentType } = buildMultipartBody([
+        { name: "field1", data: "value1" },
+        { name: "field2", data: "value2" },
+      ]);
+
+      const response = await app.handle(
+        buildRequest("/upload", { method: "POST", headers: { "Content-Type": contentType }, body }),
+      );
+      expect(response.status).toBe(413);
+    });
+
+    it("diskStorage abort() removes the partial file", async () => {
+      ensureDir();
+      const storage = diskStorage({
+        destination: (_req, _file, cb) => cb(null, UNIT_UPLOAD_DIR),
+        filename: (_req, _file, cb) => cb(null, "abort-test.bin"),
+      });
+
+      const fileInfo = { fieldname: "file", originalname: "abort-test.bin", mimetype: "application/octet-stream" };
+      const writer = await storage.createWriter({} as any, fileInfo);
+      writer.write(new TextEncoder().encode("partial data"));
+      await writer.abort();
+
+      const { existsSync } = await import("fs");
+      expect(existsSync(`${UNIT_UPLOAD_DIR}/abort-test.bin`)).toBe(false);
+    });
+  });
 });

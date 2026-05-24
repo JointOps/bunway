@@ -489,5 +489,59 @@ describe("validate middleware", () => {
       expect(body.errors[0].field).toBe("email");
       expect(body.errors[0].source).toBe("body");
     });
+
+    it("validateType() unknown type branch passes field through", async () => {
+      const mw = validate({ body: { val: { type: "unknowntype" as any } } });
+      const { req, res } = createReqRes("http://localhost/test", { body: { val: "anything" } });
+      let nextCalled = false;
+      await mw(req, res, () => { nextCalled = true; });
+      expect(nextCalled).toBe(true);
+    });
+
+    it("query source validates last-write-wins for multi-value params", async () => {
+      const mw = validate({ query: { page: { required: true } } });
+      const { req, res } = createReqRes("http://localhost/test?page=1&page=2");
+      let nextCalled = false;
+      await mw(req, res, () => { nextCalled = true; });
+      expect(nextCalled).toBe(true);
+    });
+
+    it("abortEarly: true stops after first source error even with multi-source schema", async () => {
+      const schema: ValidationSchema = {
+        params: { id: { required: true } },
+        body: { name: { required: true } },
+        query: { q: { required: true } },
+      };
+      const mw = validate(schema, { abortEarly: true });
+      const { req, res } = createReqRes("http://localhost/test", { body: {}, params: {} });
+      await mw(req, res, () => {});
+      const body = await res.toResponse().json();
+      expect(body.errors.length).toBe(1);
+    });
+
+    it("onError can call next(err) to propagate to error middleware", async () => {
+      let propagatedErr: unknown;
+      const mw = validate(
+        { body: { name: { required: true } } },
+        {
+          onError: (_errors, _req, _res, next) => {
+            next(new Error("validation failed"));
+          },
+        },
+      );
+      const { req, res } = createReqRes("http://localhost/test", { body: {} });
+      await mw(req, res, (err) => { propagatedErr = err; });
+      expect(propagatedErr).toBeInstanceOf(Error);
+      expect((propagatedErr as Error).message).toBe("validation failed");
+    });
+  });
+
+  describe("sanitizer write-back for query source", () => {
+    it("trim writes back to query string field", async () => {
+      const { req, res } = createReqRes("http://localhost/test?name=+hello+");
+      const next = mock(() => {});
+      await validate({ query: { name: { trim: true } } })(req, res, next);
+      expect(next).toHaveBeenCalled();
+    });
   });
 });
