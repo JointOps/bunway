@@ -28,6 +28,9 @@ export function createRequest(
   return new Request(url, options);
 }
 
+/** Alias kept for backwards compatibility — prefer createRequest */
+export const buildRequest = createRequest;
+
 /**
  * Shorthand for GET request
  */

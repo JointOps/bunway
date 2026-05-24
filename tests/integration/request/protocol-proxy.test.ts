@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import bunway from "../../../src";
-import { buildRequest } from "../../utils/testUtils";
+import { buildRequest } from "../../utils/test-helpers";
 
 describe("req.protocol with X-Forwarded-Proto", () => {
   it("returns http by default", async () => {

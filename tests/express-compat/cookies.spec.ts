@@ -1,7 +1,7 @@
 import { describe, test, expect } from "bun:test";
 import bunway from "../../src";
 import { signCookie } from "../../src";
-import { buildRequest } from "../utils/testUtils";
+import { buildRequest } from "../utils/test-helpers";
 
 describe("Express Compatibility: Cookie Handling", () => {
   test("bunway.cookieParser() parses cookies like cookie-parser", async () => {

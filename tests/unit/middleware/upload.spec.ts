@@ -11,7 +11,7 @@ import {
 } from "../../../src/middleware/upload";
 import type { PartHeaders } from "../../../src/middleware/upload";
 import bunway from "../../../src";
-import { buildRequest } from "../../utils/testUtils";
+import { buildRequest } from "../../utils/test-helpers";
 import { existsSync, mkdirSync, rmSync, readFileSync } from "fs";
 import { join } from "path";
 

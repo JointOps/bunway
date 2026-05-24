@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import bunway, { rateLimit } from "../../../src";
-import { buildRequest } from "../../utils/testUtils";
+import { buildRequest } from "../../utils/test-helpers";
 
 describe("rateLimit middleware", () => {
   it("allows requests under the limit", async () => {

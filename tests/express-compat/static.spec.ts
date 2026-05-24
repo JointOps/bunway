@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import bunway, { Router } from "../../src";
-import { buildRequest } from "../utils/testUtils";
+import { buildRequest } from "../utils/test-helpers";
 
 describe("Express Compatibility: Static File Serving", () => {
   test("bunway.static() serves files like express.static()", async () => {

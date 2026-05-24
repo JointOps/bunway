@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import bunway from "../../../src";
-import { buildRequest } from "../../utils/testUtils";
+import { buildRequest } from "../../utils/test-helpers";
 
 describe("next('route')", () => {
   it("skips remaining handlers in current route definition and falls to next match", async () => {

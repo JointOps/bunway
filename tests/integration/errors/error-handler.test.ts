@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import bunway from "../../../src";
-import { buildRequest } from "../../utils/testUtils";
+import { buildRequest } from "../../utils/test-helpers";
 
 describe("handleError", () => {
   it("plain Error with .status uses that status code", async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import bunway, { cors, json, urlencoded, text, errorHandler, HttpError } from "../../../src";
-import { buildRequest, TEST_ORIGIN } from "../../utils/testUtils";
+import { buildRequest, TEST_ORIGIN } from "../../utils/test-helpers";
 
 describe("json middleware", () => {
   it("parses JSON body", async () => {

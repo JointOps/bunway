@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import bunway from "../../../src";
-import { buildRequest } from "../../utils/testUtils";
+import { buildRequest } from "../../utils/test-helpers";
 
 describe("router.param()", () => {
   it("preprocesses route parameter", async () => {

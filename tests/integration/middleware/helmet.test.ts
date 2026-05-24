@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import bunway, { helmet } from "../../../src";
-import { buildRequest } from "../../utils/testUtils";
+import { buildRequest } from "../../utils/test-helpers";
 
 describe("helmet middleware", () => {
   it("sets default security headers", async () => {

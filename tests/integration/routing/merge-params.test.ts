@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { Router } from "../../../src";
-import { buildRequest } from "../../utils/testUtils";
+import { buildRequest } from "../../utils/test-helpers";
 import { bunway } from "../../../src/core/app";
 
 describe("Router mergeParams", () => {

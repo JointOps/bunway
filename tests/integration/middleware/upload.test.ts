@@ -1,6 +1,6 @@
 import { describe, expect, it, afterAll } from "bun:test";
 import bunway, { upload } from "../../../src";
-import { buildRequest } from "../../utils/testUtils";
+import { buildRequest } from "../../utils/test-helpers";
 import { existsSync, mkdirSync, rmSync } from "fs";
 import { join } from "path";
 

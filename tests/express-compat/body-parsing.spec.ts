@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import bunway from "../../src";
-import { buildRequest } from "../utils/testUtils";
+import { buildRequest } from "../utils/test-helpers";
 
 describe("Express Compatibility: Body Parsing", () => {
   test("bunway.json() parses JSON body like express.json()", async () => {
