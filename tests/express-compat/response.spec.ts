@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import bunway from "../../src";
-import { buildRequest } from "../utils/testUtils";
+import { buildRequest } from "../utils/test-helpers";
 
 describe("Express Compatibility: Response Object", () => {
   test("res.status() works like Express", async () => {
@@ -329,7 +329,7 @@ describe("Express Compatibility: Response Object", () => {
   test("res.download() uses filename from path when no name given like Express", async () => {
     const app = bunway();
     app.get("/download", async (req, res) => {
-      await res.download("tests/express-compat/fixtures/public/test.txt", { root: process.cwd() });
+      await res.download(process.cwd() + "/tests/express-compat/fixtures/public/test.txt");
     });
 
     const response = await app.handle(buildRequest("/download"));
@@ -376,5 +376,30 @@ describe("Express Compatibility: Response Object", () => {
     const response = await app.handle(buildRequest("/data"));
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ value: 42 });
+  });
+
+  test("res.jsonp() sets text/javascript and wraps callback like Express", async () => {
+    const app = bunway();
+    app.get("/api/data", (_req, res) => res.jsonp({ name: "bunway" }));
+
+    const r1 = await app.handle(new Request("http://localhost/api/data?callback=myFunc"));
+    expect(r1.headers.get("Content-Type")).toBe("text/javascript; charset=utf-8");
+    const body = await r1.text();
+    expect(body).toContain("myFunc");
+    expect(body).toContain('"name":"bunway"');
+
+    const r2 = await app.handle(new Request("http://localhost/api/data"));
+    expect(r2.headers.get("Content-Type")).toBe("application/json");
+  });
+
+  test("res.jsonp() respects 'jsonp callback name' setting like Express", async () => {
+    const app = bunway();
+    app.set("jsonp callback name", "cb");
+    app.get("/api", (_req, res) => res.jsonp({ ok: true }));
+
+    const response = await app.handle(new Request("http://localhost/api?cb=handler"));
+    expect(response.headers.get("Content-Type")).toBe("text/javascript; charset=utf-8");
+    const text = await response.text();
+    expect(text).toContain("handler(");
   });
 });

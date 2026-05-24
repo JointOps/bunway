@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import bunway, { Router } from "../../src";
-import { buildRequest } from "../utils/testUtils";
+import { buildRequest } from "../utils/test-helpers";
 
 describe("Express Compatibility: Routing", () => {
   test("app.get(path, handler) works like Express", async () => {
@@ -279,5 +279,21 @@ describe("Express Compatibility: Routing", () => {
 
     const unknown = await app.handle(buildRequest("/unknown"));
     expect(unknown.status).toBe(404);
+  });
+
+  test("app.use([path1, path2], handler) mounts on multiple paths like Express", async () => {
+    const app = bunway();
+    let hitCount = 0;
+    app.use(["/api", "/rest"], (_req, _res, next) => { hitCount++; next(); });
+    app.get("/api", (_req, res) => res.json({}));
+    app.get("/rest", (_req, res) => res.json({}));
+
+    await app.handle(new Request("http://localhost/api"));
+    await app.handle(new Request("http://localhost/rest"));
+    expect(hitCount).toBe(2);
+
+    // Unrelated path should NOT trigger the middleware
+    await app.handle(new Request("http://localhost/other"));
+    expect(hitCount).toBe(2);
   });
 });

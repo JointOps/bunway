@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import bunway, { Router } from "../../src";
-import { buildRequest } from "../utils/testUtils";
+import { buildRequest } from "../utils/test-helpers";
 
 describe("Express Compatibility: Request Object", () => {
   test("req.method works like Express", async () => {
@@ -504,5 +504,61 @@ describe("Express Compatibility: Request Object", () => {
       headers: { "If-None-Match": '"v1"' },
     }));
     expect(await response.json()).toEqual({ stale: false });
+  });
+
+  test("req.fresh returns true on ETag match like Express", async () => {
+    const app = bunway();
+    app.get("/resource", (req, res) => {
+      res.set("ETag", '"abc123"');
+      if (req.fresh) { res.status(304).end(); return; }
+      res.json({ data: "value" });
+    });
+
+    const response = await app.handle(new Request("http://localhost/resource", {
+      headers: { "If-None-Match": '"abc123"' },
+    }));
+    expect(response.status).toBe(304);
+  });
+
+  test("req.fresh returns false for stale resource like Express", async () => {
+    const app = bunway();
+    app.get("/resource", (req, res) => {
+      res.set("ETag", '"current"');
+      res.json({ fresh: req.fresh });
+    });
+
+    const response = await app.handle(new Request("http://localhost/resource", {
+      headers: { "If-None-Match": '"old"' },
+    }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.fresh).toBe(false);
+  });
+
+  test("req.range() parses Range header like Express", async () => {
+    const app = bunway();
+    let result: unknown;
+    app.get("/video", (req, res) => { result = req.range(10000); res.json({ ok: true }); });
+
+    await app.handle(new Request("http://localhost/video", {
+      headers: { Range: "bytes=0-999" },
+    }));
+    expect(Array.isArray(result)).toBe(true);
+    if (Array.isArray(result)) expect(result[0]).toEqual({ start: 0, end: 999 });
+  });
+
+  test("req.res / res.req cross-references work like Express", async () => {
+    const app = bunway();
+    let reqHasRes = false;
+    let resHasReq = false;
+    app.get("/test", (req, res) => {
+      reqHasRes = req.res === res;
+      resHasReq = res.req === req;
+      res.json({ ok: true });
+    });
+
+    await app.handle(new Request("http://localhost/test"));
+    expect(reqHasRes).toBe(true);
+    expect(resHasReq).toBe(true);
   });
 });
