@@ -70,4 +70,41 @@ describe("favicon middleware", () => {
   it("throws at initialization if path does not exist", () => {
     expect(() => favicon("/no/such/favicon.ico")).toThrow("Favicon not found");
   });
+
+  it("POST to /favicon.ico calls next() rather than serving the icon", async () => {
+    const app = bunway();
+    app.use(favicon(FAVICON_PATH));
+    app.post("/favicon.ico", (_req, res) => res.json({ reached: true }));
+
+    const res = await app.handle(new Request("http://localhost/favicon.ico", { method: "POST" }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ reached: true });
+  });
+
+  it("non-matching If-None-Match ETag still serves 200", async () => {
+    const app = bunway();
+    app.use(favicon(FAVICON_PATH));
+
+    const res = await app.handle(new Request("http://localhost/favicon.ico", {
+      headers: { "If-None-Match": '"not-the-real-etag"' },
+    }));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/x-icon");
+  });
+
+  it("default maxAge is 86400 seconds", async () => {
+    const app = bunway();
+    app.use(favicon(FAVICON_PATH));
+
+    const res = await app.handle(new Request("http://localhost/favicon.ico"));
+    expect(res.headers.get("cache-control")).toBe("public, max-age=86400");
+  });
+
+  it("maxAge: 0 produces max-age=0 in Cache-Control", async () => {
+    const app = bunway();
+    app.use(favicon(FAVICON_PATH, { maxAge: 0 }));
+
+    const res = await app.handle(new Request("http://localhost/favicon.ico"));
+    expect(res.headers.get("cache-control")).toBe("public, max-age=0");
+  });
 });

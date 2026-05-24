@@ -61,4 +61,41 @@ describe("responseTime middleware", () => {
     const res = await app.handle(new Request("http://localhost/ping"));
     expect(Number(res.headers.get("x-response-time"))).toBeGreaterThan(0);
   });
+
+  it("suffix: true explicitly produces ms suffix", async () => {
+    const app = bunway();
+    app.use(responseTime({ suffix: true }));
+    app.get("/ping", (_req, res) => res.json({ ok: true }));
+
+    const res = await app.handle(new Request("http://localhost/ping"));
+    expect(res.headers.get("x-response-time")).toMatch(/ms$/);
+  });
+
+  it("digits: 2 produces exactly two decimal places", async () => {
+    const app = bunway();
+    app.use(responseTime({ digits: 2, suffix: false }));
+    app.get("/ping", (_req, res) => res.json({ ok: true }));
+
+    const res = await app.handle(new Request("http://localhost/ping"));
+    expect(res.headers.get("x-response-time")).toMatch(/^\d+\.\d{2}$/);
+  });
+
+  it("value is non-negative even for instant handlers", async () => {
+    const app = bunway();
+    app.use(responseTime({ suffix: false }));
+    app.get("/ping", (_req, res) => res.json({ ok: true }));
+
+    const res = await app.handle(new Request("http://localhost/ping"));
+    const elapsed = Number(res.headers.get("x-response-time"));
+    expect(elapsed).toBeGreaterThanOrEqual(0);
+  });
+
+  it("digits and suffix combine correctly", async () => {
+    const app = bunway();
+    app.use(responseTime({ digits: 1, suffix: true }));
+    app.get("/ping", (_req, res) => res.json({ ok: true }));
+
+    const res = await app.handle(new Request("http://localhost/ping"));
+    expect(res.headers.get("x-response-time")).toMatch(/^\d+\.\dms$/);
+  });
 });

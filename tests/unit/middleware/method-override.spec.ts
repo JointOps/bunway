@@ -100,4 +100,46 @@ describe("methodOverride middleware", () => {
     }));
     expect(await res.json()).toEqual({ method: "PUT" });
   });
+
+  it("header takes priority over query param when both are present", async () => {
+    const app = bunway();
+    app.use(methodOverride({ getter: "X-HTTP-Method-Override" }));
+    app.put("/r", (req, res) => res.json({ method: req.method }));
+
+    const res = await app.handle(new Request("http://localhost/r?X-HTTP-Method-Override=DELETE", {
+      method: "POST",
+      headers: { "X-HTTP-Method-Override": "PUT" },
+    }));
+    expect(await res.json()).toEqual({ method: "PUT" });
+  });
+
+  it("custom getter returning undefined leaves method unchanged", async () => {
+    const app = bunway();
+    app.use(methodOverride({ getter: () => undefined }));
+    app.post("/r", (req, res) => res.json({ method: req.method }));
+
+    const res = await app.handle(new Request("http://localhost/r", { method: "POST" }));
+    expect(await res.json()).toEqual({ method: "POST" });
+  });
+
+  it("body key with non-string value is ignored", async () => {
+    const app = bunway();
+    app.use((req, _res, next) => { req.body = { _method: 42 }; next(); });
+    app.use(methodOverride({ getter: "_method" }));
+    app.post("/r", (req, res) => res.json({ method: req.method }));
+
+    const res = await app.handle(new Request("http://localhost/r", { method: "POST" }));
+    expect(await res.json()).toEqual({ method: "POST" });
+  });
+
+  it("query param array uses first value", async () => {
+    const app = bunway();
+    app.use(methodOverride({ getter: "_method" }));
+    app.put("/r", (req, res) => res.json({ method: req.method }));
+
+    const res = await app.handle(new Request("http://localhost/r?_method=PUT&_method=DELETE", {
+      method: "POST",
+    }));
+    expect(await res.json()).toEqual({ method: "PUT" });
+  });
 });
