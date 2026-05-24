@@ -594,4 +594,53 @@ describe("Session Middleware (Unit)", () => {
       expect(result).toBeDefined();
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // resave / rolling — accepted in SessionOptions but not yet implemented.
+  // These tests document the current (no-op) behaviour so any future
+  // implementation is immediately visible as a behaviour change.
+  // ---------------------------------------------------------------------------
+
+  describe("resave option (declared, not yet implemented)", () => {
+    it("resave: false is accepted without error", async () => {
+      const store = new MemoryStore();
+      const handler = session({ secret: "s", store, resave: false, saveUninitialized: true });
+      const req = new BunRequest(new Request("http://localhost/"), "/");
+      const res = new BunResponse();
+      await new Promise<void>(resolve => handler(req, res, () => resolve()));
+      // Session is still saved regardless — resave:false has no effect yet
+      expect(store.size).toBe(1);
+    });
+
+    it("resave: true is accepted without error", async () => {
+      const store = new MemoryStore();
+      const handler = session({ secret: "s", store, resave: true, saveUninitialized: true });
+      const req = new BunRequest(new Request("http://localhost/"), "/");
+      const res = new BunResponse();
+      await new Promise<void>(resolve => handler(req, res, () => resolve()));
+      expect(store.size).toBe(1);
+    });
+  });
+
+  describe("rolling option (declared, not yet implemented)", () => {
+    it("rolling: true is accepted without error", async () => {
+      const store = new MemoryStore();
+      const handler = session({ secret: "s", store, rolling: true, saveUninitialized: true });
+      const req = new BunRequest(new Request("http://localhost/"), "/");
+      const res = new BunResponse();
+      await new Promise<void>(resolve => handler(req, res, () => resolve()));
+      // rolling:true should reset the cookie on every request — not yet implemented,
+      // but the option must not crash the middleware
+      expect(store.size).toBe(1);
+    });
+
+    it("rolling: false is accepted without error", async () => {
+      const store = new MemoryStore();
+      const handler = session({ secret: "s", store, rolling: false, saveUninitialized: true });
+      const req = new BunRequest(new Request("http://localhost/"), "/");
+      const res = new BunResponse();
+      await new Promise<void>(resolve => handler(req, res, () => resolve()));
+      expect(store.size).toBe(1);
+    });
+  });
 });
