@@ -85,4 +85,64 @@ describe("Express Compatibility: Phase 3", () => {
     const body = await response.json();
     expect(body.timedout).toBe(true);
   });
+
+  it("timeout does NOT fire for fast routes like connect-timeout", async () => {
+    const app = bunway();
+    app.use(timeout(500));
+    app.get("/fast", (req, res) => {
+      res.json({ timedout: req.timedout });
+    });
+
+    const response = await app.handle(new Request("http://localhost/fast"));
+    const body = await response.json();
+    expect(body.timedout).toBe(false);
+  });
+
+  it("hpp sanitizes duplicate query params like hpp npm package", async () => {
+    const app = bunway();
+    app.use(hpp());
+    app.get("/search", (req, res) => {
+      res.json({
+        q: req.query.get("q"),
+        polluted: req.locals.queryPolluted !== undefined,
+      });
+    });
+
+    const response = await app.handle(new Request("http://localhost/search?q=first&q=second"));
+    const body = await response.json();
+    expect(body.polluted).toBe(true);
+  });
+
+  it("validate works with params schema like express-validator", async () => {
+    const app = bunway();
+    app.get(
+      "/users/:id",
+      validate({ params: { id: { required: true, pattern: /^\d+$/ } } }),
+      (req, res) => res.json({ id: req.params.id }),
+    );
+
+    const valid = await app.handle(new Request("http://localhost/users/42"));
+    expect(valid.status).toBe(200);
+
+    const invalid = await app.handle(new Request("http://localhost/users/abc"));
+    expect(invalid.status).toBe(422);
+  });
+
+  it("validate works with query schema like express-validator", async () => {
+    const app = bunway();
+    app.get(
+      "/search",
+      validate({ query: { q: { required: true, min: 2 } } }),
+      (req, res) => res.json({ ok: true }),
+    );
+
+    const valid = await app.handle(new Request("http://localhost/search?q=bun"));
+    expect(valid.status).toBe(200);
+
+    const invalid = await app.handle(new Request("http://localhost/search?q=x"));
+    expect(invalid.status).toBe(422);
+
+    const missing = await app.handle(new Request("http://localhost/search"));
+    expect(missing.status).toBe(422);
+  });
 });
