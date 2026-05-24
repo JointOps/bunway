@@ -171,12 +171,12 @@ describe("Express Compatibility: Error Handling", () => {
     expect(await response.json()).toEqual({ routerError: "router error" });
   });
 
-  test("Normal middleware not called when error occurs like Express", async () => {
+  test("Pre-error middleware runs before the erroring route like Express", async () => {
     const app = bunway();
-    let normalMiddlewareCalled = false;
+    let preCalled = false;
 
     app.use((req, res, next) => {
-      normalMiddlewareCalled = true;
+      preCalled = true;
       next();
     });
 
@@ -189,6 +189,53 @@ describe("Express Compatibility: Error Handling", () => {
     });
 
     await app.handle(buildRequest("/test"));
-    expect(normalMiddlewareCalled).toBe(true);
+    expect(preCalled).toBe(true);
+  });
+
+  test("err.statusCode is used as status when err.status is absent like Express", async () => {
+    const app = bunway();
+
+    app.get("/test", (req, res, next) => {
+      const error: any = new Error("Payment Required");
+      error.statusCode = 402;
+      next(error);
+    });
+
+    app.use((err: any, req: any, res: any, next: any) => {
+      res.status(err.statusCode || err.status || 500).json({ error: err.message });
+    });
+
+    const response = await app.handle(buildRequest("/test"));
+    expect(response.status).toBe(402);
+    expect(await response.json()).toEqual({ error: "Payment Required" });
+  });
+
+  test("err.status takes precedence over err.statusCode like Express", async () => {
+    const app = bunway();
+
+    app.get("/test", (req, res, next) => {
+      const error: any = new Error("Gone");
+      error.status = 410;
+      error.statusCode = 500;
+      next(error);
+    });
+
+    app.use((err: any, req: any, res: any, next: any) => {
+      res.status(err.status || 500).json({ error: err.message });
+    });
+
+    const response = await app.handle(buildRequest("/test"));
+    expect(response.status).toBe(410);
+  });
+
+  test("returns 500 with no error handler registered like Express", async () => {
+    const app = bunway();
+
+    app.get("/test", (req, res, next) => {
+      next(new Error("unhandled error"));
+    });
+
+    const response = await app.handle(buildRequest("/test"));
+    expect(response.status).toBe(500);
   });
 });

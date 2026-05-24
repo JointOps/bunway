@@ -1,5 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import bunway from "../../src";
+import { signCookie } from "../../src";
 import { buildRequest } from "../utils/testUtils";
 
 describe("Express Compatibility: Cookie Handling", () => {
@@ -46,23 +47,48 @@ describe("Express Compatibility: Cookie Handling", () => {
     expect(setCookie).toContain("Expires=Thu, 01 Jan 1970");
   });
 
-  test("Cookie parser with secret works like Express", async () => {
+  test("Cookie parser with secret verifies HMAC signed cookies like Express", async () => {
+    const secret = "test-secret-key";
+    const originalValue = "user-session-data";
+    const signed = signCookie(originalValue, secret);
+
     const app = bunway();
-    app.use(bunway.cookieParser("secret-key"));
+    app.use(bunway.cookieParser(secret));
 
     app.get("/test", (req, res) => {
       res.json({
-        hasCookies: typeof req.cookies === "object",
-        hasSignedCookies: typeof req.signedCookies === "object"
+        unsigned: req.signedCookies["session"],
+        inSignedCookies: "session" in req.signedCookies,
+        notInPlain: !("session" in req.cookies)
       });
     });
 
     const response = await app.handle(buildRequest("/test", {
-      headers: { "Cookie": "session=test123" }
+      headers: { "Cookie": `session=s:${signed}` }
     }));
-    const data = await response.json();
-    expect(data.hasCookies).toBe(true);
-    expect(data.hasSignedCookies).toBe(true);
+    const data = await response.json() as { unsigned: string; inSignedCookies: boolean; notInPlain: boolean };
+    expect(data.inSignedCookies).toBe(true);
+    expect(data.unsigned).toBe(originalValue);
+    expect(data.notInPlain).toBe(true);
+  });
+
+  test("Cookie parser rejects tampered signed cookies like Express", async () => {
+    const app = bunway();
+    app.use(bunway.cookieParser("real-secret"));
+
+    app.get("/test", (req, res) => {
+      res.json({
+        signedCookiesEmpty: Object.keys(req.signedCookies).length === 0,
+        tamperedInPlain: "session" in req.cookies
+      });
+    });
+
+    const response = await app.handle(buildRequest("/test", {
+      headers: { "Cookie": "session=s:tampered-value.bad-signature" }
+    }));
+    const data = await response.json() as { signedCookiesEmpty: boolean; tamperedInPlain: boolean };
+    expect(data.signedCookiesEmpty).toBe(true);
+    expect(data.tamperedInPlain).toBe(true);
   });
 
   test("Cookie options work like Express", async () => {
