@@ -64,17 +64,61 @@ export function cors(options: CorsOptions = {}): Handler {
     preflightContinue = false,
   } = options;
 
+  // Pre-compute static header strings
   const methodsStr = methods.join(", ");
-  const allowedHeadersStr = allowedHeaders?.join(", ");
-  const exposedHeadersStr = exposedHeaders?.join(", ");
+  const allowedHeadersStr = allowedHeaders?.join(", ") ?? null;
+  const exposedHeadersStr = exposedHeaders?.join(", ") ?? null;
+  const maxAgeStr = String(maxAge);
+
+  // Fast path: static wildcard origin with no credentials —
+  // headers are identical for every response, so pre-build them once
+  const isStaticWildcard = originOption === "*" && !credentials;
+
+  // Pre-built preflight entries for tight loop application (excludes Allow-Headers
+  // when not configured, since those must be mirrored per-request)
+  const staticPreflightEntries: [string, string][] = isStaticWildcard ? [
+    ["Access-Control-Allow-Origin", "*"],
+    ["Access-Control-Allow-Methods", methodsStr],
+    ...(allowedHeadersStr ? [["Access-Control-Allow-Headers", allowedHeadersStr] as [string, string]] : []),
+    ["Access-Control-Max-Age", maxAgeStr],
+    ["Vary", "Origin"],
+  ] : [];
 
   return (req, res, next) => {
     const requestOrigin = req.get("origin");
+
+    // Non-CORS request: skip immediately — no allocation, no matching
     if (!requestOrigin) {
       next();
       return;
     }
 
+    // Fast path: static wildcard
+    if (isStaticWildcard) {
+      if (req.method === "OPTIONS") {
+        for (let i = 0; i < staticPreflightEntries.length; i++) {
+          const entry = staticPreflightEntries[i]!;
+          res.set(entry[0], entry[1]);
+        }
+        // Mirror request headers when allowedHeaders not statically configured
+        if (!allowedHeadersStr) {
+          const requested = req.get("access-control-request-headers");
+          if (requested) res.set("Access-Control-Allow-Headers", requested);
+        }
+        if (!preflightContinue) {
+          res.status(204).send(null);
+          return;
+        }
+      } else {
+        res.set("Access-Control-Allow-Origin", "*");
+        res.set("Vary", "Origin");
+        if (exposedHeadersStr) res.set("Access-Control-Expose-Headers", exposedHeadersStr);
+      }
+      next();
+      return;
+    }
+
+    // Dynamic origin matching path (non-wildcard configs)
     const resolved = resolveOrigin(requestOrigin, originOption, credentials, req);
     if (!resolved) {
       next();
@@ -100,7 +144,7 @@ export function cors(options: CorsOptions = {}): Handler {
         if (requested) res.set("Access-Control-Allow-Headers", requested);
       }
 
-      res.set("Access-Control-Max-Age", String(maxAge));
+      res.set("Access-Control-Max-Age", maxAgeStr);
 
       if (!preflightContinue) {
         res.status(204).send(null);
