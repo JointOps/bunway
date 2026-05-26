@@ -1,124 +1,424 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+/* ═══════════════════════════════════════════════════════════════
+   bunWay global styles v2.0
+   File: docs/.vitepress/theme/custom.css
+   Note: font @import removed — fonts loaded via config.ts head[]
+═══════════════════════════════════════════════════════════════ */
+
+/* ── Token system (paste full :root from section 1.4) ─────── */
 
 :root {
-  --vp-c-brand-1: #3fc5b7;
-  --vp-c-brand-2: #2aa699;
-  --vp-c-brand-3: #1e7c73;
-  --vp-c-brand-soft: rgba(63, 197, 183, 0.16);
-  --vp-c-font-family-base: "Inter", "Segoe UI", Roboto, sans-serif;
-  --vp-font-family-mono: "JetBrains Mono", "Fira Code", monospace;
+  --bg-base:    #070809;
+  --bg-raised:  #0d0f11;
+  --bg-inset:   #050607;
+  --bg-alt:     #0c0e10;
+  --bg-overlay: #13161a;
+  --brand:       #3fc5b7;
+  --brand-mid:   #2da89b;
+  --brand-deep:  #1e7c73;
+  --brand-light: #6addd5;
+  --brand-4:    rgba(63, 197, 183, 0.04);
+  --brand-8:    rgba(63, 197, 183, 0.08);
+  --brand-12:   rgba(63, 197, 183, 0.12);
+  --brand-16:   rgba(63, 197, 183, 0.16);
+  --brand-24:   rgba(63, 197, 183, 0.24);
+  --brand-32:   rgba(63, 197, 183, 0.32);
+  --border:        rgba(255, 255, 255, 0.07);
+  --border-mid:    rgba(255, 255, 255, 0.11);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --border-brand:  rgba(63, 197, 183, 0.22);
+  --text-1:     #ffffff;
+  --text-2:     rgba(255, 255, 255, 0.62);
+  --text-3:     rgba(255, 255, 255, 0.35);
+  --text-4:     rgba(255, 255, 255, 0.18);
+  --text-brand: var(--brand);
+  --text-code:  #a8b4c8;
+  --green:        #22c55e;
+  --green-dim:    rgba(34, 197, 94, 0.12);
+  --green-border: rgba(34, 197, 94, 0.25);
+  --red:          #f87171;
+  --red-dim:      rgba(248, 113, 113, 0.12);
+  --red-border:   rgba(248, 113, 113, 0.25);
+  --amber:        #f59e0b;
+  --amber-dim:    rgba(245, 158, 11, 0.12);
+  --amber-border: rgba(245, 158, 11, 0.25);
+  --vp-c-brand-1:    var(--brand);
+  --vp-c-brand-2:    var(--brand-mid);
+  --vp-c-brand-3:    var(--brand-deep);
+  --vp-c-brand-soft: var(--brand-12);
+  --font-display: "Space Grotesk", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body:    "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono:    "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  --vp-c-font-family-base: var(--font-body);
+  --vp-font-family-mono:   var(--font-mono);
+  --text-xs:   0.694rem;
+  --text-sm:   0.833rem;
+  --text-base: 1rem;
+  --text-lg:   1.2rem;
+  --text-xl:   1.44rem;
+  --text-2xl:  1.728rem;
+  --text-3xl:  2.074rem;
+  --text-4xl:  2.488rem;
+  --text-5xl:  2.5rem;
+  --text-6xl:  3rem;
+  --text-7xl:  3.6rem;
+  --lh-none:    1;
+  --lh-tight:   1.2;
+  --lh-snug:    1.4;
+  --lh-normal:  1.5;
+  --lh-relaxed: 1.7;
+  --lh-loose:   1.85;
+  --ls-tighter: -0.04em;
+  --ls-tight:   -0.025em;
+  --ls-snug:    -0.015em;
+  --ls-normal:   0em;
+  --ls-wide:     0.04em;
+  --ls-wider:    0.08em;
+  --ls-widest:   0.12em;
+  --space-1:   4px;
+  --space-2:   8px;
+  --space-3:   12px;
+  --space-4:   16px;
+  --space-5:   20px;
+  --space-6:   24px;
+  --space-8:   32px;
+  --space-10:  40px;
+  --space-12:  48px;
+  --space-16:  64px;
+  --space-20:  80px;
+  --space-24:  96px;
+  --space-32:  128px;
+  --r-xs:   4px;
+  --r-sm:   8px;
+  --r-md:   12px;
+  --r-lg:   16px;
+  --r-pill: 9999px;
+  --shadow-xs:       0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-sm:       0 2px 6px rgba(0, 0, 0, 0.55), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md:       0 4px 16px rgba(0, 0, 0, 0.65), 0 2px 4px rgba(0, 0, 0, 0.4);
+  --shadow-lg:       0 8px 32px rgba(0, 0, 0, 0.75), 0 4px 8px rgba(0, 0, 0, 0.4);
+  --shadow-brand:    0 8px 24px rgba(63, 197, 183, 0.22);
+  --shadow-brand-sm: 0 4px 12px rgba(63, 197, 183, 0.16);
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-instant: 0.1s;
+  --dur-fast:    0.15s;
+  --dur-base:    0.2s;
+  --dur-slow:    0.35s;
+  --dur-enter:   0.6s;
+  --syn-kw:      #c792ea;
+  --syn-str:     #c3e88d;
+  --syn-fn:      #82aaff;
+  --syn-num:     #f78c6c;
+  --syn-comment: rgba(255, 255, 255, 0.25);
+  --syn-type:    #ffcb6b;
+  --syn-op:      #89ddff;
 }
 
-.VPContent {
-  line-height: 1.75;
+/* ── Global focus-visible ─────────────────────────────────── */
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+  border-radius: var(--r-xs);
 }
 
-.VPDoc .content {
-  padding-bottom: 3rem;
-  font-size: 17px;
+/* ── Base ─────────────────────────────────────────────────── */
+
+html {
+  scroll-behavior: smooth;
 }
 
-.VPDoc .content h2 {
-  margin-top: 3rem;
+::selection {
+  background: var(--brand-24);
+  color: var(--text-1);
 }
 
-.VPDoc .outline {
-  font-weight: 500;
+/* ═══════════════════════════════════════════════════════════
+   VitePress docs overrides
+   Everything below applies to docs pages (not the landing)
+═══════════════════════════════════════════════════════════ */
+
+/* ── Typography baseline ──────────────────────────────────── */
+
+html,
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "kern" 1, "liga" 1;
+}
+
+/* ── Navbar ───────────────────────────────────────────────── */
+
+.VPNav {
+  font-family: var(--font-body);
 }
 
 .VPNavBar {
-  font-weight: 500;
+  background: rgba(7, 8, 9, 0.88) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border) !important;
 }
+
+.VPSwitchAppearance,
+.VPNavBarAppearance {
+  display: none !important;
+}
+
+.VPNavBarTitle .title {
+  font-family: var(--font-display) !important;
+  font-weight: 700 !important;
+  font-size: var(--text-base) !important;
+  letter-spacing: var(--ls-snug) !important;
+  color: var(--vp-c-brand-1) !important;
+}
+
+.VPNavBarMenu .VPNavBarMenuLink {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  letter-spacing: var(--ls-wide);
+}
+
+.VPNavBarMenu .VPNavBarMenuLink.active,
+.VPNavBarMenu .VPNavBarMenuLink:hover {
+  color: var(--vp-c-brand-1);
+}
+
+/* ── Content area ─────────────────────────────────────────── */
+
+.VPContent {
+  font-family: var(--font-body);
+  line-height: var(--lh-relaxed);
+}
+
+.VPDoc .content {
+  font-size: var(--text-base);
+  padding-bottom: var(--space-24);
+}
+
+.VPDoc .content > p {
+  max-width: 72ch;
+  line-height: var(--lh-relaxed);
+  color: var(--vp-c-text-2);
+  margin-top: 0;
+  margin-bottom: var(--space-4);
+}
+
+/* ── Docs heading scale ───────────────────────────────────── */
+
+.VPDoc .content h1 {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  letter-spacing: var(--ls-tight);
+  line-height: var(--lh-snug);
+  margin-top: 0;
+  margin-bottom: var(--space-6);
+}
+
+.VPDoc .content h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  letter-spacing: var(--ls-snug);
+  line-height: var(--lh-snug);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--vp-c-divider);
+  margin-top: var(--space-12);
+  margin-bottom: var(--space-5);
+}
+
+.VPDoc .content h3 {
+  font-family: var(--font-body);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  letter-spacing: var(--ls-snug);
+  line-height: var(--lh-snug);
+  margin-top: var(--space-8);
+  margin-bottom: var(--space-3);
+}
+
+.VPDoc .content h4 {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: 600;
+  letter-spacing: var(--ls-normal);
+  color: var(--vp-c-text-2);
+  margin-top: var(--space-6);
+  margin-bottom: var(--space-2);
+}
+
+/* ── Inline code ──────────────────────────────────────────── */
 
 code {
-  font-size: 0.95em;
-}
-
-pre code {
-  font-size: 0.9em;
-  line-height: 1.65;
-}
-
-.vp-doc pre {
-  background: #ffffff;
-  border: 1px solid rgba(63, 197, 183, 0.18);
-  border-radius: 12px;
-}
-
-.vp-doc pre code {
-  background: transparent;
-}
-
-.vp-doc table {
-  border-collapse: separate;
-  border-spacing: 0;
-  overflow: hidden;
-  border: 1px solid rgba(63, 197, 183, 0.25);
-  border-radius: 12px;
-  width: max-content;
-  max-width: 100%;
-  display: table;
-}
-
-.vp-doc th,
-.vp-doc td {
-  border: none;
-  padding: 12px 16px;
-}
-
-.vp-doc blockquote {
-  border-left: 4px solid var(--vp-c-brand-2);
-  background: rgba(63, 197, 183, 0.05);
-  padding: 0.8rem 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.88em;
 }
 
 .vp-doc :not(pre) > code {
-  background: rgba(30, 124, 115, 0.18);
-  color: #0f2c28;
-  padding: 0.15rem 0.35rem;
-  border-radius: 4px;
+  background: var(--brand-12);
+  color: var(--brand-light);
+  padding: 0.15rem 0.4rem;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--brand-16);
+  font-size: 0.85em;
+  font-weight: 500;
+}
+
+/* ── Code blocks ──────────────────────────────────────────── */
+
+pre code {
+  font-size: var(--text-sm);
+  line-height: var(--lh-loose);
+}
+
+.vp-doc pre {
+  background: var(--bg-raised) !important;
+  border: 1px solid var(--border-mid);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-md);
+}
+
+.vp-doc pre code {
+  background: transparent !important;
+  color: var(--text-code);
+}
+
+/* ── Tables ───────────────────────────────────────────────── */
+
+.vp-doc .table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: var(--space-4) 0;
+  border: 1px solid rgba(63, 197, 183, 0.2);
+  border-radius: var(--r-md);
+}
+
+.vp-doc table {
+  border-collapse: collapse;
+  width: max-content;
+  min-width: 100%;
+  display: table;
+  border: none;
+  border-radius: 0;
+  margin: 0;
+}
+
+.vp-doc th {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--ls-wider);
+  color: var(--text-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid rgba(63, 197, 183, 0.15);
+  background: rgba(63, 197, 183, 0.04);
+  white-space: nowrap;
+}
+
+.vp-doc td {
+  font-size: var(--text-sm);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  line-height: var(--lh-relaxed);
+}
+
+.vp-doc tr:last-child td {
+  border-bottom: none;
+}
+
+/* ── Blockquotes ──────────────────────────────────────────── */
+
+.vp-doc blockquote {
+  border-left: 3px solid var(--vp-c-brand-1);
+  background: var(--brand-4);
+  padding: var(--space-4) var(--space-5);
+  border-radius: 0 var(--r-xs) var(--r-xs) 0;
+  font-style: italic;
+  color: var(--vp-c-text-2);
+  margin: var(--space-6) 0;
+}
+
+.vp-doc blockquote p {
+  margin: 0;
+  max-width: none;
+}
+
+/* ── Callout blocks ───────────────────────────────────────── */
+
+.vp-doc .custom-block {
+  border-radius: var(--r-sm);
+  padding: var(--space-4) var(--space-5);
+  font-size: var(--text-sm);
+  line-height: var(--lh-relaxed);
+  margin: var(--space-6) 0;
+}
+
+.vp-doc .custom-block .custom-block-title {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: var(--ls-widest);
+  text-transform: uppercase;
+  margin-bottom: var(--space-2);
+}
+
+.vp-doc .custom-block p:last-child {
+  margin-bottom: 0;
 }
 
 .vp-doc .tip {
-  border-left-color: var(--vp-c-brand-2);
-  background: rgba(63, 197, 183, 0.12);
+  border-left-color: var(--vp-c-brand-1);
+  background: var(--brand-8);
 }
 
 .vp-doc .warning {
-  border-left-color: #f6c945;
-  background: rgba(246, 201, 69, 0.1);
+  border-left-color: var(--amber);
+  background: var(--amber-dim);
 }
 
-.tsd-panel,
-.tsd-page-title {
-  font-family: "Inter", "Segoe UI", Roboto, sans-serif;
+.vp-doc .danger {
+  border-left-color: var(--red);
+  background: var(--red-dim);
 }
 
-.tsd-page-toolbar {
-  background: rgba(63, 197, 183, 0.1);
+.vp-doc .info {
+  border-left-color: var(--border-strong);
+  background: rgba(255, 255, 255, 0.03);
 }
 
-html.dark .vp-doc pre {
-  background: #0f1314;
-  border-color: rgba(63, 197, 183, 0.28);
+/* ── On-this-page outline nav ─────────────────────────────── */
+
+.VPDoc .outline {
+  font-family: var(--font-body);
 }
 
-html.dark .vp-doc pre code {
-  background: transparent;
+.VPDocOutlineItem .outline-link {
+  font-size: var(--text-xs);
+  font-weight: 400;
+  letter-spacing: var(--ls-normal);
+  line-height: var(--lh-relaxed);
+  color: var(--vp-c-text-3);
+  transition: color var(--dur-fast) ease;
 }
 
-html.dark .vp-doc table {
-  border-color: rgba(63, 197, 183, 0.35);
+.VPDocOutlineItem .outline-link:hover,
+.VPDocOutlineItem .outline-link.active {
+  color: var(--vp-c-brand-1);
 }
 
-html.dark .vp-doc :not(pre) > code {
-  background: rgba(63, 197, 183, 0.32);
-  color: rgba(248, 255, 254, 0.95);
-}
+/* ═══════════════════════════════════════════════════════════
+   Timeline component (community/build-together.md)
+═══════════════════════════════════════════════════════════ */
 
 .timeline {
   position: relative;
-  margin: 3rem 0;
+  margin: var(--space-12) 0;
   padding-left: 2.75rem;
 }
 
@@ -129,17 +429,20 @@ html.dark .vp-doc :not(pre) > code {
   top: 0;
   bottom: 0;
   width: 2px;
-  background: linear-gradient(180deg, rgba(63, 197, 183, 0.65), rgba(30, 124, 115, 0.35));
+  background: linear-gradient(
+    180deg,
+    rgba(63, 197, 183, 0.6) 0%,
+    rgba(30, 124, 115, 0.3) 100%
+  );
 }
 
 .timeline__node {
   position: relative;
-  margin-bottom: 2.75rem;
-  padding: 1.6rem 1.6rem 1.6rem 1.8rem;
-  border-radius: 20px;
-  border: 1px solid rgba(63, 197, 183, 0.25);
-  background: rgba(63, 197, 183, 0.08);
-  box-shadow: 0 18px 40px rgba(63, 197, 183, 0.08);
+  margin-bottom: var(--space-8);
+  padding: var(--space-6);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-brand);
+  background: var(--brand-4);
 }
 
 .timeline__node:last-child {
@@ -149,42 +452,51 @@ html.dark .vp-doc :not(pre) > code {
 .timeline__node::before {
   content: "";
   position: absolute;
-  left: -2.1rem;
-  top: 1.8rem;
-  width: 14px;
-  height: 14px;
+  left: calc(-2.1rem);
+  top: 1.5rem;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #3fc5b7, #1e7c73);
-  box-shadow: 0 0 0 4px rgba(63, 197, 183, 0.25);
+  background: var(--brand);
+  box-shadow: 0 0 0 4px var(--brand-16);
 }
 
 .timeline__badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 0.75rem;
-  letter-spacing: 0.18em;
+  gap: var(--space-1);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  letter-spacing: var(--ls-widest);
   text-transform: uppercase;
-  padding: 0.3rem 0.85rem;
-  border-radius: 999px;
-  background: rgba(63, 197, 183, 0.18);
-  color: rgba(17, 39, 44, 0.85);
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  background: var(--brand-12);
+  color: var(--brand);
+  border: 1px solid var(--brand-16);
 }
 
 .timeline__badge.success {
-  background: rgba(63, 197, 183, 0.25);
-  color: rgba(17, 39, 44, 0.9);
+  background: var(--brand-16);
+  color: var(--brand-light);
+  border-color: var(--brand-24);
 }
 
 .timeline__node h3 {
-  margin-top: 0.9rem;
-  margin-bottom: 0.6rem;
-  font-size: 1.4rem;
-  letter-spacing: 0.02em;
+  font-family: var(--font-display);
+  margin-top: var(--space-3);
+  margin-bottom: var(--space-2);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  letter-spacing: var(--ls-snug);
+  color: var(--text-1);
 }
 
 .timeline__node p {
-  margin-bottom: 0.9rem;
+  margin-bottom: var(--space-3);
+  font-size: var(--text-sm);
+  line-height: var(--lh-relaxed);
+  color: var(--text-2);
 }
 
 .timeline__node ul {
@@ -193,29 +505,1523 @@ html.dark .vp-doc :not(pre) > code {
 }
 
 .timeline__node li {
-  margin-bottom: 0.35rem;
+  margin-bottom: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-2);
 }
 
-html.dark .timeline__node {
-  background: rgba(30, 124, 115, 0.22);
-  border-color: rgba(63, 197, 183, 0.32);
-  box-shadow: 0 18px 40px rgba(17, 39, 44, 0.45);
+/* ═══════════════════════════════════════════════════════════
+   TypeDoc / API reference (public/api/*)
+═══════════════════════════════════════════════════════════ */
+
+.tsd-panel,
+.tsd-page-title {
+  font-family: var(--font-body);
 }
 
-html.dark .timeline__badge,
-html.dark .timeline__badge.success {
-  color: rgba(230, 255, 252, 0.88);
+.tsd-page-toolbar {
+  background: var(--brand-8);
 }
 
-html.dark .timeline::before {
-  background: linear-gradient(180deg, rgba(63, 197, 183, 0.5), rgba(30, 124, 115, 0.25));
+/* ═══════════════════════════════════════════════════════════
+   Reduced motion
+═══════════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
-.VPSidebar .group > .title {
+/* ═══════════════════════════════════════════════════════════
+   DOCS SHELL — Part 3
+   VitePress 1.6.4 component overrides.
+   All values reference tokens defined in Part 1.
+═══════════════════════════════════════════════════════════ */
+
+/* ── Force dark color scheme globally ────────────────────── */
+:root {
+  color-scheme: dark;
+}
+
+/* ── VitePress semantic vars — patch both :root and .dark ── */
+:root,
+.dark {
+  --vp-c-bg:             var(--bg-base);
+  --vp-c-bg-soft:        var(--bg-raised);
+  --vp-c-bg-mute:        var(--bg-alt);
+  --vp-c-bg-elv:         var(--bg-overlay);
+  --vp-c-border:         var(--border);
+  --vp-c-divider:        var(--border);
+  --vp-c-text-1:         var(--text-1);
+  --vp-c-text-2:         var(--text-2);
+  --vp-c-text-3:         var(--text-3);
+  --vp-code-bg:          var(--bg-raised);
+  --vp-code-color:       var(--brand-light);
+  --vp-sidebar-bg-color: var(--bg-base);
+  --vp-nav-bg-color:     var(--bg-base);
+}
+
+/* ─────────────────────────────────────────────────────────
+   NAVBAR
+───────────────────────────────────────────────────────── */
+
+.VPNav {
+  background: rgba(7, 8, 9, 0.92) !important;
+  border-bottom: 1px solid var(--border) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}
+
+/* VitePress sets its own blur pseudo — remove it */
+.VPNavBar::before {
+  display: none !important;
+}
+
+/* Site title */
+.VPNavBarTitle .title {
+  font-family: var(--font-display) !important;
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.02em !important;
+  color: var(--text-1) !important;
+}
+
+/* Nav menu links */
+.VPNavBarMenuLink {
+  font-family: var(--font-body) !important;
+  font-size: var(--text-sm) !important;
+  font-weight: 500 !important;
+  letter-spacing: var(--ls-wide) !important;
+  color: var(--text-2) !important;
+  transition: color var(--dur-fast) ease !important;
+}
+
+.VPNavBarMenuLink:hover {
+  color: var(--text-1) !important;
+}
+
+.VPNavBarMenuLink.active {
+  color: var(--brand) !important;
+}
+
+.VPNavBarMenuLink.active::after {
+  background-color: var(--brand) !important;
+}
+
+/* ─────────────────────────────────────────────────────────
+   SIDEBAR — Linear / Stripe inspired
+───────────────────────────────────────────────────────── */
+
+.VPSidebar {
+  background: linear-gradient(180deg, #080a0c 0%, var(--bg-base) 100%) !important;
+  border-right: 1px solid var(--border) !important;
+}
+
+/* Scrollable inner nav */
+.VPSidebarNav {
+  padding: 20px 10px 80px !important;
+}
+
+/* Soft fade at the bottom — scroll depth cue */
+.VPSidebar::after {
+  content: '' !important;
+  position: sticky !important;
+  display: block !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 48px !important;
+  background: linear-gradient(to top, var(--bg-base), transparent) !important;
+  pointer-events: none !important;
+}
+
+/* ── Section labels (Introduction, Core, Middleware…) ────── */
+
+.VPSidebarGroup > .title,
+.VPSidebarGroup .title {
+  font-family: var(--font-mono) !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.15em !important;
+  text-transform: uppercase !important;
+  color: var(--text-4) !important;
+  padding: 22px 10px 7px !important;
+  border: none !important;
+  display: block !important;
+}
+
+.VPSidebarGroup:first-child > .title {
+  padding-top: 4px !important;
+}
+
+/* hairline rule above each section group (except first) */
+.group + .group {
+  border-top: 1px solid rgba(255,255,255,0.05) !important;
+  margin-top: 4px !important;
+  padding-top: 4px !important;
+}
+
+/* ── All item links ──────────────────────────────────────── */
+
+.VPSidebarItem .item .link {
+  display: flex !important;
+  align-items: center !important;
+  font-family: var(--font-body) !important;
+  font-size: 13.5px !important;
+  font-weight: 400 !important;
+  color: rgba(255, 255, 255, 0.45) !important;
+  border-radius: 7px !important;
+  padding: 6px 10px !important;
+  text-decoration: none !important;
+  line-height: 1.1 !important;
+  transition:
+    color      140ms ease,
+    background 140ms ease !important;
+}
+
+.VPSidebarItem .item .link:hover {
+  color: rgba(255, 255, 255, 0.78) !important;
+  background: rgba(255, 255, 255, 0.055) !important;
+}
+
+/* ── Active item — glowing teal pill (the hero effect) ────── */
+
+.VPSidebarItem.is-active > .item > .link,
+.VPSidebarItem.is-active > .item .link {
+  color: var(--brand-light) !important;
+  font-weight: 500 !important;
+  background: rgba(63, 197, 183, 0.11) !important;
+  box-shadow:
+    0 0 0 1px rgba(63, 197, 183, 0.18),
+    0 0 18px rgba(63, 197, 183, 0.08) !important;
+}
+
+/* ── Sub-group headers (Parsing, Security, Monitoring…) ──── */
+
+/* The row itself looks like a normal item — no accent bar, no gradient */
+.VPSidebarItem.has-children > .item {
+  border-radius: 7px !important;
+  cursor: pointer !important;
+  transition: background 140ms ease !important;
+}
+
+.VPSidebarItem.has-children > .item:hover {
+  background: rgba(255, 255, 255, 0.045) !important;
+}
+
+/* When the sub-group is open: very faint teal wash */
+.VPSidebarItem.has-children:not(.is-collapsed) > .item {
+  background: rgba(63, 197, 183, 0.04) !important;
+}
+
+/* Sub-group label text */
+.VPSidebarItem.has-children > .item .text {
+  font-family: var(--font-body) !important;
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  color: rgba(255, 255, 255, 0.52) !important;
+  flex: 1 !important;
+  transition: color 140ms ease !important;
+}
+
+.VPSidebarItem.has-children > .item:hover .text {
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.VPSidebarItem.has-children:not(.is-collapsed) > .item .text {
+  color: rgba(255, 255, 255, 0.72) !important;
+}
+
+/* ── Caret ──────────────────────────────────────────────── */
+
+.VPSidebarItem .caret {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin-left: auto !important;
+  color: rgba(255, 255, 255, 0.18) !important;
+  transition:
+    color     140ms ease,
+    transform 220ms cubic-bezier(0.25, 0, 0, 1) !important;
+  flex-shrink: 0 !important;
+}
+
+.VPSidebarItem.has-children > .item:hover .caret {
+  color: rgba(255, 255, 255, 0.42) !important;
+}
+
+.VPSidebarItem.has-children:not(.is-collapsed) > .item .caret {
+  color: rgba(63, 197, 183, 0.55) !important;
+}
+
+/* collapsed = caret points right (rotated from the default down) */
+.VPSidebarItem.is-collapsed > .item .caret {
+  transform: rotate(-90deg) !important;
+}
+
+/* ── Nested items container + tree line ─────────────────── */
+
+.VPSidebarItem.has-children > .items {
+  position: relative !important;
+  margin-left: 12px !important;
+  padding-left: 14px !important;
+  margin-top: 1px !important;
+  margin-bottom: 3px !important;
+}
+
+/* the vertical tree line */
+.VPSidebarItem.has-children > .items::before {
+  content: '' !important;
+  position: absolute !important;
+  left: 0 !important;
+  top: 5px !important;
+  bottom: 5px !important;
+  width: 1px !important;
+  background: linear-gradient(
+    180deg,
+    rgba(63, 197, 183, 0.22) 0%,
+    rgba(63, 197, 183, 0.04) 100%
+  ) !important;
+  pointer-events: none !important;
+}
+
+/* nested item links are slightly smaller and dimmer by default */
+.VPSidebarItem.level-2 > .item > .link {
+  font-size: 13px !important;
+  padding-left: 8px !important;
+}
+
+.VPSidebarItem.level-3 > .item > .link {
+  padding-left: 20px !important;
+}
+
+/* ── Reduce motion ──────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .VPSidebarItem .item .link,
+  .VPSidebarItem.has-children > .item,
+  .VPSidebarItem .caret {
+    transition: none !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────
+   CONTENT AREA
+───────────────────────────────────────────────────────── */
+
+.VPDoc {
+  padding-top: var(--space-12) !important;
+  padding-bottom: var(--space-24) !important;
+}
+
+/* ── Headings ─────────────────────────────────────────── */
+
+.vp-doc h1 {
+  font-family: var(--font-display) !important;
+  font-size: var(--text-3xl) !important;
+  font-weight: 700 !important;
+  letter-spacing: var(--ls-tight) !important;
+  line-height: var(--lh-snug) !important;
+  color: var(--text-1) !important;
+  margin: 0 0 var(--space-6) !important;
+  border-bottom: 1px solid var(--border) !important;
+  padding-bottom: var(--space-5) !important;
+}
+
+.vp-doc h2 {
+  font-family: var(--font-display) !important;
+  font-size: var(--text-2xl) !important;
+  font-weight: 700 !important;
+  letter-spacing: var(--ls-snug) !important;
+  line-height: var(--lh-snug) !important;
+  color: var(--text-1) !important;
+  margin-top: var(--space-12) !important;
+  margin-bottom: var(--space-4) !important;
+  padding-bottom: var(--space-3) !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-top: none !important;
+}
+
+.vp-doc h3 {
+  font-family: var(--font-body) !important;
+  font-size: var(--text-xl) !important;
+  font-weight: 600 !important;
+  letter-spacing: var(--ls-snug) !important;
+  line-height: var(--lh-snug) !important;
+  color: var(--text-1) !important;
+  margin-top: var(--space-8) !important;
+  margin-bottom: var(--space-3) !important;
+  border: none !important;
+}
+
+.vp-doc h4 {
+  font-family: var(--font-body) !important;
+  font-size: var(--text-base) !important;
+  font-weight: 600 !important;
+  letter-spacing: var(--ls-normal) !important;
+  color: var(--text-2) !important;
+  margin-top: var(--space-6) !important;
+  margin-bottom: var(--space-2) !important;
+  border: none !important;
+}
+
+/* ── Body ─────────────────────────────────────────────── */
+
+.vp-doc p {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: var(--lh-relaxed);
+  color: var(--text-2);
+  margin: 0 0 var(--space-4);
+  max-width: 72ch;
+}
+
+.vp-doc ul,
+.vp-doc ol {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: var(--lh-relaxed);
+  color: var(--text-2);
+  padding-left: var(--space-5);
+  margin: 0 0 var(--space-4);
+}
+
+.vp-doc li + li {
+  margin-top: var(--space-1);
+}
+
+/* ── Links ────────────────────────────────────────────── */
+
+.vp-doc a {
+  color: var(--brand) !important;
+  text-decoration: none !important;
+  font-weight: 500 !important;
+  border-bottom: 1px solid var(--brand-24) !important;
+  transition: color var(--dur-fast) ease, border-color var(--dur-fast) ease !important;
+}
+
+.vp-doc a:hover {
+  color: var(--brand-light) !important;
+  border-bottom-color: var(--brand) !important;
+}
+
+/* ── Inline code ──────────────────────────────────────── */
+
+.vp-doc :not(pre) > code {
+  font-family: var(--font-mono) !important;
+  font-size: 0.88em !important;
+  background: rgba(63, 197, 183, 0.1) !important;
+  color: var(--brand-light) !important;
+  padding: 0.12em 0.42em !important;
+  border-radius: var(--r-xs) !important;
+  border: 1px solid var(--brand-16) !important;
+}
+
+/* ── Code blocks ──────────────────────────────────────── */
+
+.vp-doc div[class*="language-"] {
+  margin: var(--space-5) 0 !important;
+  border-radius: var(--r-md) !important;
+  border: 1px solid var(--border) !important;
+  overflow: hidden !important;
+}
+
+.vp-doc div[class*="language-"] pre {
+  background: var(--bg-raised) !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: var(--space-5) var(--space-6) !important;
+  margin: 0 !important;
+  overflow-x: auto !important;
+}
+
+.vp-doc div[class*="language-"] pre code {
+  font-family: var(--font-mono) !important;
+  font-size: var(--text-sm) !important;
+  line-height: var(--lh-loose) !important;
+  color: var(--text-code) !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+/* Language label */
+.vp-doc div[class*="language-"] > span.lang {
+  font-family: var(--font-mono) !important;
+  font-size: var(--text-xs) !important;
+  font-weight: 600 !important;
+  letter-spacing: var(--ls-wide) !important;
+  color: var(--text-3) !important;
+  text-transform: uppercase !important;
+  padding: 5px var(--space-4) !important;
+  background: var(--bg-alt) !important;
+  border-bottom: 1px solid var(--border) !important;
+  display: block !important;
+}
+
+/* Copy button — hidden by default, revealed on code block hover.
+   Keep background-color (not shorthand) so VitePress's SVG icon isn't wiped. */
+.vp-doc div[class*="language-"] button.copy {
+  background-color: var(--bg-alt) !important;
+  border: 1px solid transparent !important;
+  border-radius: var(--r-sm) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition:
+    opacity          var(--dur-fast) ease,
+    border-color     var(--dur-fast) ease !important;
+}
+
+.vp-doc div[class*="language-"]:hover button.copy {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.vp-doc div[class*="language-"]:hover button.copy:hover {
+  border-color: var(--border-mid) !important;
+}
+
+.vp-doc div[class*="language-"] button.copy.copied {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+/* ── Blockquote ───────────────────────────────────────── */
+
+.vp-doc blockquote {
+  border-left: 3px solid var(--border-brand) !important;
+  background: var(--brand-4) !important;
+  padding: var(--space-4) var(--space-5) !important;
+  margin: var(--space-5) 0 !important;
+  border-radius: 0 var(--r-sm) var(--r-sm) 0 !important;
+}
+
+.vp-doc blockquote p {
+  margin: 0 !important;
+  max-width: none !important;
+  color: var(--text-2) !important;
+  font-style: italic !important;
+}
+
+/* ── Tables ───────────────────────────────────────────── */
+
+.vp-doc table {
+  border-collapse: collapse !important;
+  width: 100% !important;
+  margin: var(--space-6) 0 !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--r-md) !important;
+  overflow: hidden !important;
+  display: table !important;
+  max-width: 100% !important;
+}
+
+.vp-doc th {
+  font-family: var(--font-body) !important;
+  font-size: var(--text-xs) !important;
+  font-weight: 600 !important;
+  letter-spacing: var(--ls-wide) !important;
+  text-transform: uppercase !important;
+  color: var(--text-3) !important;
+  background: var(--bg-alt) !important;
+  padding: var(--space-3) var(--space-4) !important;
+  text-align: left !important;
+  border: none !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+.vp-doc td {
+  font-family: var(--font-body) !important;
+  font-size: var(--text-sm) !important;
+  color: var(--text-2) !important;
+  background: var(--bg-raised) !important;
+  padding: var(--space-3) var(--space-4) !important;
+  border: none !important;
+  border-top: 1px solid var(--border) !important;
+}
+
+.vp-doc tr:nth-child(even) td {
+  background: var(--bg-alt) !important;
+}
+
+/* ── Custom containers ────────────────────────────────── */
+
+.vp-doc .custom-block {
+  border-radius: var(--r-md) !important;
+  padding: var(--space-4) var(--space-5) !important;
+  margin: var(--space-5) 0 !important;
+  border-width: 1px !important;
+  border-style: solid !important;
+}
+
+.vp-doc .custom-block.tip {
+  background: var(--brand-4) !important;
+  border-color: var(--brand-16) !important;
+  border-left: 3px solid var(--brand) !important;
+}
+
+.vp-doc .custom-block.warning {
+  background: var(--amber-dim) !important;
+  border-color: var(--amber-border) !important;
+  border-left: 3px solid var(--amber) !important;
+}
+
+.vp-doc .custom-block.danger {
+  background: var(--red-dim) !important;
+  border-color: var(--red-border) !important;
+  border-left: 3px solid var(--red) !important;
+}
+
+.vp-doc .custom-block.info {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border-color: var(--border) !important;
+  border-left: 3px solid var(--text-3) !important;
+}
+
+.vp-doc .custom-block-title {
+  font-family: var(--font-body) !important;
+  font-size: var(--text-xs) !important;
+  font-weight: 600 !important;
+  letter-spacing: var(--ls-wide) !important;
+  text-transform: uppercase !important;
+  margin: 0 0 var(--space-2) !important;
+}
+
+.vp-doc .custom-block.tip     .custom-block-title { color: var(--brand) !important; }
+.vp-doc .custom-block.warning .custom-block-title { color: var(--amber) !important; }
+.vp-doc .custom-block.danger  .custom-block-title { color: var(--red)   !important; }
+.vp-doc .custom-block.info    .custom-block-title { color: var(--text-2) !important; }
+
+.vp-doc .custom-block p {
+  margin: 0 !important;
+  max-width: none !important;
+  font-style: normal !important;
+}
+
+/* ─────────────────────────────────────────────────────────
+   ON-THIS-PAGE OUTLINE (right aside)
+───────────────────────────────────────────────────────── */
+
+.VPDocAside {
+  padding-top: var(--space-4);
+}
+
+.outline-title {
+  font-family: var(--font-body) !important;
+  font-size: var(--text-xs) !important;
+  font-weight: 600 !important;
+  letter-spacing: var(--ls-wider) !important;
+  text-transform: uppercase !important;
+  color: var(--text-3) !important;
+  margin-bottom: var(--space-3) !important;
+}
+
+.VPDocOutlineItem a {
+  font-family: var(--font-body) !important;
+  font-size: var(--text-sm) !important;
+  color: var(--text-3) !important;
+  text-decoration: none !important;
+  line-height: var(--lh-relaxed) !important;
+  transition: color var(--dur-fast) ease !important;
+  display: block !important;
+  padding: 2px 0 2px var(--space-3) !important;
+  border-left: 1px solid transparent !important;
+}
+
+.VPDocOutlineItem a:hover {
+  color: var(--text-2) !important;
+  border-left-color: var(--border-mid) !important;
+}
+
+.VPDocOutlineItem.is-active > a,
+.VPDocOutlineItem a.active {
+  color: var(--brand) !important;
+  border-left-color: var(--brand) !important;
+  font-weight: 500 !important;
+}
+
+.VPDocOutlineItem.level-3 a {
+  padding-left: calc(var(--space-3) + var(--space-4)) !important;
+  font-size: var(--text-xs) !important;
+}
+
+/* ─────────────────────────────────────────────────────────
+   DOC FOOTER (prev / next) — premium redesign
+───────────────────────────────────────────────────────── */
+
+.VPDocFooter {
+  margin-top: var(--space-16) !important;
+  padding-top: 0 !important;
+  border-top: none !important;
+}
+
+/* edit / last-updated row */
+.edit-info {
+  display: flex !important;
+  align-items: center !important;
+  gap: var(--space-4) !important;
+  padding: var(--space-4) 0 var(--space-8) !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+/* nav grid: two independent cards with gap */
+.prev-next {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: var(--space-4) !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  overflow: visible !important;
+  margin-top: var(--space-8) !important;
+}
+
+/* pager wrapper */
+.VPDocFooter .pager {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  transition: none !important;
+}
+
+.VPDocFooter .pager:hover {
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
+/* pager-link card */
+.VPDocFooter .pager-link {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  padding: 15px 32px !important;
+  text-decoration: none !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--r-lg) !important;
+  background: var(--bg-raised) !important;
+  position: relative !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+  transition:
+    border-color 260ms cubic-bezier(0.25, 0, 0, 1),
+    transform    260ms cubic-bezier(0.25, 0, 0, 1),
+    box-shadow   260ms cubic-bezier(0.25, 0, 0, 1) !important;
+}
+
+/* ambient glow layer (hidden by default, fades in on hover) */
+.VPDocFooter .pager-link::before {
+  content: '' !important;
+  position: absolute !important;
+  inset: 0 !important;
+  border-radius: inherit !important;
+  background: radial-gradient(
+    ellipse 80% 60% at 50% 110%,
+    rgba(63, 197, 183, 0.13) 0%,
+    transparent 70%
+  ) !important;
+  opacity: 0 !important;
+  transition: opacity 300ms ease !important;
+  pointer-events: none !important;
+}
+
+/* top-edge accent bar */
+.VPDocFooter .pager-link::after {
+  content: '' !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 12% !important;
+  right: 12% !important;
+  height: 1px !important;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(63, 197, 183, 0.55),
+    transparent
+  ) !important;
+  opacity: 0 !important;
+  transition: opacity 300ms ease !important;
+}
+
+.VPDocFooter .pager-link:hover {
+  border-color: rgba(63, 197, 183, 0.38) !important;
+  transform: translateY(-3px) !important;
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.55),
+    0 4px 12px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(63, 197, 183, 0.12) !important;
+}
+
+.VPDocFooter .pager-link:hover::before { opacity: 1 !important; }
+.VPDocFooter .pager-link:hover::after  { opacity: 1 !important; }
+
+/* .desc = direction label row */
+.VPDocFooter .pager-link .desc {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  font-family: var(--font-mono) !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.13em !important;
+  text-transform: uppercase !important;
+  color: var(--text-3) !important;
+  margin-bottom: var(--space-4) !important;
+  transition: color 200ms ease !important;
+}
+
+.VPDocFooter .pager-link:hover .desc { color: var(--brand) !important; }
+
+/* arrow pill badge */
+.VPDocFooter .pager-link .desc::before,
+.VPDocFooter .pager-link .desc::after {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 22px !important;
+  height: 22px !important;
+  border-radius: 6px !important;
+  background: var(--bg-overlay) !important;
+  border: 1px solid var(--border) !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  transition:
+    transform   200ms cubic-bezier(0.25, 0, 0, 1),
+    background  200ms ease,
+    border-color 200ms ease !important;
+}
+
+.VPDocFooter .pager-link.prev .desc::before {
+  content: '←' !important;
+  order: -1 !important;
+}
+
+.VPDocFooter .pager-link.next .desc::after {
+  content: '→' !important;
+}
+
+.VPDocFooter .pager-link.prev:hover .desc::before {
+  transform: translateX(-3px) !important;
+  background: rgba(63, 197, 183, 0.1) !important;
+  border-color: rgba(63, 197, 183, 0.3) !important;
+}
+
+.VPDocFooter .pager-link.next:hover .desc::after {
+  transform: translateX(3px) !important;
+  background: rgba(63, 197, 183, 0.1) !important;
+  border-color: rgba(63, 197, 183, 0.3) !important;
+}
+
+/* .title = page name */
+.VPDocFooter .pager-link .title {
+  font-family: var(--font-display) !important;
+  font-size: var(--text-xl) !important;
+  font-weight: 700 !important;
+  color: var(--text-1) !important;
+  letter-spacing: var(--ls-snug) !important;
+  line-height: var(--lh-tight) !important;
+  transition: color 200ms ease !important;
+}
+
+.VPDocFooter .pager-link:hover .title { color: var(--brand-light) !important; }
+
+/* right card: mirror alignment */
+.VPDocFooter .pager-link.next {
+  align-items: flex-end !important;
+  text-align: right !important;
+}
+
+/* single pager (only prev or only next): full width */
+.prev-next:has(.pager:only-child) {
+  grid-template-columns: 1fr !important;
+}
+
+/* reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .VPDocFooter .pager-link,
+  .VPDocFooter .pager-link::before,
+  .VPDocFooter .pager-link::after,
+  .VPDocFooter .pager-link .desc,
+  .VPDocFooter .pager-link .desc::before,
+  .VPDocFooter .pager-link .desc::after,
+  .VPDocFooter .pager-link .title {
+    transition: none !important;
+    transform: none !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────
+   EDIT LINK + LAST UPDATED
+───────────────────────────────────────────────────────── */
+
+.edit-link-button {
+  font-family: var(--font-body) !important;
+  font-size: var(--text-sm) !important;
+  color: var(--text-3) !important;
+  transition: color var(--dur-fast) ease !important;
+  text-decoration: none !important;
+}
+
+.edit-link-button:hover {
+  color: var(--brand) !important;
+}
+
+.last-updated {
+  font-family: var(--font-body) !important;
+  font-size: var(--text-xs) !important;
+  color: var(--text-4) !important;
+}
+
+/* ─────────────────────────────────────────────────────────
+   LOCAL NAV (mobile page title bar)
+───────────────────────────────────────────────────────── */
+
+.VPLocalNav {
+  background: rgba(7, 8, 9, 0.92) !important;
+  border-bottom: 1px solid var(--border) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+.VPLocalNavOutlineDropdown .title {
+  font-family: var(--font-body) !important;
+  font-size: var(--text-sm) !important;
+  font-weight: 500 !important;
+  color: var(--text-2) !important;
+}
+
+/* ─────────────────────────────────────────────────────────
+   MOBILE SIDEBAR DRAWER
+───────────────────────────────────────────────────────── */
+
+@media (max-width: 959px) {
+  .VPSidebar.open {
+    background: var(--bg-base) !important;
+    border-right: 1px solid var(--border) !important;
+  }
+
+  .VPBackdrop {
+    background: rgba(7, 8, 9, 0.72) !important;
+    backdrop-filter: blur(4px) !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────
+   SEARCH
+───────────────────────────────────────────────────────── */
+
+.DocSearch-Button {
+  background: var(--bg-raised) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--r-sm) !important;
+  color: var(--text-3) !important;
+  font-family: var(--font-body) !important;
+  font-size: var(--text-sm) !important;
+  transition: border-color var(--dur-fast) ease !important;
+}
+
+.DocSearch-Button:hover {
+  border-color: var(--border-brand) !important;
+  color: var(--text-2) !important;
+}
+
+/* ─────────────────────────────────────────────────────────
+   SCROLLBAR
+───────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar          { width: 5px; height: 5px; }
+::-webkit-scrollbar-track    { background: transparent; }
+::-webkit-scrollbar-thumb    { background: var(--border-mid); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+/* ═══════════════════════════════════════════════════════════
+   CODE GROUP TABS — Part 4
+   VitePress :::code-group container.
+═══════════════════════════════════════════════════════════ */
+
+.vp-code-group {
+  margin: var(--space-5) 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+/* Tab strip */
+.vp-code-group .tabs {
+  display: flex;
+  background: var(--bg-alt);
+  border-bottom: 1px solid var(--border);
+  padding: 0 var(--space-2);
+  gap: 0;
+}
+
+.vp-code-group .tabs input[type="radio"] {
+  display: none;
+}
+
+.vp-code-group .tabs label {
+  font-family: var(--font-mono) !important;
+  font-size: var(--text-xs) !important;
+  font-weight: 500 !important;
+  letter-spacing: var(--ls-wide) !important;
+  color: var(--text-3) !important;
+  padding: 9px var(--space-4) !important;
+  cursor: pointer !important;
+  border-bottom: 2px solid transparent !important;
+  margin-bottom: -1px !important;
+  transition: color var(--dur-fast) ease, border-color var(--dur-fast) ease !important;
+  user-select: none !important;
+}
+
+.vp-code-group .tabs label:hover {
+  color: var(--text-2) !important;
+}
+
+.vp-code-group .tabs input[type="radio"]:checked + label {
+  color: var(--brand) !important;
+  border-bottom-color: var(--brand) !important;
+}
+
+/* Active tab content */
+.vp-code-group .blocks div[class*="language-"] {
+  margin: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+.vp-code-group .blocks div[class*="language-"] pre {
+  border-radius: 0 !important;
+  border: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DOCS PAGE TRANSITION — Part 5
+═══════════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: no-preference) {
+  .VPDoc .container {
+    animation: doc-page-in 240ms cubic-bezier(0.25, 0, 0, 1) both;
+  }
+
+  @keyframes doc-page-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SCROLL REVEAL UTILITIES — Part 5
+   Applied by useScrollReveal composable via .is-revealed class.
+═══════════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Single element fade-up */
+  .reveal-up {
+    opacity: 0;
+    transform: translateY(28px);
+    transition:
+      opacity   560ms cubic-bezier(0.25, 0, 0, 1),
+      transform 560ms cubic-bezier(0.25, 0, 0, 1);
+  }
+
+  .reveal-up.is-revealed {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Staggered children — wraps a grid or flex list */
+  .reveal-stagger > * {
+    opacity: 0;
+    transform: translateY(20px);
+    transition:
+      opacity   480ms cubic-bezier(0.25, 0, 0, 1),
+      transform 480ms cubic-bezier(0.25, 0, 0, 1);
+  }
+
+  .reveal-stagger.is-revealed > *:nth-child(1) { transition-delay:   0ms; }
+  .reveal-stagger.is-revealed > *:nth-child(2) { transition-delay:  80ms; }
+  .reveal-stagger.is-revealed > *:nth-child(3) { transition-delay: 160ms; }
+  .reveal-stagger.is-revealed > *:nth-child(4) { transition-delay: 240ms; }
+  .reveal-stagger.is-revealed > *:nth-child(5) { transition-delay: 320ms; }
+  .reveal-stagger.is-revealed > *:nth-child(6) { transition-delay: 400ms; }
+
+  .reveal-stagger.is-revealed > * {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Reduced motion: skip reveal entirely — show all content immediately */
+@media (prefers-reduced-motion: reduce) {
+  .reveal-up,
+  .reveal-stagger > * {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   FOCUS-VISIBLE — Part 5
+   Keyboard navigation ring. Suppressed for mouse/touch users.
+═══════════════════════════════════════════════════════════ */
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Tighter offset for inline nav elements */
+.VPNavBarMenuLink:focus-visible,
+.VPSidebarItem .item .link:focus-visible,
+.VPDocOutlineItem a:focus-visible,
+.edit-link-button:focus-visible {
+  outline-offset: 3px;
+}
+
+/* Wider offset for card-like elements */
+.VPDocFooter .pager-link:focus-visible,
+.explorer-tab:focus-visible {
+  outline-offset: 4px;
+}
+
+/* Skip-to-content link (screen readers) */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: var(--space-4);
+  z-index: 1000;
+  padding: var(--space-2) var(--space-4);
+  background: var(--bg-base);
+  border: 1px solid var(--border-brand);
+  border-radius: var(--r-sm);
+  color: var(--brand);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+  transition: top var(--dur-fast) ease;
+}
+
+.skip-link:focus {
+  top: var(--space-4);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MICRO-INTERACTIONS — Part 5
+═══════════════════════════════════════════════════════════ */
+
+/* ── Smooth anchor scroll ─────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 80px; /* clear sticky nav */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
+/* ── External link indicator ──────────────────────────────── */
+.vp-doc a[href^="http"]:not([href*="bunway.jointops.dev"])::after {
+  content: "↗";
+  font-size: 0.72em;
+  margin-left: 0.18em;
+  opacity: 0.5;
+  display: inline-block;
+  transform: translateY(-1px);
+  transition: opacity var(--dur-fast) ease;
+}
+
+.vp-doc a[href^="http"]:not([href*="bunway.jointops.dev"]):hover::after {
+  opacity: 0.9;
+}
+
+/* ── Table row hover ──────────────────────────────────────── */
+.vp-doc tr {
+  transition: background var(--dur-fast) ease;
+}
+
+.vp-doc tr:hover td {
+  background: var(--brand-4) !important;
+}
+
+/* ── Inline code hover ────────────────────────────────────── */
+.vp-doc :not(pre) > code {
+  transition: background var(--dur-fast) ease, border-color var(--dur-fast) ease;
+}
+
+.vp-doc :not(pre) > code:hover {
+  background: rgba(63, 197, 183, 0.16) !important;
+  border-color: var(--brand-24) !important;
+}
+
+/* ── Nav logo subtle hover ────────────────────────────────── */
+.VPNavBarTitle .title {
+  transition: opacity var(--dur-fast) ease !important;
+}
+
+.VPNavBarTitle:hover .title {
+  opacity: 0.8 !important;
+}
+
+/* ── Outline active item left-border transition ───────────── */
+.VPDocOutlineItem a {
+  transition:
+    color      var(--dur-fast) ease !important,
+    border-color var(--dur-fast) ease !important;
+}
+
+/* ── Feature card depth on hover (landing) ───────────────── */
+@media (prefers-reduced-motion: no-preference) {
+  .usecase-card {
+    transition:
+      border-color var(--dur-base) ease,
+      transform    var(--dur-base) cubic-bezier(0.25, 0, 0, 1),
+      box-shadow   var(--dur-base) ease;
+  }
+
+  .usecase-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  }
+}
+
+/* ── CTA button press feedback ────────────────────────────── */
+@media (prefers-reduced-motion: no-preference) {
+  .cta-primary,
+  .cta-secondary {
+    transition:
+      transform    var(--dur-fast) ease,
+      box-shadow   var(--dur-fast) ease,
+      opacity      var(--dur-fast) ease !important;
+  }
+
+  .cta-primary:active,
+  .cta-secondary:active {
+    transform: scale(0.97) !important;
+  }
+}
+
+/* ── Hero install command copy feedback ───────────────────── */
+@media (prefers-reduced-motion: no-preference) {
+  .install-cmd {
+    transition: border-color var(--dur-fast) ease !important;
+  }
+
+  .install-cmd:hover {
+    border-color: var(--border-brand) !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MIGRATION PAGE — Express comparison components
+═══════════════════════════════════════════════════════════ */
+
+/* ── 3-step quick summary ───────────────────────────────── */
+
+.migration-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: var(--space-6) 0;
+}
+
+.migration-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 18px 20px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  transition: border-color 150ms ease;
+}
+
+.migration-step:hover {
+  border-color: var(--border-brand);
+}
+
+.step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(63, 197, 183, 0.12);
+  color: var(--brand);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-bottom: 4px;
+}
+
+.step-title {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-1);
+  line-height: var(--lh-snug);
+}
+
+.step-desc {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  line-height: var(--lh-normal);
+}
+
+.step-desc code {
+  font-family: var(--font-mono) !important;
+  background: rgba(255,255,255,0.06) !important;
+  border: none !important;
+  padding: 1px 5px !important;
+  border-radius: 3px !important;
+  color: var(--text-2) !important;
+  font-size: 0.92em !important;
+}
+
+/* ── Stats strip ─────────────────────────────────────────── */
+
+.stats-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  margin: var(--space-6) 0;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 16px;
+  background: var(--bg-raised);
+  text-align: center;
+  gap: var(--space-2);
+  transition: background 150ms ease;
+}
+
+.stat-item:hover {
+  background: var(--bg-overlay);
+}
+
+.stat-number {
+  font-family: var(--font-display);
+  font-size: 2.4rem;
+  font-weight: 700;
+  color: var(--brand);
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.stat-label {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-3);
+  letter-spacing: 0.02em;
+}
+
+/* ── Middleware swap cards ────────────────────────────────── */
+
+.swap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px;
+  margin: 12px 0 32px;
+}
+
+.swap-card {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 0.95rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  transition: border-color 150ms ease, background 150ms ease;
+  overflow: hidden;
+}
+
+.swap-card:hover {
+  border-color: rgba(63, 197, 183, 0.3);
+  background: rgba(63, 197, 183, 0.03);
+}
+
+.swap-old {
+  font-family: var(--font-mono) !important;
+  font-size: 11.5px !important;
+  color: rgba(248, 113, 113, 0.7) !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.swap-arrow {
+  color: var(--text-4);
+  font-size: 13px;
+  flex-shrink: 0;
+  margin: 0 2px;
+}
+
+.swap-new {
+  font-family: var(--font-mono) !important;
+  font-size: 11.5px !important;
+  color: var(--brand-light) !important;
+  font-weight: 600 !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  white-space: nowrap;
+}
+
+/* ── Inline API status badges ────────────────────────────── */
+
+.badge-same {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  vertical-align: middle;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-3);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.badge-plus {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  vertical-align: middle;
+  background: rgba(63, 197, 183, 0.1);
+  color: var(--brand);
+  border: 1px solid rgba(63, 197, 183, 0.18);
+}
+
+.badge-new {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  vertical-align: middle;
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--green);
+  border: 1px solid rgba(34, 197, 94, 0.18);
+}
+
+/* ── :::details accordion styling ───────────────────────── */
+
+.vp-doc details.custom-block {
+  border: 1px solid var(--border) !important;
+  border-radius: var(--r-md) !important;
+  background: transparent !important;
+  margin: var(--space-3) 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.vp-doc details.custom-block summary {
+  display: flex !important;
+  align-items: center !important;
+  gap: var(--space-3) !important;
+  padding: 13px 18px !important;
+  font-family: var(--font-body) !important;
+  font-size: var(--text-sm) !important;
+  font-weight: 600 !important;
+  color: var(--text-2) !important;
+  background: var(--bg-raised) !important;
+  cursor: pointer !important;
+  list-style: none !important;
+  user-select: none !important;
+  transition: color 140ms ease, background 140ms ease !important;
+  border-bottom: 1px solid transparent !important;
+  margin: 0 !important;
+}
+
+.vp-doc details.custom-block summary::-webkit-details-marker {
+  display: none !important;
+}
+
+.vp-doc details.custom-block summary::before {
+  content: '▸' !important;
+  font-size: 11px !important;
+  color: var(--text-4) !important;
+  transition: transform 200ms cubic-bezier(0.25, 0, 0, 1) !important;
+  flex-shrink: 0 !important;
+}
+
+.vp-doc details.custom-block[open] summary::before {
+  transform: rotate(90deg) !important;
+}
+
+.vp-doc details.custom-block summary:hover {
+  color: var(--text-1) !important;
+  background: var(--bg-overlay) !important;
+}
+
+.vp-doc details.custom-block[open] summary {
+  border-bottom-color: var(--border) !important;
+}
+
+/* table inside details: remove outer border/radius (details provides it) */
+.vp-doc details.custom-block table {
+  margin: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+/* ── Diff code block colors ──────────────────────────────── */
+
+.vp-doc div[class*="language-"] .line.diff.add {
+  background-color: rgba(34, 197, 94, 0.07) !important;
+}
+
+.vp-doc div[class*="language-"] .line.diff.remove {
+  background-color: rgba(248, 113, 113, 0.07) !important;
+}
+
+/* ── Mobile responsive ───────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .migration-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-strip {
+    grid-template-columns: 1fr;
+    gap: 1px;
+  }
+
+  .swap-grid {
+    grid-template-columns: 1fr;
+  }
 }

@@ -1,40 +1,25 @@
-<script setup>
-import { onMounted, onUnmounted, ref } from 'vue'
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
 import HeroSection from './HeroSection.vue'
+import { useScrollReveal } from '../composables/useScrollReveal'
 
-const containerRef = ref(null)
-let rafId = null
-let mouseX = 0
-let mouseY = 0
-
-const handleMouseMove = (e) => {
-  mouseX = e.clientX
-  mouseY = e.clientY
-}
+const activeCategory = ref('security')
+const installCopied = ref(false)
+const revealTargets = ref<HTMLElement[]>([])
 
 onMounted(() => {
-  window.addEventListener('mousemove', handleMouseMove)
-
-  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  if (prefersReducedMotion) return
-
-  const animate = () => {
-    if (containerRef.value) {
-      containerRef.value.style.setProperty('--mouse-x', `${mouseX}px`)
-      containerRef.value.style.setProperty('--mouse-y', `${mouseY}px`)
-    }
-    rafId = requestAnimationFrame(animate)
-  }
-  animate()
+  revealTargets.value = [
+    ...document.querySelectorAll<HTMLElement>('.reveal-up, .reveal-stagger'),
+  ]
 })
 
-onUnmounted(() => {
-  window.removeEventListener('mousemove', handleMouseMove)
-  if (rafId) cancelAnimationFrame(rafId)
-})
+useScrollReveal(revealTargets)
 
-// ── Feature Explorer ────────────────────────────────────
-const activeCategory = ref('security')
+const copyInstall = async () => {
+  await navigator.clipboard.writeText('bun add bunway')
+  installCopied.value = true
+  setTimeout(() => { installCopied.value = false }, 2000)
+}
 
 const featureCategories = [
   {
@@ -63,7 +48,7 @@ app.<span class="fn">use</span>(<span class="fn">raw</span>({                   
 <span class="kw">const</span> app = <span class="fn">bunway</span>()
 
 app.<span class="fn">use</span>(<span class="fn">helmet</span>())                           <span class="comment">// 14 security headers</span>
-app.<span class="fn">use</span>(<span class="fn">cors</span>({ origin: /\\.myapp\\.com$/ }))  <span class="comment">// CORS + preflight</span>
+app.<span class="fn">use</span>(<span class="fn">cors</span>({ origin: <span class="str">/\\.myapp\\.com$/</span> }))  <span class="comment">// CORS + preflight</span>
 app.<span class="fn">use</span>(<span class="fn">rateLimit</span>({ windowMs: <span class="num">60_000</span>, max: <span class="num">100</span> }))
 app.<span class="fn">use</span>(<span class="fn">csrf</span>())                             <span class="comment">// double-submit cookie</span>
 app.<span class="fn">use</span>(<span class="fn">hpp</span>({ whitelist: [<span class="str">'tags'</span>] }))      <span class="comment">// parameter pollution</span>`
@@ -77,7 +62,7 @@ app.<span class="fn">use</span>(<span class="fn">hpp</span>({ whitelist: [<span 
 
 <span class="kw">const</span> app = <span class="fn">bunway</span>()
 
-app.<span class="fn">use</span>(<span class="fn">cookieParser</span>(<span class="str">'your-secret'</span>))         <span class="comment">// signed cookies</span>
+app.<span class="fn">use</span>(<span class="fn">cookieParser</span>(<span class="str">'your-secret'</span>))
 app.<span class="fn">use</span>(<span class="fn">session</span>({
   secret: <span class="str">'keyboard cat'</span>,
   name:   <span class="str">'sid'</span>,
@@ -97,9 +82,8 @@ app.<span class="fn">use</span>(<span class="fn">passport</span>())             
 
 app.<span class="fn">use</span>(<span class="fn">favicon</span>(<span class="str">'./public/favicon.ico'</span>))
 app.<span class="fn">use</span>(<span class="str">'/static'</span>, <span class="fn">serveStatic</span>(<span class="str">'./public'</span>))  <span class="comment">// ETag + 304 caching</span>
-
-app.<span class="fn">post</span>(<span class="str">'/upload'</span>, store.<span class="fn">single</span>(<span class="str">'photo'</span>), (req, res) =&gt; {
-  res.<span class="fn">json</span>({ name: req.file?.originalname })   <span class="comment">// Range + 206 supported</span>
+app.<span class="fn">post</span>(<span class="str">'/upload'</span>, store.<span class="fn">single</span>(<span class="str">'photo'</span>), (req, res) => {
+  res.<span class="fn">json</span>({ name: req.file?.originalname })
 })`
   },
   {
@@ -115,8 +99,8 @@ app.<span class="fn">use</span>(<span class="fn">requestId</span>())            
 app.<span class="fn">use</span>(<span class="fn">responseTime</span>())             <span class="comment">// X-Response-Time header</span>
 app.<span class="fn">use</span>(<span class="fn">logger</span>(<span class="str">'dev'</span>))              <span class="comment">// colorized request logs</span>
 
-app.<span class="fn">get</span>(<span class="str">'/events'</span>, <span class="fn">sse</span>(), (req, res) =&gt; {
-  res.<span class="fn">sendEvent</span>(<span class="str">'update'</span>, { ts: <span class="fn">Date.now</span>() })  <span class="comment">// Server-Sent Events</span>
+app.<span class="fn">get</span>(<span class="str">'/events'</span>, <span class="fn">sse</span>(), (req, res) => {
+  res.<span class="fn">sendEvent</span>(<span class="str">'update'</span>, { ts: <span class="fn">Date.now</span>() })
 })`
   },
   {
@@ -128,9 +112,9 @@ app.<span class="fn">get</span>(<span class="str">'/events'</span>, <span class=
 
 <span class="kw">const</span> app = <span class="fn">bunway</span>()
 
-app.<span class="fn">use</span>(<span class="fn">compression</span>())       <span class="comment">// Brotli &gt; gzip &gt; deflate</span>
+app.<span class="fn">use</span>(<span class="fn">compression</span>())       <span class="comment">// Brotli > gzip > deflate</span>
 app.<span class="fn">use</span>(<span class="fn">timeout</span>(<span class="num">5000</span>))        <span class="comment">// 5s request timeout</span>
-app.<span class="fn">use</span>(<span class="fn">methodOverride</span>())     <span class="comment">// PUT/DELETE from forms</span>
+app.<span class="fn">use</span>(<span class="fn">methodOverride</span>())
 
 app.<span class="fn">post</span>(<span class="str">'/contact'</span>, <span class="fn">validate</span>({
   body: {
@@ -143,27 +127,14 @@ app.<span class="fn">post</span>(<span class="str">'/contact'</span>, <span clas
 </script>
 
 <template>
-  <div ref="containerRef" class="landing">
-    <!-- Gradient orbs -->
-    <div class="orb orb-1"></div>
-    <div class="orb orb-2"></div>
-    <div class="orb orb-3"></div>
-
-    <!-- Mouse glow -->
-    <div class="mouse-glow"></div>
-
-    <!-- Noise texture -->
-    <div class="noise"></div>
-
-    <!-- Grid pattern -->
-    <div class="grid"></div>
+  <div class="landing">
 
     <!-- Hero -->
     <HeroSection />
 
     <!-- ── Section 2: Interactive Feature Explorer ──────────── -->
     <section class="section explorer-section">
-      <div class="section-inner">
+      <div class="section-inner reveal-up">
         <p class="section-eyebrow">What's inside</p>
         <h2 class="section-title">Everything included.<br>Nothing to install.</h2>
         <p class="section-subtitle">
@@ -171,9 +142,8 @@ app.<span class="fn">post</span>(<span class="str">'/contact'</span>, <span clas
           No npm install. No version conflicts. No supply chain risk.
         </p>
 
-        <!-- Feature explorer: tabs left, code right -->
         <div class="explorer">
-          <!-- Category tabs (left column) -->
+          <!-- Category tabs -->
           <div class="explorer-tabs">
             <button
               v-for="cat in featureCategories"
@@ -184,22 +154,20 @@ app.<span class="fn">post</span>(<span class="str">'/contact'</span>, <span clas
             >
               <span class="explorer-tab-icon" v-html="cat.icon"></span>
               <span class="explorer-tab-name">{{ cat.name }}</span>
-              <svg class="explorer-tab-arrow" width="14" height="14" viewBox="0 0 24 24"
+              <svg class="explorer-tab-arrow" width="13" height="13" viewBox="0 0 24 24"
                    fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M9 18l6-6-6-6"/>
               </svg>
             </button>
           </div>
 
-          <!-- Code preview (right column) -->
+          <!-- Code preview -->
           <div class="explorer-preview">
+            <!-- Minimal chrome — no macOS dots -->
             <div class="explorer-chrome">
-              <span class="dot red"></span>
-              <span class="dot yellow"></span>
-              <span class="dot green"></span>
               <Transition name="badge-fade">
                 <span class="explorer-replaces" :key="activeCategory">
-                  Replaces:
+                  replaces
                   <span>{{ featureCategories.find(c => c.id === activeCategory)?.replaces }}</span>
                 </span>
               </Transition>
@@ -214,10 +182,10 @@ app.<span class="fn">post</span>(<span class="str">'/contact'</span>, <span clas
           </div>
         </div>
 
-        <!-- Bottom callout -->
+        <!-- Callout strip -->
         <div class="explorer-callout">
           <span class="callout-num">15+</span>
-          <span class="callout-text">npm packages replaced with a single import</span>
+          <span class="callout-text">npm packages replaced</span>
           <span class="callout-divider">·</span>
           <span class="callout-num">0</span>
           <span class="callout-text">transitive dependencies</span>
@@ -228,9 +196,9 @@ app.<span class="fn">post</span>(<span class="str">'/contact'</span>, <span clas
       </div>
     </section>
 
-    <!-- ── Section 3: Real-world use cases + migration ──────── -->
+    <!-- ── Section 3: Use cases ──────────────────────────────── -->
     <section class="section usecases-section">
-      <div class="section-inner">
+      <div class="section-inner reveal-up">
         <p class="section-eyebrow">Real-world patterns</p>
         <h2 class="section-title">Built for how you<br>actually ship.</h2>
         <p class="section-subtitle">
@@ -238,14 +206,13 @@ app.<span class="fn">post</span>(<span class="str">'/contact'</span>, <span clas
           bunWay handles them all. One import. No plugins.
         </p>
 
-        <!-- Use case cards -->
-        <div class="usecase-grid">
+        <div class="usecase-grid reveal-stagger">
 
           <!-- Card 1: REST API -->
           <div class="usecase-card">
             <div class="usecase-card-header">
               <div class="usecase-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
                      stroke="currentColor" stroke-width="1.75">
                   <path d="M8 9l3 3-3 3M13 15h3"/>
                   <rect x="3" y="3" width="18" height="18" rx="4"/>
@@ -282,7 +249,7 @@ app.<span class="fn">listen</span>(<span class="num">3000</span>)</code></pre>
           <div class="usecase-card usecase-card--highlight">
             <div class="usecase-card-header">
               <div class="usecase-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
                      stroke="currentColor" stroke-width="1.75">
                   <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
                 </svg>
@@ -315,11 +282,11 @@ app.<span class="fn">listen</span>(<span class="num">3000</span>)
             </div>
           </div>
 
-          <!-- Card 3: File Upload & Serve -->
+          <!-- Card 3: File Upload -->
           <div class="usecase-card">
             <div class="usecase-card-header">
               <div class="usecase-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
                      stroke="currentColor" stroke-width="1.75">
                   <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
                   <polyline points="14 2 14 8 20 8"/>
@@ -353,24 +320,22 @@ app.<span class="fn">listen</span>(<span class="num">3000</span>)</code></pre>
               <span>serveStatic()</span><span>ETag</span>
             </div>
           </div>
-        </div>
 
+        </div>
       </div>
     </section>
 
-    <!-- ── Section 4: Express → bunWay migration ─────────── -->
+    <!-- ── Section 4: Migration ───────────────────────────────── -->
     <section class="section migration-section">
-      <div class="section-inner">
-
-        <!-- ── Migration: side-by-side comparison ────────── -->
-        <div class="migration-divider">
-          <p class="section-eyebrow" style="margin: 0 0 16px">Express → bunWay</p>
-          <h3 class="migration-headline">Your existing code.<br>One import changed.</h3>
+      <div class="section-inner reveal-up">
+        <div class="migration-header">
+          <p class="section-eyebrow">Express → bunWay</p>
+          <h2 class="migration-headline">Your existing code.<br>One import changed.</h2>
           <p class="migration-sub">Everything else stays exactly the same. No rewrites, no new patterns to learn.</p>
         </div>
 
         <div class="mig-compare">
-          <!-- Before panel -->
+          <!-- Before -->
           <div class="mig-panel mig-panel--before">
             <div class="mig-panel-header">
               <span class="mig-label mig-label--bad">Before</span>
@@ -396,13 +361,13 @@ app.<span class="fn">listen</span>(<span class="num">3000</span>)</code></pre>
 
           <!-- Arrow -->
           <div class="mig-arrow">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
                  stroke="currentColor" stroke-width="1.5">
               <path d="M5 12h14M12 5l7 7-7 7"/>
             </svg>
           </div>
 
-          <!-- After panel -->
+          <!-- After -->
           <div class="mig-panel mig-panel--after">
             <div class="mig-panel-header">
               <span class="mig-label mig-label--good">After</span>
@@ -421,15 +386,19 @@ app.<span class="fn">listen</span>(<span class="num">3000</span>)</code></pre>
           </div>
         </div>
 
-        <!-- Shared: the rest of the code doesn't change -->
+        <!-- Shared unchanged block — minimal chrome, no dots -->
         <div class="mig-shared">
           <p class="mig-shared-label">Everything below stays identical</p>
           <div class="mig-shared-window">
             <div class="mig-shared-chrome">
-              <span class="dot red"></span>
-              <span class="dot yellow"></span>
-              <span class="dot green"></span>
-              <span class="mig-shared-filename">app.ts</span>
+              <div class="mig-chrome-tab">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="1.75">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                </svg>
+                app.ts
+              </div>
               <span class="mig-shared-badge">unchanged</span>
             </div>
 <pre class="mig-shared-code"><code><span class="kw">const</span> app = <span class="fn">bunway</span>()  <span class="comment">// was: express()</span>
@@ -448,14 +417,93 @@ app.<span class="fn">listen</span>(<span class="num">3000</span>)</code></pre>
       </div>
     </section>
 
-    <!-- ── Enhanced footer ──────────────────────────────────── -->
+    <!-- ── Section 5: Final CTA ───────────────────────────────── -->
+    <section class="section cta-section">
+      <div class="section-inner reveal-up">
+        <div class="cta-block">
+          <p class="section-eyebrow">Start now</p>
+          <h2 class="cta-headline">Start in 30 seconds.</h2>
+          <p class="cta-sub">One command. No config. Your Express app runs on Bun today.</p>
+
+          <button class="cta-install" @click="copyInstall" aria-label="Copy install command">
+            <span class="prompt">$</span>
+            <span class="cmd">bun add bunway</span>
+            <span class="copy-icon" :class="{ copied: installCopied }">
+              <svg v-if="!installCopied" width="14" height="14" viewBox="0 0 24 24"
+                   fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+              </svg>
+              <svg v-else width="14" height="14" viewBox="0 0 24 24"
+                   fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </span>
+          </button>
+
+          <div class="cta-actions">
+            <a href="/guide/getting-started" class="cta-primary">
+              Read the docs
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2.5">
+                <path d="M5 12h14M12 5l7 7-7 7"/>
+              </svg>
+            </a>
+            <a href="https://github.com/JointOps/bunway" target="_blank" class="cta-secondary">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+              </svg>
+              View on GitHub
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Footer ─────────────────────────────────────────────── -->
     <footer class="landing-footer">
       <div class="footer-inner">
-        <p class="footer-copy">MIT Licensed. Built by <a href="https://jointops.dev" target="_blank">JointOps</a>.</p>
-        <div class="footer-links">
-          <a href="https://github.com/JointOps/bunway" target="_blank">GitHub</a>
-          <a href="https://npmjs.com/package/bunway" target="_blank">npm</a>
-          <a href="/guide/getting-started">Docs</a>
+        <div class="footer-brand">
+          <a href="/" class="footer-logo">bunWay</a>
+          <p class="footer-tagline">Express API. Bun speed. Zero dependencies.</p>
+        </div>
+
+        <div class="footer-nav">
+          <div class="footer-col">
+            <p class="footer-col-title">Documentation</p>
+            <a href="/guide/getting-started">Getting Started</a>
+            <a href="/guide/express-migration">Coming from Express</a>
+            <a href="/middleware/index">Middleware</a>
+            <a href="/guide/websockets">WebSockets</a>
+          </div>
+          <div class="footer-col">
+            <p class="footer-col-title">Project</p>
+            <a href="https://github.com/JointOps/bunway" target="_blank">GitHub</a>
+            <a href="https://npmjs.com/package/bunway" target="_blank">npm</a>
+            <a href="https://github.com/JointOps/bunway/releases" target="_blank">Changelog</a>
+            <a href="/community/build-together">Contribute</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <p>MIT License · Built by <a href="https://jointops.dev" target="_blank">JointOps</a></p>
+        <div class="footer-socials">
+          <a href="https://x.com/JointOps_" target="_blank" aria-label="Twitter" class="footer-social">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+            </svg>
+          </a>
+          <a href="https://github.com/JointOps/bunway" target="_blank" aria-label="GitHub" class="footer-social">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+            </svg>
+          </a>
+          <a href="https://discord.gg/fTF4qjaMFT" target="_blank" aria-label="Discord" class="footer-social">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189z"/>
+            </svg>
+          </a>
         </div>
       </div>
     </footer>
@@ -463,236 +511,38 @@ app.<span class="fn">listen</span>(<span class="num">3000</span>)</code></pre>
 </template>
 
 <style scoped>
-.landing {
-  --mouse-x: 50vw;
-  --mouse-y: 50vh;
+/* ─── Landing base ────────────────────────────────────── */
 
+.landing {
   position: relative;
   min-height: 100vh;
-  background: #0a0a0a;
-  overflow: hidden;
+  background: var(--bg-base);
+  overflow-x: hidden;
 }
 
-/* ─── Gradient orbs ───────────────────────────────────── */
-
-.orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.5;
-  animation: float 20s ease-in-out infinite;
-}
-
-.orb-1 {
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(circle, rgba(63, 197, 183, 0.3) 0%, transparent 70%);
-  top: -200px;
-  right: -100px;
-  animation-delay: 0s;
-}
-
-.orb-2 {
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, rgba(34, 211, 238, 0.25) 0%, transparent 70%);
-  bottom: -150px;
-  left: -100px;
-  animation-delay: -7s;
-}
-
-.orb-3 {
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, rgba(129, 140, 248, 0.2) 0%, transparent 70%);
-  top: 40%;
-  left: 50%;
-  transform: translateX(-50%);
-  animation-delay: -14s;
-}
-
-@keyframes float {
-  0%, 100% { transform: translate(0, 0); }
-  25% { transform: translate(30px, -30px); }
-  50% { transform: translate(-20px, 20px); }
-  75% { transform: translate(20px, 30px); }
-}
-
-/* ─── Mouse glow ──────────────────────────────────────── */
-
-
-/* ─── Noise texture ───────────────────────────────────── */
-
-.noise {
-  position: absolute;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-  opacity: 0.03;
-  pointer-events: none;
-  z-index: 2;
-}
-
-/* ─── Subtle grid ─────────────────────────────────────── */
-
-.grid {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
-  background-size: 60px 60px;
+/* Single ambient gradient — no JS, no animation, no orbs */
+.landing::before {
+  content: '';
+  position: fixed;
+  top: -300px;
+  right: -200px;
+  width: 900px;
+  height: 900px;
+  background: radial-gradient(
+    circle at 65% 35%,
+    rgba(63, 197, 183, 0.055) 0%,
+    transparent 55%
+  );
   pointer-events: none;
   z-index: 0;
 }
 
-/* ─── Shared section skeleton ────────────────────────── */
+/* ─── Shared section skeleton ─────────────────────────── */
 
 .section {
   position: relative;
   z-index: 3;
-  padding: 100px 24px;
-}
-
-.usecases-section {
-  background: #070707;
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
-}
-
-/* ─── Use-case cards ──────────────────────────────────── */
-
-.usecase-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-  margin-bottom: 80px;
-  text-align: left;
-}
-
-.usecase-card {
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 18px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.usecase-card:hover {
-  border-color: rgba(63, 197, 183, 0.22);
-  box-shadow: 0 0 40px -12px rgba(63, 197, 183, 0.1);
-}
-
-.usecase-card--highlight {
-  border-color: rgba(63, 197, 183, 0.18);
-  background: rgba(63, 197, 183, 0.03);
-  box-shadow: 0 0 60px -20px rgba(63, 197, 183, 0.12);
-}
-
-.usecase-card-header {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 20px 20px 0;
-}
-
-.usecase-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  background: rgba(63, 197, 183, 0.1);
-  border-radius: 10px;
-  color: #3fc5b7;
-  flex-shrink: 0;
-}
-
-.usecase-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: #fff;
-  margin: 0 0 3px;
-  letter-spacing: -0.01em;
-}
-
-.usecase-desc {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.35);
-  margin: 0;
-  font-family: 'JetBrains Mono', monospace;
-}
-
-.usecase-code {
-  margin: 14px 0 0;
-  padding: 16px 20px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
-  line-height: 1.8;
-  color: rgba(255, 255, 255, 0.65);
-  background: rgba(0, 0, 0, 0.25);
-  border: none;
-  border-radius: 0;
-  overflow-x: auto;
-  flex: 1;
-}
-
-.usecase-code .kw      { color: #c678dd; }
-.usecase-code .str     { color: #98c379; }
-.usecase-code .fn      { color: #61afef; }
-.usecase-code .num     { color: #d19a66; }
-.usecase-code .comment { color: rgba(255, 255, 255, 0.2); font-style: italic; }
-
-.usecase-pills {
-  display: flex;
-  gap: 6px;
-  padding: 14px 20px;
-  flex-wrap: wrap;
-}
-
-.usecase-pills span {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  color: #3fc5b7;
-  background: rgba(63, 197, 183, 0.08);
-  padding: 3px 8px;
-  border-radius: 4px;
-  border: 1px solid rgba(63, 197, 183, 0.15);
-}
-
-/* ─── Section divider ─────────────────────────────────── */
-
-.section-divider {
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(63, 197, 183, 0.2) 30%,
-    rgba(63, 197, 183, 0.2) 70%,
-    transparent 100%
-  );
-  margin: 0 0 80px;
-}
-
-/* ─── Migration divider header ────────────────────────── */
-
-.migration-divider {
-  margin-bottom: 36px;
-}
-
-.migration-headline {
-  font-size: clamp(28px, 4vw, 42px);
-  font-weight: 800;
-  color: #fff;
-  letter-spacing: -0.03em;
-  line-height: 1;
-  margin: 0 0 10px;
-}
-
-.migration-sub {
-  font-size: 16px;
-  color: rgba(255, 255, 255, 0.45);
-  margin: 0;
+  padding: var(--space-24) var(--space-6);
 }
 
 .section-inner {
@@ -702,165 +552,176 @@ app.<span class="fn">listen</span>(<span class="num">3000</span>)</code></pre>
 }
 
 .section-eyebrow {
-  font-size: 12px;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
   font-weight: 600;
-  letter-spacing: 0.12em;
+  letter-spacing: var(--ls-widest);
   text-transform: uppercase;
-  color: #3fc5b7;
-  margin: 0 0 16px;
+  color: var(--brand);
+  opacity: 0.72;
+  margin: 0 0 var(--space-3);
 }
 
 .section-title {
-  font-size: clamp(32px, 5vw, 52px);
-  font-weight: 800;
-  color: #fff;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
-  margin: 0 0 16px;
+  font-family: var(--font-display);
+  font-size: clamp(1.7rem, 4vw, var(--text-6xl));
+  font-weight: 700;
+  color: var(--text-1);
+  letter-spacing: var(--ls-tight);
+  line-height: var(--lh-snug);
+  margin: 0 0 var(--space-4);
 }
 
 .section-subtitle {
-  font-size: 17px;
-  color: rgba(255, 255, 255, 0.5);
-  line-height: 1.7;
-  max-width: 580px;
-  margin: 0 auto 64px;
+  font-family: var(--font-body);
+  font-size: var(--text-lg);
+  color: var(--text-2);
+  line-height: var(--lh-relaxed);
+  max-width: min(560px, 100%);
+  margin: 0 auto var(--space-16);
 }
+
+/* ─── Section backgrounds ─────────────────────────────── */
+
+.explorer-section  { background: var(--bg-alt); border-top: 1px solid var(--border); }
+.usecases-section  { background: var(--bg-base); border-top: 1px solid var(--border); }
+.migration-section { background: var(--bg-alt); border-top: 1px solid var(--border); }
+.cta-section       { background: var(--bg-base); border-top: 1px solid var(--border); }
+
+/* ─── Syntax tokens — single source ──────────────────── */
+
+.kw, .explorer-code :deep(.kw)      { color: var(--syn-kw); }
+.str, .explorer-code :deep(.str)    { color: var(--syn-str); }
+.fn, .explorer-code :deep(.fn)      { color: var(--syn-fn); }
+.num, .explorer-code :deep(.num)    { color: var(--syn-num); }
+.comment, .explorer-code :deep(.comment) { color: var(--syn-comment); font-style: italic; }
 
 /* ─── Feature Explorer ────────────────────────────────── */
 
-.explorer-section {
-  background: #0e0e0e;
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
-}
-
 .explorer {
   display: grid;
-  grid-template-columns: 260px 1fr;
-  gap: 0;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 20px;
+  grid-template-columns: 240px 1fr;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
   overflow: hidden;
-  background: #0f0f0f;
-  margin-bottom: 48px;
+  background: var(--bg-raised);
+  margin-bottom: var(--space-10);
   text-align: left;
 }
-
-/* ─── Left column: tab buttons ────────────────────────── */
 
 .explorer-tabs {
   display: flex;
   flex-direction: column;
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.015);
+  border-right: 1px solid var(--border);
 }
 
 .explorer-tab {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 16px 20px;
+  gap: var(--space-2);
+  padding: 14px 18px;
   background: transparent;
   border: none;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--border);
   cursor: pointer;
   text-align: left;
-  transition: background 0.18s, border-color 0.18s;
-  position: relative;
+  transition: background var(--dur-fast) ease;
 }
 
 .explorer-tab:last-child {
   border-bottom: none;
 }
 
-.explorer-tab:hover {
-  background: rgba(255, 255, 255, 0.03);
+.explorer-tab:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.025);
 }
 
 .explorer-tab.active {
-  background: rgba(63, 197, 183, 0.07);
-  border-right: 2px solid #3fc5b7;
+  background: var(--brand-8);
+  border-right: 2px solid var(--brand);
 }
 
 .explorer-tab-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  background: rgba(63, 197, 183, 0.08);
-  border-radius: 7px;
-  color: rgba(255, 255, 255, 0.4);
+  width: 28px;
+  height: 28px;
+  background: var(--brand-8);
+  border-radius: var(--r-xs);
+  color: var(--text-3);
   flex-shrink: 0;
-  transition: color 0.18s, background 0.18s;
+  transition: color var(--dur-fast) ease, background var(--dur-fast) ease;
 }
 
 .explorer-tab.active .explorer-tab-icon {
-  color: #3fc5b7;
-  background: rgba(63, 197, 183, 0.14);
+  color: var(--brand);
+  background: var(--brand-12);
 }
 
 .explorer-tab-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.45);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-3);
   flex: 1;
-  transition: color 0.18s;
+  transition: color var(--dur-fast) ease;
 }
 
 .explorer-tab.active .explorer-tab-name {
-  color: #fff;
+  color: var(--text-1);
+  font-weight: 600;
 }
 
 .explorer-tab-arrow {
-  color: rgba(255, 255, 255, 0.15);
+  color: var(--text-4);
   flex-shrink: 0;
   opacity: 0;
   transform: translateX(-4px);
-  transition: opacity 0.18s, transform 0.18s, color 0.18s;
+  transition: opacity var(--dur-fast) ease, transform var(--dur-fast) ease;
 }
 
 .explorer-tab.active .explorer-tab-arrow {
   opacity: 1;
   transform: translateX(0);
-  color: #3fc5b7;
+  color: var(--brand);
 }
-
-/* ─── Right column: code preview ──────────────────────── */
 
 .explorer-preview {
   display: flex;
   flex-direction: column;
-  min-height: 320px;
+  min-height: 300px;
 }
 
+/* Explorer chrome — no macOS dots */
 .explorer-chrome {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 12px 18px;
-  background: rgba(255, 255, 255, 0.02);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 10px 18px;
+  background: rgba(255, 255, 255, 0.015);
+  border-bottom: 1px solid var(--border);
+  min-height: 40px;
 }
 
 .explorer-replaces {
-  margin-left: 12px;
-  font-size: 11.5px;
-  color: rgba(255, 255, 255, 0.3);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  letter-spacing: var(--ls-normal);
 }
 
 .explorer-replaces span {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-2);
+  margin-left: 6px;
 }
 
 .explorer-code {
   margin: 0;
-  padding: 24px 28px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 13px;
-  line-height: 1.85;
-  color: rgba(255, 255, 255, 0.72);
+  padding: var(--space-6) var(--space-8);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--lh-loose);
+  color: var(--text-code);
   overflow-x: auto;
   background: transparent;
   border: none;
@@ -868,264 +729,398 @@ app.<span class="fn">listen</span>(<span class="num">3000</span>)</code></pre>
   flex: 1;
 }
 
-.explorer-code :deep(.kw)      { color: #c678dd; }
-.explorer-code :deep(.str)     { color: #98c379; }
-.explorer-code :deep(.fn)      { color: #61afef; }
-.explorer-code :deep(.num)     { color: #d19a66; }
-.explorer-code :deep(.comment) { color: rgba(255, 255, 255, 0.22); font-style: italic; }
-
-/* ─── Code slide transition ───────────────────────────── */
-
-.code-slide-enter-active { transition: all 0.2s ease; }
-.code-slide-leave-active { transition: all 0.14s ease; }
-.code-slide-enter-from   { opacity: 0; transform: translateX(10px); }
+/* Code slide transition — symmetric */
+.code-slide-enter-active,
+.code-slide-leave-active { transition: opacity var(--dur-base) ease, transform var(--dur-base) ease; }
+.code-slide-enter-from   { opacity: 0; transform: translateX(8px); }
 .code-slide-leave-to     { opacity: 0; transform: translateX(-8px); }
 
-/* ─── Callout strip ───────────────────────────────────── */
+.badge-fade-enter-active,
+.badge-fade-leave-active { transition: opacity 0.2s ease; }
+.badge-fade-enter-from,
+.badge-fade-leave-to     { opacity: 0; }
+
+/* ─── Explorer callout strip ──────────────────────────── */
 
 .explorer-callout {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 18px 28px;
-  background: rgba(63, 197, 183, 0.04);
-  border: 1px solid rgba(63, 197, 183, 0.12);
-  border-radius: 14px;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-8);
+  background: var(--brand-4);
+  border: 1px solid var(--brand-12);
+  border-radius: var(--r-md);
   flex-wrap: wrap;
 }
 
 .callout-num {
-  font-size: 20px;
-  font-weight: 800;
-  background: linear-gradient(135deg, #3fc5b7 0%, #22d3ee 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 900;
+  color: var(--brand);
   line-height: 1;
+  letter-spacing: var(--ls-tight);
 }
 
 .callout-text {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.45);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text-2);
 }
 
 .callout-divider {
-  color: rgba(255, 255, 255, 0.15);
-  font-size: 16px;
+  color: var(--border-mid);
+  font-size: var(--text-lg);
 }
 
-/* ─── Migration comparison ────────────────────────────── */
+/* ─── Use-case cards ──────────────────────────────────── */
 
-.badge-fade-enter-active,
-.badge-fade-leave-active { transition: opacity 0.25s ease; }
-.badge-fade-enter-from,
-.badge-fade-leave-to     { opacity: 0; }
+.usecase-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-5);
+  text-align: left;
+}
 
-.dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
+.usecase-card {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: border-color var(--dur-base) ease, box-shadow var(--dur-base) ease;
+}
+
+.usecase-card:hover {
+  border-color: var(--border-brand);
+  box-shadow: 0 0 40px -12px rgba(63, 197, 183, 0.1);
+}
+
+.usecase-card--highlight {
+  border-color: var(--border-brand);
+  background: var(--brand-4);
+}
+
+.usecase-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-5) 0;
+}
+
+.usecase-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  background: var(--brand-8);
+  border-radius: var(--r-sm);
+  color: var(--brand);
   flex-shrink: 0;
 }
-.dot.red    { background: #ff5f57; }
-.dot.yellow { background: #febc2e; }
-.dot.green  { background: #28c840; }
+
+.usecase-title {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--text-1);
+  margin: 0 0 3px;
+  letter-spacing: var(--ls-snug);
+}
+
+.usecase-desc {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  margin: 0;
+}
+
+.usecase-code {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-4) var(--space-5);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--lh-loose);
+  color: var(--text-code);
+  background: rgba(0, 0, 0, 0.2);
+  border: none;
+  border-radius: 0;
+  overflow-x: auto;
+  flex: 1;
+}
+
+.usecase-pills {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  flex-wrap: wrap;
+}
+
+.usecase-pills span {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--brand);
+  background: var(--brand-8);
+  padding: 3px 8px;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--brand-12);
+}
+
+/* ─── Migration section ───────────────────────────────── */
+
+.migration-header {
+  margin-bottom: var(--space-10);
+}
+
+.migration-headline {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 3.5vw, var(--text-5xl));
+  font-weight: 700;
+  color: var(--text-1);
+  letter-spacing: var(--ls-tight);
+  line-height: var(--lh-snug);
+  margin: 0 0 var(--space-3);
+}
+
+.migration-sub {
+  font-family: var(--font-body);
+  font-size: var(--text-lg);
+  color: var(--text-2);
+  margin: 0;
+  line-height: var(--lh-relaxed);
+}
 
 .mig-compare {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: var(--space-6);
   text-align: left;
+  gap: 0;
 }
 
 .mig-panel {
-  background: #0d1117;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 16px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
 .mig-panel--after {
-  border-color: rgba(63, 197, 183, 0.2);
-  box-shadow: 0 0 50px -15px rgba(63, 197, 183, 0.12);
+  border-color: var(--border-brand);
+  box-shadow: 0 0 50px -15px rgba(63, 197, 183, 0.1);
 }
 
 .mig-panel-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
+  gap: var(--space-2);
+  padding: 10px 14px;
   background: rgba(255, 255, 255, 0.02);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--border);
 }
 
 .mig-label {
-  font-size: 10px;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: var(--ls-widest);
   text-transform: uppercase;
   padding: 2px 7px;
-  border-radius: 4px;
+  border-radius: var(--r-xs);
 }
 
-.mig-label--bad  { background: rgba(239, 68, 68, 0.12); color: #f87171; }
-.mig-label--good { background: rgba(63, 197, 183, 0.12); color: #3fc5b7; }
+.mig-label--bad  { background: var(--red-dim);    color: var(--red);   }
+.mig-label--good { background: var(--brand-12);   color: var(--brand); }
 
 .mig-panel-meta {
-  font-size: 11.5px;
-  color: rgba(255, 255, 255, 0.28);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-3);
 }
 
 .mig-terminal {
-  padding: 14px 18px;
-  background: rgba(0, 0, 0, 0.35);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 12px 16px;
+  background: var(--bg-inset);
+  border-bottom: 1px solid var(--border);
 }
 
 .mig-terminal pre {
   margin: 0;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
-  line-height: 1.75;
-  color: rgba(255, 255, 255, 0.55);
+  line-height: var(--lh-relaxed);
+  color: var(--text-3);
   background: transparent;
   border: none;
   border-radius: 0;
 }
 
-.mig-terminal--good pre { color: rgba(255, 255, 255, 0.6); }
+.mig-terminal--good pre { color: var(--text-2); }
 
-.t-dim   { color: rgba(255, 255, 255, 0.2); }
-.t-muted { color: rgba(255, 255, 255, 0.22); font-style: italic; }
-.t-teal  { color: #3fc5b7; }
+.t-dim   { color: var(--text-4); }
+.t-muted { color: var(--text-4); font-style: italic; }
+.t-teal  { color: var(--brand); }
 
 .mig-code {
-  padding: 14px 18px;
+  padding: 12px 16px;
 }
 
 .mig-code pre {
   margin: 0;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
-  line-height: 1.8;
-  color: rgba(255, 255, 255, 0.65);
+  line-height: var(--lh-relaxed);
+  color: var(--text-code);
   background: transparent;
   border: none;
   border-radius: 0;
   overflow-x: auto;
 }
 
-.mig-code .kw      { color: #c678dd; }
-.mig-code .str     { color: #98c379; }
-.mig-code .fn      { color: #61afef; }
-.mig-code .comment { color: rgba(255, 255, 255, 0.22); font-style: italic; }
-
 .mig-arrow {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 20px;
-  color: rgba(255, 255, 255, 0.18);
+  padding: 0 var(--space-5);
+  color: var(--text-4);
   flex-shrink: 0;
 }
 
 /* ─── Shared unchanged block ──────────────────────────── */
 
 .mig-shared {
-  margin-bottom: 40px;
+  margin-bottom: var(--space-10);
   text-align: left;
 }
 
 .mig-shared-label {
-  font-size: 11px;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--ls-wider);
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.2);
+  color: var(--text-4);
   text-align: center;
-  margin: 0 0 12px;
+  margin: 0 0 var(--space-3);
 }
 
 .mig-shared-window {
-  background: #0d1117;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
   overflow: hidden;
   max-width: 560px;
   margin: 0 auto;
 }
 
+/* Minimal chrome — no macOS dots */
 .mig-shared-chrome {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 11px 16px;
+  gap: var(--space-2);
+  padding: 10px 14px;
   background: rgba(255, 255, 255, 0.02);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--border);
 }
 
-.mig-shared-filename {
-  margin-left: 8px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.35);
-  font-family: 'JetBrains Mono', monospace;
+.mig-chrome-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-3);
 }
 
 .mig-shared-badge {
   margin-left: auto;
-  font-size: 10px;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--text-3);
   background: rgba(255, 255, 255, 0.05);
   padding: 2px 7px;
-  border-radius: 4px;
-  letter-spacing: 0.06em;
+  border-radius: var(--r-xs);
+  letter-spacing: var(--ls-wider);
   text-transform: uppercase;
 }
 
 .mig-shared-code {
   margin: 0;
-  padding: 18px 22px;
-  font-family: 'JetBrains Mono', monospace;
+  padding: 16px 20px;
+  font-family: var(--font-mono);
   font-size: 12.5px;
-  line-height: 1.85;
-  color: rgba(255, 255, 255, 0.45);
+  line-height: var(--lh-loose);
+  color: var(--text-code);
   background: transparent;
   border: none;
   border-radius: 0;
   overflow-x: auto;
 }
 
-.mig-shared-code .kw      { color: #c678dd; }
-.mig-shared-code .str     { color: #98c379; }
-.mig-shared-code .fn      { color: #61afef; }
-.mig-shared-code .num     { color: #d19a66; }
-.mig-shared-code .comment { color: rgba(255, 255, 255, 0.2); font-style: italic; }
+/* ─── Final CTA section ───────────────────────────────── */
 
-/* ─── Evidence strip ──────────────────────────────────── */
-
-.evidence-strip {
+.cta-block {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
-  margin-bottom: 40px;
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.4);
+  max-width: 540px;
+  margin: 0 auto;
 }
 
-.evidence-strip .sep { color: rgba(255, 255, 255, 0.15); }
+.cta-headline {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 3.5vw, var(--text-5xl));
+  font-weight: 700;
+  color: var(--text-1);
+  letter-spacing: var(--ls-tight);
+  line-height: var(--lh-snug);
+  margin: 0 0 var(--space-4);
+}
 
-/* ─── Final CTAs ──────────────────────────────────────── */
+.cta-sub {
+  font-family: var(--font-body);
+  font-size: var(--text-lg);
+  color: var(--text-2);
+  line-height: var(--lh-relaxed);
+  margin: 0 0 var(--space-8);
+  text-align: center;
+}
 
-.cta-row {
+.cta-install {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 14px 20px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  color: var(--text-1);
+  cursor: pointer;
+  margin-bottom: var(--space-8);
+  transition: border-color var(--dur-fast) ease,
+              background var(--dur-fast) ease,
+              transform var(--dur-fast) ease;
+}
+
+.cta-install:hover {
+  border-color: var(--border-brand);
+  background: var(--bg-overlay);
+  transform: translateY(-1px);
+}
+
+.cta-actions {
   display: flex;
-  gap: 12px;
+  gap: var(--space-3);
+  align-items: center;
   justify-content: center;
   flex-wrap: wrap;
 }
@@ -1134,36 +1129,47 @@ app.<span class="fn">listen</span>(<span class="num">3000</span>)</code></pre>
 .cta-secondary {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  height: 46px;
-  padding: 0 26px;
-  border-radius: 10px;
-  font-size: 15px;
+  gap: var(--space-2);
+  height: 44px;
+  padding: 0 var(--space-6);
+  border-radius: var(--r-sm);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
   font-weight: 600;
+  letter-spacing: var(--ls-wide);
   text-decoration: none;
-  transition: all 0.2s;
+  transition: transform var(--dur-fast) ease,
+              box-shadow var(--dur-fast) ease,
+              background var(--dur-fast) ease,
+              border-color var(--dur-fast) ease,
+              color var(--dur-fast) ease;
 }
 
 .cta-primary {
-  background: linear-gradient(135deg, #3fc5b7 0%, #22d3ee 100%);
-  color: #000;
+  background: linear-gradient(135deg, #3fc5b7 0%, #38e8de 100%);
+  color: #042420;
+  font-weight: 700;
 }
 
 .cta-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(63, 197, 183, 0.35);
+  box-shadow: var(--shadow-brand);
 }
+
+.cta-primary svg { transition: transform var(--dur-fast) ease; }
+.cta-primary:hover svg { transform: translateX(3px); }
 
 .cta-secondary {
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #fff;
+  border: 1px solid var(--border);
+  color: var(--text-2);
 }
 
 .cta-secondary:hover {
   background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.2);
-  transform: translateY(-2px);
+  border-color: var(--border-mid);
+  color: var(--text-1);
+  transform: translateY(-1px);
 }
 
 /* ─── Footer ──────────────────────────────────────────── */
@@ -1171,71 +1177,142 @@ app.<span class="fn">listen</span>(<span class="num">3000</span>)</code></pre>
 .landing-footer {
   position: relative;
   z-index: 3;
-  background: rgba(0, 0, 0, 0.44);
-  padding: 18px 28px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-inset);
+  border-top: 1px solid var(--border);
+  padding: var(--space-12) var(--space-6) var(--space-6);
 }
 
 .footer-inner {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-12);
+  max-width: 1080px;
+  margin: 0 auto var(--space-8);
+  align-items: start;
+}
+
+.footer-brand {
+  max-width: 260px;
+}
+
+.footer-logo {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: var(--ls-snug);
+  color: var(--text-1);
+  text-decoration: none;
+  display: block;
+  margin-bottom: var(--space-2);
+  transition: color var(--dur-fast) ease;
+}
+
+.footer-logo:hover {
+  color: var(--brand);
+}
+
+.footer-tagline {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text-3);
+  line-height: var(--lh-relaxed);
+  margin: 0;
+}
+
+.footer-nav {
+  display: flex;
+  gap: var(--space-12);
+}
+
+.footer-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.footer-col-title {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--ls-wider);
+  color: var(--text-3);
+  margin: 0 0 var(--space-2);
+}
+
+.footer-col a {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text-3);
+  text-decoration: none;
+  transition: color var(--dur-fast) ease;
+}
+
+.footer-col a:hover {
+  color: var(--text-1);
+}
+
+.footer-bottom {
   display: flex;
   align-items: center;
   justify-content: space-between;
   max-width: 1080px;
   margin: 0 auto;
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border);
 }
 
-.footer-copy {
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.3);
+.footer-bottom p {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text-4);
   margin: 0;
 }
 
-.footer-copy a {
-  color: rgba(255, 255, 255, 0.45);
+.footer-bottom p a {
+  color: var(--text-3);
   text-decoration: none;
-  transition: color 0.2s;
+  transition: color var(--dur-fast) ease;
 }
 
-.footer-copy a:hover { color: #3fc5b7; }
+.footer-bottom p a:hover { color: var(--brand); }
 
-.footer-links {
+.footer-socials {
   display: flex;
-  gap: 24px;
+  gap: var(--space-1);
 }
 
-.footer-links a {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.3);
-  text-decoration: none;
-  transition: color 0.2s;
+.footer-social {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-xs);
+  color: var(--text-4);
+  transition: color var(--dur-fast) ease, background var(--dur-fast) ease;
 }
 
-.footer-links a:hover { color: rgba(255, 255, 255, 0.7); }
+.footer-social:hover {
+  color: var(--text-2);
+  background: rgba(255, 255, 255, 0.06);
+}
 
 /* ─── Responsive ──────────────────────────────────────── */
 
 @media (max-width: 900px) {
-  .section { padding: 72px 20px; }
+  .section { padding: var(--space-20) var(--space-5); }
 
   .usecase-grid {
     grid-template-columns: 1fr;
-    max-width: 520px;
+    max-width: 480px;
     margin-left: auto;
     margin-right: auto;
   }
 
-  .mig-window {
-    max-width: 100%;
-  }
-
-  .mode-btn {
-    padding: 10px 24px;
-  }
-
   .footer-inner {
-    flex-direction: column;
-    gap: 16px;
-    text-align: center;
+    grid-template-columns: 1fr;
+    gap: var(--space-8);
   }
 }
 
@@ -1248,55 +1325,76 @@ app.<span class="fn">listen</span>(<span class="num">3000</span>)</code></pre>
     flex-direction: row;
     overflow-x: auto;
     border-right: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    border-bottom: 1px solid var(--border);
     -webkit-overflow-scrolling: touch;
   }
 
   .explorer-tab {
     flex-direction: column;
     align-items: center;
-    gap: 6px;
+    gap: var(--space-1);
     padding: 12px 14px;
     border-bottom: none;
-    border-right: 1px solid rgba(255, 255, 255, 0.04);
-    min-width: 90px;
+    border-right: 1px solid var(--border);
+    min-width: 80px;
     text-align: center;
   }
 
   .explorer-tab.active {
-    border-right: 1px solid rgba(255, 255, 255, 0.04);
-    border-bottom: 2px solid #3fc5b7;
+    border-right: 1px solid var(--border);
+    border-bottom: 2px solid var(--brand);
   }
 
   .explorer-tab-arrow { display: none; }
+  .explorer-tab-name  { font-size: var(--text-xs); }
+}
 
-  .explorer-tab-name { font-size: 11px; }
+@media (max-width: 680px) {
+  .mig-compare {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+
+  .mig-arrow {
+    display: none;
+  }
+
+  .mig-panel--before { order: 1; }
+  .mig-panel--after  { order: 2; }
 }
 
 @media (max-width: 640px) {
-  .section { padding: 60px 16px; }
-  .section-title { font-size: 30px; }
-  .section-subtitle { font-size: 15px; margin-bottom: 40px; }
+  .section         { padding: var(--space-16) var(--space-4); }
+  .section-title   { font-size: var(--text-3xl); }
+  .section-subtitle { font-size: var(--text-base); margin-bottom: var(--space-10); }
+  .usecase-grid    { max-width: 100%; }
 
-  .usecase-grid { max-width: 100%; }
+  .callout-num     { font-size: var(--text-xl); }
+  .callout-text    { font-size: var(--text-xs); }
 
-  .evidence-strip {
+  .cta-actions {
     flex-direction: column;
-    gap: 6px;
-    font-size: 13px;
+    width: 100%;
   }
 
-  .evidence-strip .sep { display: none; }
-
-  .cta-row { flex-direction: column; align-items: center; }
   .cta-primary, .cta-secondary {
     width: 100%;
-    max-width: 300px;
+    max-width: 320px;
     justify-content: center;
+  }
+
+  .footer-nav {
+    gap: var(--space-8);
+  }
+
+  .footer-bottom {
+    flex-direction: column;
+    gap: var(--space-4);
+    text-align: center;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .orb { animation: none; }
+  .landing::before { display: none; }
 }
 </style>
