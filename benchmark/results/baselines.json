@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "timestamp": "2026-05-25T12:00:00.000Z",
+  "tool": "oha",
+  "results": {
+    "bunway": {
+      "/json": 39256,
+      "/plaintext": 44100,
+      "/params/:id": 38200,
+      "/params/:a/:b/:c": 36800,
+      "/db": 5150,
+      "POST /body": 28400,
+      "/mw5": 35100,
+      "/mw10": 32600,
+      "/route50/:id": 37000,
+      "/nonexistent (404)": 41300
+    },
+    "hono": {
+      "/json": 58304
+    }
+  }
+}

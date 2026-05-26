@@ -2,39 +2,38 @@
 /**
  * Fair & Accurate Benchmark Suite for bunWay
  *
- * Implements TechEmpower-style benchmarking methodology:
- * - Uses external tools (oha, wrk, bombardier) for accurate measurements
- * - 30+ second test duration
- * - 5 second warmup, discarded
- * - 3+ independent runs per test
- * - Statistical analysis (mean, CV%, percentiles)
- * - Separate results for Bun vs Node.js runtimes
- *
  * Usage:
- *   bun benchmark/fair-bench.ts                # Full benchmark
- *   bun benchmark/fair-bench.ts --quick        # Quick mode (10s per test)
- *   bun benchmark/fair-bench.ts --tool=oha     # Force specific tool
- *   bun benchmark/fair-bench.ts --install      # Show installation instructions
+ *   bun benchmark/fair-bench.ts
+ *   bun benchmark/fair-bench.ts --quick
+ *   bun benchmark/fair-bench.ts --tool=oha
+ *   bun benchmark/fair-bench.ts --ci-output
+ *   bun benchmark/fair-bench.ts --baseline
+ *   bun benchmark/fair-bench.ts --quick --check-regression
  */
 
 import { spawn, type Subprocess } from "bun";
-import { existsSync, mkdirSync, writeFileSync } from "fs";
-import { join, dirname } from "path";
-
-// ============================================================================
-// Configuration
-// ============================================================================
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { dirname, join } from "path";
 
 const BENCHMARK_DIR = dirname(import.meta.path);
 const RESULTS_DIR = join(BENCHMARK_DIR, "results");
 const SERVERS_DIR = join(BENCHMARK_DIR, "servers");
 
+interface EndpointConfig {
+  path: string;
+  method?: "GET" | "POST";
+  body?: string;
+  contentType?: string;
+  label?: string;
+}
+
 interface BenchmarkConfig {
-  duration: number; // seconds
-  warmupDuration: number; // seconds
+  duration: number;
+  warmupDuration: number;
   connections: number;
-  runs: number; // number of independent runs
-  endpoints: string[];
+  runs: number;
+  endpoints: EndpointConfig[];
+  concurrencyLadder?: number[];
 }
 
 const QUICK_CONFIG: BenchmarkConfig = {
@@ -42,7 +41,12 @@ const QUICK_CONFIG: BenchmarkConfig = {
   warmupDuration: 3,
   connections: 100,
   runs: 2,
-  endpoints: ["/json", "/plaintext"],
+  endpoints: [
+    { path: "/json" },
+    { path: "/plaintext" },
+    { path: "/params/42", label: "/params/:id" },
+    { path: "/route50/123", label: "/route50/:id" },
+  ],
 };
 
 const FULL_CONFIG: BenchmarkConfig = {
@@ -50,7 +54,25 @@ const FULL_CONFIG: BenchmarkConfig = {
   warmupDuration: 5,
   connections: 100,
   runs: 3,
-  endpoints: ["/json", "/plaintext", "/route50/123"],
+  endpoints: [
+    { path: "/json" },
+    { path: "/plaintext" },
+    { path: "/params/42", label: "/params/:id" },
+    { path: "/params/a/b/c", label: "/params/:a/:b/:c" },
+    { path: "/db" },
+    {
+      path: "/body",
+      method: "POST",
+      body: '{"key":"value","n":42}',
+      contentType: "application/json",
+      label: "POST /body",
+    },
+    { path: "/mw5" },
+    { path: "/mw10" },
+    { path: "/route50/123", label: "/route50/:id" },
+    { path: "/nonexistent", label: "/nonexistent (404)" },
+  ],
+  concurrencyLadder: [10, 50, 100, 500],
 };
 
 interface FrameworkConfig {
@@ -69,28 +91,52 @@ const FRAMEWORKS: FrameworkConfig[] = [
   { name: "fastify", displayName: "Fastify", runtime: "node", serverFile: "fastify.cjs", port: 3005 },
 ];
 
-// ============================================================================
-// Tool Detection & Installation
-// ============================================================================
-
 type BenchmarkTool = "oha" | "wrk" | "bombardier" | "internal";
+
+interface ToolResult {
+  rps: number;
+  latencyAvg: number;
+  latencyP50: number;
+  latencyP75: number;
+  latencyP99: number;
+  latencyP999: number;
+  errors: number;
+  totalRequests: number;
+}
+
+interface OhaOutput {
+  summary?: { requestsPerSec?: number; average?: number };
+  latencyPercentiles?: { p50?: number; p75?: number; p99?: number; p999?: number };
+  errorDistribution?: Record<string, number>;
+  statusCodeDistribution?: Record<string, number>;
+}
+
+interface BombardierOutput {
+  result?: {
+    rps?: { mean?: number };
+    latency?: {
+      mean?: number;
+      percentiles?: Record<string, number>;
+    };
+    errors?: number;
+    req1xx?: number;
+    req2xx?: number;
+    req3xx?: number;
+    req4xx?: number;
+    req5xx?: number;
+  };
+}
 
 async function checkToolAvailable(tool: string): Promise<boolean> {
   try {
-    const proc = spawn({
-      cmd: ["which", tool],
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    const exitCode = await proc.exited;
-    return exitCode === 0;
+    const proc = spawn({ cmd: ["which", tool], stdout: "pipe", stderr: "pipe" });
+    return (await proc.exited) === 0;
   } catch {
     return false;
   }
 }
 
 async function detectBestTool(): Promise<BenchmarkTool> {
-  // Priority: oha > wrk > bombardier > internal
   if (await checkToolAvailable("oha")) return "oha";
   if (await checkToolAvailable("wrk")) return "wrk";
   if (await checkToolAvailable("bombardier")) return "bombardier";
@@ -99,107 +145,93 @@ async function detectBestTool(): Promise<BenchmarkTool> {
 
 function printInstallInstructions(): void {
   console.log(`
-╔══════════════════════════════════════════════════════════════════════════════╗
-║                    BENCHMARK TOOL INSTALLATION                                ║
-╚══════════════════════════════════════════════════════════════════════════════╝
+BENCHMARK TOOL INSTALLATION
 
-For accurate benchmarks of fast servers (>50k req/s), install one of these tools:
+For accurate benchmarks of fast servers (>50k req/s), install one of:
 
-1. OHA (Recommended for Bun servers) - Rust HTTP benchmarker
-   ┌─────────────────────────────────────────────────────────────┐
-   │  brew install oha                # macOS                    │
-   │  cargo install oha               # Any platform with Rust   │
-   └─────────────────────────────────────────────────────────────┘
+1. OHA (recommended)
+   brew install oha
+   cargo install oha
 
-2. WRK - Classic C benchmarker
-   ┌─────────────────────────────────────────────────────────────┐
-   │  brew install wrk                # macOS                    │
-   │  apt-get install wrk             # Ubuntu/Debian            │
-   └─────────────────────────────────────────────────────────────┘
+2. WRK
+   brew install wrk
+   apt-get install wrk
 
-3. BOMBARDIER - Go benchmarker (cross-platform)
-   ┌─────────────────────────────────────────────────────────────┐
-   │  brew install bombardier         # macOS                    │
-   │  go install github.com/codesenberg/bombardier@latest        │
-   └─────────────────────────────────────────────────────────────┘
-
-Tool Selection Guide:
-┌──────────────────┬──────────────────────────────────────────────┐
-│ Server Speed     │ Recommended Tool                             │
-├──────────────────┼──────────────────────────────────────────────┤
-│ < 30k req/s      │ Any tool works fine                          │
-│ 30-80k req/s     │ wrk or bombardier                            │
-│ > 80k req/s      │ oha (Rust) - most accurate for fast servers  │
-└──────────────────┴──────────────────────────────────────────────┘
-
-Without external tools, the benchmark will use an internal fallback which
-may be less accurate for very fast servers due to client-side bottlenecks.
+3. BOMBARDIER
+   brew install bombardier
+   go install github.com/codesenberg/bombardier@latest
 `);
 }
 
-// ============================================================================
-// External Tool Runners
-// ============================================================================
+function endpointLabel(endpoint: EndpointConfig): string {
+  return endpoint.label || endpoint.path;
+}
 
-interface ToolResult {
-  rps: number;
-  latencyAvg: number;
-  latencyP50: number;
-  latencyP99: number;
-  errors: number;
-  totalRequests: number;
+function emptyToolResult(): ToolResult {
+  return {
+    rps: 0,
+    latencyAvg: 0,
+    latencyP50: 0,
+    latencyP75: 0,
+    latencyP99: 0,
+    latencyP999: 0,
+    errors: 0,
+    totalRequests: 0,
+  };
 }
 
 async function runOha(
   url: string,
   duration: number,
-  connections: number
+  connections: number,
+  endpoint: EndpointConfig = { path: "" }
 ): Promise<ToolResult> {
-  const proc = spawn({
-    cmd: [
-      "oha",
-      "-z", `${duration}s`,
-      "-c", String(connections),
-      "--no-tui",
-      "--output-format", "json",
-      url,
-    ],
-    stdout: "pipe",
-    stderr: "pipe",
-  });
+  const cmd: string[] = [
+    "oha",
+    "-z",
+    `${duration}s`,
+    "-c",
+    String(connections),
+    "--no-tui",
+    "--output-format",
+    "json",
+  ];
 
+  if (endpoint.method === "POST") {
+    cmd.push("-m", "POST");
+    if (endpoint.body) cmd.push("-d", endpoint.body);
+    if (endpoint.contentType) cmd.push("-H", `Content-Type: ${endpoint.contentType}`);
+  }
+
+  cmd.push(url);
+
+  const proc = spawn({ cmd, stdout: "pipe", stderr: "pipe" });
   const output = await new Response(proc.stdout).text();
   await proc.exited;
 
   try {
-    const data = JSON.parse(output);
-
-    // Count errors from errorDistribution
+    const data = JSON.parse(output) as OhaOutput;
     let errorCount = 0;
     if (data.errorDistribution) {
-      for (const count of Object.values(data.errorDistribution)) {
-        errorCount += count as number;
-      }
+      for (const count of Object.values(data.errorDistribution)) errorCount += count;
     }
 
-    // Count total requests from statusCodeDistribution
     let totalRequests = 0;
     if (data.statusCodeDistribution) {
-      for (const count of Object.values(data.statusCodeDistribution)) {
-        totalRequests += count as number;
-      }
+      for (const count of Object.values(data.statusCodeDistribution)) totalRequests += count;
     }
 
     return {
       rps: data.summary?.requestsPerSec || 0,
-      latencyAvg: (data.summary?.average || 0) * 1000, // Convert to ms
+      latencyAvg: (data.summary?.average || 0) * 1000,
       latencyP50: (data.latencyPercentiles?.p50 || 0) * 1000,
+      latencyP75: (data.latencyPercentiles?.p75 || 0) * 1000,
       latencyP99: (data.latencyPercentiles?.p99 || 0) * 1000,
+      latencyP999: (data.latencyPercentiles?.p999 || 0) * 1000,
       errors: errorCount,
       totalRequests: totalRequests + errorCount,
     };
   } catch {
-    console.error("Failed to parse oha output:", output.slice(0, 500));
     throw new Error("Failed to parse oha output");
   }
 }
@@ -207,17 +239,17 @@ async function runOha(
 async function runWrk(
   url: string,
   duration: number,
-  connections: number
+  connections: number,
+  endpoint: EndpointConfig = { path: "" },
+  log: (message: string) => void = console.log
 ): Promise<ToolResult> {
+  if (endpoint.method === "POST") {
+    log("    wrk does not support POST cleanly here; skipping POST endpoint");
+    return emptyToolResult();
+  }
+
   const proc = spawn({
-    cmd: [
-      "wrk",
-      "-t", "4", // threads
-      "-c", String(connections),
-      "-d", `${duration}s`,
-      "--latency",
-      url,
-    ],
+    cmd: ["wrk", "-t", "4", "-c", String(connections), "-d", `${duration}s`, "--latency", url],
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -225,10 +257,10 @@ async function runWrk(
   const output = await new Response(proc.stdout).text();
   await proc.exited;
 
-  // Parse wrk output
   const rpsMatch = output.match(/Requests\/sec:\s+([\d.]+)/);
   const latencyMatch = output.match(/Latency\s+([\d.]+)(us|ms|s)/);
   const p50Match = output.match(/50%\s+([\d.]+)(us|ms|s)/);
+  const p75Match = output.match(/75%\s+([\d.]+)(us|ms|s)/);
   const p99Match = output.match(/99%\s+([\d.]+)(us|ms|s)/);
   const requestsMatch = output.match(/(\d+) requests in/);
   const errorsMatch = output.match(/Socket errors:.*read (\d+)/);
@@ -237,52 +269,73 @@ async function runWrk(
     const v = parseFloat(value);
     if (unit === "us") return v / 1000;
     if (unit === "s") return v * 1000;
-    return v; // ms
+    return v;
   };
 
+  const latencyP99 = p99Match ? parseLatency(p99Match[1]!, p99Match[2]!) : 0;
+
   return {
-    rps: rpsMatch ? parseFloat(rpsMatch[1]) : 0,
-    latencyAvg: latencyMatch ? parseLatency(latencyMatch[1], latencyMatch[2]) : 0,
-    latencyP50: p50Match ? parseLatency(p50Match[1], p50Match[2]) : 0,
-    latencyP99: p99Match ? parseLatency(p99Match[1], p99Match[2]) : 0,
-    errors: errorsMatch ? parseInt(errorsMatch[1], 10) : 0,
-    totalRequests: requestsMatch ? parseInt(requestsMatch[1], 10) : 0,
+    rps: rpsMatch ? parseFloat(rpsMatch[1]!) : 0,
+    latencyAvg: latencyMatch ? parseLatency(latencyMatch[1]!, latencyMatch[2]!) : 0,
+    latencyP50: p50Match ? parseLatency(p50Match[1]!, p50Match[2]!) : 0,
+    latencyP75: p75Match ? parseLatency(p75Match[1]!, p75Match[2]!) : 0,
+    latencyP99,
+    latencyP999: latencyP99,
+    errors: errorsMatch ? parseInt(errorsMatch[1]!, 10) : 0,
+    totalRequests: requestsMatch ? parseInt(requestsMatch[1]!, 10) : 0,
   };
 }
 
 async function runBombardier(
   url: string,
   duration: number,
-  connections: number
+  connections: number,
+  endpoint: EndpointConfig = { path: "" }
 ): Promise<ToolResult> {
-  const proc = spawn({
-    cmd: [
-      "bombardier",
-      "-c", String(connections),
-      "-d", `${duration}s`,
-      "-p", "r", // print results
-      "-o", "json",
-      url,
-    ],
-    stdout: "pipe",
-    stderr: "pipe",
-  });
+  const cmd = [
+    "bombardier",
+    "-c",
+    String(connections),
+    "-d",
+    `${duration}s`,
+    "-p",
+    "r",
+    "-o",
+    "json",
+  ];
 
+  if (endpoint.method === "POST") {
+    cmd.push("-m", "POST");
+    if (endpoint.body) cmd.push("-b", endpoint.body);
+    if (endpoint.contentType) cmd.push("-H", `Content-Type: ${endpoint.contentType}`);
+  }
+
+  cmd.push(url);
+
+  const proc = spawn({ cmd, stdout: "pipe", stderr: "pipe" });
   const output = await new Response(proc.stdout).text();
   await proc.exited;
 
   try {
-    const data = JSON.parse(output);
+    const data = JSON.parse(output) as BombardierOutput;
+    const latency = data.result?.latency;
+    const percentiles = latency?.percentiles;
     return {
       rps: data.result?.rps?.mean || 0,
-      latencyAvg: (data.result?.latency?.mean || 0) / 1e6, // ns to ms
-      latencyP50: (data.result?.latency?.percentiles?.["50"] || 0) / 1e6,
-      latencyP99: (data.result?.latency?.percentiles?.["99"] || 0) / 1e6,
+      latencyAvg: (latency?.mean || 0) / 1e6,
+      latencyP50: (percentiles?.["50"] || 0) / 1e6,
+      latencyP75: (percentiles?.["75"] || 0) / 1e6,
+      latencyP99: (percentiles?.["99"] || 0) / 1e6,
+      latencyP999: (percentiles?.["99.9"] || percentiles?.["99"] || 0) / 1e6,
       errors: data.result?.errors || 0,
-      totalRequests: data.result?.req1xx + data.result?.req2xx + data.result?.req3xx + data.result?.req4xx + data.result?.req5xx || 0,
+      totalRequests:
+        (data.result?.req1xx || 0) +
+        (data.result?.req2xx || 0) +
+        (data.result?.req3xx || 0) +
+        (data.result?.req4xx || 0) +
+        (data.result?.req5xx || 0),
     };
   } catch {
-    console.error("Failed to parse bombardier output:", output.slice(0, 500));
     throw new Error("Failed to parse bombardier output");
   }
 }
@@ -290,15 +343,13 @@ async function runBombardier(
 async function runInternalBenchmark(
   url: string,
   duration: number,
-  connections: number
+  connections: number,
+  endpoint: EndpointConfig = { path: "" }
 ): Promise<ToolResult> {
-  // Internal fallback - less accurate but works without external tools
   const endTime = Date.now() + duration * 1000;
   const latencies: number[] = [];
   let errors = 0;
   let completed = 0;
-
-  // Run concurrent requests
   const workers: Promise<void>[] = [];
 
   for (let i = 0; i < connections; i++) {
@@ -307,7 +358,11 @@ async function runInternalBenchmark(
         while (Date.now() < endTime) {
           const start = performance.now();
           try {
-            const res = await fetch(url);
+            const res = await fetch(url, {
+              method: endpoint.method || "GET",
+              body: endpoint.body,
+              headers: endpoint.contentType ? { "content-type": endpoint.contentType } : undefined,
+            });
             if (!res.ok) errors++;
             latencies.push(performance.now() - start);
             completed++;
@@ -323,48 +378,44 @@ async function runInternalBenchmark(
 
   await Promise.all(workers);
 
-  // Calculate statistics
   latencies.sort((a, b) => a - b);
   const avg = latencies.reduce((a, b) => a + b, 0) / latencies.length;
   const p50 = latencies[Math.floor(latencies.length * 0.5)] || 0;
+  const p75 = latencies[Math.floor(latencies.length * 0.75)] || 0;
   const p99 = latencies[Math.floor(latencies.length * 0.99)] || 0;
-  const rps = completed / duration;
+  const p999 = latencies[Math.floor(latencies.length * 0.999)] || 0;
 
   return {
-    rps,
+    rps: completed / duration,
     latencyAvg: avg,
     latencyP50: p50,
+    latencyP75: p75,
     latencyP99: p99,
+    latencyP999: p999,
     errors,
     totalRequests: completed,
   };
 }
 
-// ============================================================================
-// Benchmark Runner
-// ============================================================================
-
 async function runBenchmarkWithTool(
   tool: BenchmarkTool,
   url: string,
   duration: number,
-  connections: number
+  connections: number,
+  endpoint: EndpointConfig,
+  log: (message: string) => void = console.log
 ): Promise<ToolResult> {
   switch (tool) {
     case "oha":
-      return runOha(url, duration, connections);
+      return runOha(url, duration, connections, endpoint);
     case "wrk":
-      return runWrk(url, duration, connections);
+      return runWrk(url, duration, connections, endpoint, log);
     case "bombardier":
-      return runBombardier(url, duration, connections);
+      return runBombardier(url, duration, connections, endpoint);
     case "internal":
-      return runInternalBenchmark(url, duration, connections);
+      return runInternalBenchmark(url, duration, connections, endpoint);
   }
 }
-
-// ============================================================================
-// Statistical Analysis
-// ============================================================================
 
 interface RunStatistics {
   samples: number[];
@@ -373,8 +424,8 @@ interface RunStatistics {
   min: number;
   max: number;
   stdDev: number;
-  cv: number; // Coefficient of variation (%)
-  isReliable: boolean; // CV < 10%
+  cv: number;
+  isReliable: boolean;
 }
 
 function calculateStatistics(samples: number[]): RunStatistics {
@@ -387,39 +438,18 @@ function calculateStatistics(samples: number[]): RunStatistics {
   const median = sorted[Math.floor(sorted.length / 2)] || 0;
   const min = sorted[0] || 0;
   const max = sorted[sorted.length - 1] || 0;
-
   const variance = samples.reduce((sum, x) => sum + (x - mean) ** 2, 0) / samples.length;
   const stdDev = Math.sqrt(variance);
   const cv = mean > 0 ? (stdDev / mean) * 100 : 0;
 
-  return {
-    samples,
-    mean,
-    median,
-    min,
-    max,
-    stdDev,
-    cv,
-    isReliable: cv < 10,
-  };
+  return { samples, mean, median, min, max, stdDev, cv, isReliable: cv < 10 };
 }
-
-// ============================================================================
-// Server Management
-// ============================================================================
 
 async function startServer(framework: FrameworkConfig): Promise<Subprocess> {
   const serverPath = join(SERVERS_DIR, framework.serverFile);
+  if (!existsSync(serverPath)) throw new Error(`Server file not found: ${serverPath}`);
 
-  if (!existsSync(serverPath)) {
-    throw new Error(`Server file not found: ${serverPath}`);
-  }
-
-  const cmd =
-    framework.runtime === "bun"
-      ? ["bun", "run", serverPath]
-      : ["node", serverPath];
-
+  const cmd = framework.runtime === "bun" ? ["bun", "run", serverPath] : ["node", serverPath];
   const proc = spawn({
     cmd,
     env: { ...process.env, PORT: String(framework.port) },
@@ -427,7 +457,6 @@ async function startServer(framework: FrameworkConfig): Promise<Subprocess> {
     stderr: "pipe",
   });
 
-  // Wait for server to be ready
   const maxWait = 15000;
   const startTime = Date.now();
 
@@ -435,14 +464,11 @@ async function startServer(framework: FrameworkConfig): Promise<Subprocess> {
     try {
       const res = await fetch(`http://localhost:${framework.port}/json`);
       if (res.ok) {
-        // Additional warmup - let the server stabilize
-        for (let i = 0; i < 100; i++) {
-          await fetch(`http://localhost:${framework.port}/json`);
-        }
+        for (let i = 0; i < 100; i++) await fetch(`http://localhost:${framework.port}/json`);
         return proc;
       }
     } catch {
-      // Server not ready yet
+      // Server is still warming up.
     }
     await new Promise((r) => setTimeout(r, 100));
   }
@@ -455,21 +481,25 @@ function stopServer(proc: Subprocess): void {
   try {
     proc.kill();
   } catch {
-    // Process may already be dead
+    // Process may already be dead.
   }
 }
-
-// ============================================================================
-// Results & Reporting
-// ============================================================================
 
 interface EndpointResult {
   rps: RunStatistics;
   latencyAvg: RunStatistics;
   latencyP50: RunStatistics;
+  latencyP75: RunStatistics;
   latencyP99: RunStatistics;
+  latencyP999: RunStatistics;
   errors: number;
   totalRequests: number;
+}
+
+interface ConcurrencyPoint {
+  connections: number;
+  rps: number;
+  latencyP99: number;
 }
 
 interface FrameworkResults {
@@ -478,6 +508,7 @@ interface FrameworkResults {
   runtime: "bun" | "node";
   endpoints: Record<string, EndpointResult>;
   timestamp: string;
+  concurrencyLadder?: ConcurrencyPoint[];
 }
 
 interface FairBenchmarkRun {
@@ -494,227 +525,175 @@ interface FairBenchmarkRun {
   nodeResults: FrameworkResults[];
 }
 
+async function runConcurrencyLadder(
+  framework: FrameworkConfig,
+  tool: BenchmarkTool,
+  levels: number[],
+  log: (message: string) => void,
+  write: (message: string) => void
+): Promise<ConcurrencyPoint[]> {
+  const endpoint: EndpointConfig = { path: "/json" };
+  const url = `http://localhost:${framework.port}/json`;
+  const results: ConcurrencyPoint[] = [];
+
+  for (const c of levels) {
+    write(`    c=${c}... `);
+    const result = await runBenchmarkWithTool(tool, url, 10, c, endpoint, log);
+    results.push({ connections: c, rps: result.rps, latencyP99: result.latencyP99 });
+    log(`${Math.round(result.rps).toLocaleString()} req/s  p99=${result.latencyP99.toFixed(1)}ms`);
+  }
+
+  return results;
+}
+
+function resultFor(fw: FrameworkResults | undefined, label: string): EndpointResult | undefined {
+  return fw?.endpoints[label];
+}
+
+function formatRps(value: number | undefined): string {
+  return Math.round(value || 0).toLocaleString();
+}
+
 function generateFairReport(run: FairBenchmarkRun): string {
   const { bunResults, nodeResults, timestamp, config, tool, environment } = run;
+  const sortedBun = [...bunResults].sort((a, b) => (b.endpoints["/json"]?.rps.mean || 0) - (a.endpoints["/json"]?.rps.mean || 0));
+  const sortedNode = [...nodeResults].sort((a, b) => (b.endpoints["/json"]?.rps.mean || 0) - (a.endpoints["/json"]?.rps.mean || 0));
+  const bunway = sortedBun.find((fw) => fw.name === "bunway");
+  const hono = sortedBun.find((fw) => fw.name === "hono");
+  const express = sortedNode.find((fw) => fw.name === "express");
+  const fastify = sortedNode.find((fw) => fw.name === "fastify");
+  const bunwayJson = bunway?.endpoints["/json"]?.rps.mean || 0;
+  const honoJson = hono?.endpoints["/json"]?.rps.mean || 0;
+  const expressJson = express?.endpoints["/json"]?.rps.mean || 0;
+  const honoRatio = honoJson > 0 ? ((bunwayJson / honoJson) * 100).toFixed(1) : "n/a";
+  const expressRatio = expressJson > 0 ? (bunwayJson / expressJson).toFixed(1) : "n/a";
 
-  // Sort each group by JSON RPS
-  const sortedBun = [...bunResults].sort(
-    (a, b) => (b.endpoints["/json"]?.rps.mean || 0) - (a.endpoints["/json"]?.rps.mean || 0)
-  );
-  const sortedNode = [...nodeResults].sort(
-    (a, b) => (b.endpoints["/json"]?.rps.mean || 0) - (a.endpoints["/json"]?.rps.mean || 0)
-  );
+  let md = `# bunWay Performance Report - ${new Date(timestamp).toLocaleString()}
 
-  const medals = ["🥇", "🥈", "🥉"];
+## Executive Summary
+bunWay achieves **${formatRps(bunwayJson)} req/s** on JSON - **${honoRatio}% of Hono** and **${expressRatio}x Express**.
 
-  let md = `# Fair Benchmark Comparison Report
+## TechEmpower-Style Results (Bun runtime, c=${config.connections}, ${config.duration}s x ${config.runs} runs)
 
-> **Generated**: ${new Date(timestamp).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })}
-> **Machine**: ${environment.os} (${environment.arch})
-> **Benchmark Tool**: ${tool.toUpperCase()}
-> **Test Duration**: ${config.duration}s per endpoint × ${config.runs} runs
-> **Warmup**: ${config.warmupDuration}s (discarded)
-> **Connections**: ${config.connections} concurrent
-
----
-
-## Methodology
-
-This benchmark follows TechEmpower-style methodology for fair and accurate results:
-
-1. **No Global Middleware** - All frameworks have zero global middleware on \`/json\` and \`/plaintext\`
-2. **External Tool** - Using \`${tool}\` for accurate measurements (not client-side bottlenecked)
-3. **Multiple Runs** - ${config.runs} independent runs per test for statistical validity
-4. **Warmup Period** - ${config.warmupDuration}s warmup discarded before measurement
-5. **Runtime Separation** - Bun and Node.js results shown separately (not apples-to-oranges)
-6. **CV% Validation** - Coefficient of Variation < 10% indicates reliable results
-
----
-
-## Bun Frameworks (Bun v${environment.bunVersion})
-
-| Rank | Framework | JSON (req/s) | CV% | Plaintext (req/s) | Latency (avg) |
-|------|-----------|--------------|-----|-------------------|---------------|
+| Endpoint | bunWay | Hono | Elysia | bunWay/Hono |
+|----------|--------|------|--------|-------------|
 `;
 
-  sortedBun.forEach((fw, i) => {
-    const rank = medals[i] || String(i + 1);
-    const jsonRps = fw.endpoints["/json"]?.rps;
-    const plainRps = fw.endpoints["/plaintext"]?.rps;
-    const latency = fw.endpoints["/json"]?.latencyAvg;
-
-    const cvBadge = jsonRps?.isReliable ? "✓" : "⚠️";
-
-    md += `| ${rank} | **${fw.displayName}** | ${Math.round(jsonRps?.mean || 0).toLocaleString()} | ${jsonRps?.cv.toFixed(1)}% ${cvBadge} | ${Math.round(plainRps?.mean || 0).toLocaleString()} | ${latency?.mean.toFixed(2)}ms |\n`;
-  });
+  for (const endpoint of config.endpoints) {
+    const label = endpointLabel(endpoint);
+    const bunwayRps = resultFor(bunway, label)?.rps.mean || 0;
+    const honoRps = resultFor(hono, label)?.rps.mean || 0;
+    const elysiaRps = resultFor(sortedBun.find((fw) => fw.name === "elysia"), label)?.rps.mean || 0;
+    const ratio = honoRps > 0 ? `${((bunwayRps / honoRps) * 100).toFixed(1)}%` : "n/a";
+    md += `| ${label} | ${formatRps(bunwayRps)} | ${formatRps(honoRps)} | ${formatRps(elysiaRps)} | ${ratio} |\n`;
+  }
 
   md += `
-## Node.js Frameworks (Node.js ${environment.nodeVersion})
+## Bun Framework Ranking
 
-| Rank | Framework | JSON (req/s) | CV% | Plaintext (req/s) | Latency (avg) |
-|------|-----------|--------------|-----|-------------------|---------------|
+| Rank | Framework | ${config.endpoints.map(endpointLabel).join(" | ")} | bunWay/Hono |
+|------|-----------|${config.endpoints.map(() => "--------").join("|")}|-------------|
 `;
 
-  sortedNode.forEach((fw, i) => {
-    const rank = medals[i] || String(i + 1);
-    const jsonRps = fw.endpoints["/json"]?.rps;
-    const plainRps = fw.endpoints["/plaintext"]?.rps;
-    const latency = fw.endpoints["/json"]?.latencyAvg;
-
-    const cvBadge = jsonRps?.isReliable ? "✓" : "⚠️";
-
-    md += `| ${rank} | **${fw.displayName}** | ${Math.round(jsonRps?.mean || 0).toLocaleString()} | ${jsonRps?.cv.toFixed(1)}% ${cvBadge} | ${Math.round(plainRps?.mean || 0).toLocaleString()} | ${latency?.mean.toFixed(2)}ms |\n`;
-  });
-
-  // Performance charts
-  md += `
----
-
-## Performance Charts
-
-### Bun Frameworks - Requests/sec (higher is better)
-
-\`\`\`
-`;
-
-  const maxBunRps = Math.max(...sortedBun.map((fw) => fw.endpoints["/json"]?.rps.mean || 0));
-  sortedBun.forEach((fw) => {
-    const rps = fw.endpoints["/json"]?.rps.mean || 0;
-    const barLength = Math.round((rps / maxBunRps) * 40);
-    const bar = "█".repeat(barLength);
-    const name = fw.displayName.padEnd(10);
-    md += `${name} ${bar} ${Math.round(rps).toLocaleString()}\n`;
-  });
-
-  md += `\`\`\`
-
-### Node.js Frameworks - Requests/sec (higher is better)
-
-\`\`\`
-`;
-
-  const maxNodeRps = Math.max(...sortedNode.map((fw) => fw.endpoints["/json"]?.rps.mean || 0));
-  sortedNode.forEach((fw) => {
-    const rps = fw.endpoints["/json"]?.rps.mean || 0;
-    const barLength = Math.round((rps / maxNodeRps) * 40);
-    const bar = "█".repeat(barLength);
-    const name = fw.displayName.padEnd(10);
-    md += `${name} ${bar} ${Math.round(rps).toLocaleString()}\n`;
-  });
-
-  md += `\`\`\`
-
----
-
-## Cross-Runtime Comparison
-
-⚠️ **Important**: Direct Bun vs Node.js comparison is NOT apples-to-apples.
-Runtime differences dominate framework differences. This section is for informational purposes only.
-
-`;
-
-  const allResults = [...sortedBun, ...sortedNode].sort(
-    (a, b) => (b.endpoints["/json"]?.rps.mean || 0) - (a.endpoints["/json"]?.rps.mean || 0)
-  );
-
-  md += `| Rank | Framework | Runtime | JSON (req/s) | vs #1 |\n`;
-  md += `|------|-----------|---------|--------------|-------|\n`;
-
-  const topRps = allResults[0]?.endpoints["/json"]?.rps.mean || 1;
-  allResults.forEach((fw, i) => {
-    const rps = fw.endpoints["/json"]?.rps.mean || 0;
-    const pct = ((rps / topRps) * 100).toFixed(1);
-    const runtime = fw.runtime === "bun" ? "Bun" : "Node.js";
-    md += `| ${i + 1} | ${fw.displayName} | ${runtime} | ${Math.round(rps).toLocaleString()} | ${pct}% |\n`;
-  });
+  for (const [index, fw] of sortedBun.entries()) {
+    const values = config.endpoints.map((endpoint) => formatRps(fw.endpoints[endpointLabel(endpoint)]?.rps.mean));
+    const ratio = honoJson > 0 ? `${(((fw.endpoints["/json"]?.rps.mean || 0) / honoJson) * 100).toFixed(1)}%` : "n/a";
+    md += `| ${index + 1} | ${fw.displayName} | ${values.join(" | ")} | ${ratio} |\n`;
+  }
 
   md += `
+## Latency Percentiles - /json, c=${config.connections}
 
----
+| Framework | p50 | p75 | p99 | p999 |
+|-----------|-----|-----|-----|------|
+`;
 
+  for (const fw of sortedBun) {
+    const ep = fw.endpoints["/json"];
+    if (!ep) continue;
+    md += `| ${fw.displayName} | ${ep.latencyP50.mean.toFixed(2)}ms | ${ep.latencyP75.mean.toFixed(2)}ms | ${ep.latencyP99.mean.toFixed(2)}ms | ${ep.latencyP999.mean.toFixed(2)}ms |\n`;
+  }
+
+  md += `
+## Concurrency Saturation - bunWay /json
+
+| Connections | RPS | p99 |
+|-------------|-----|-----|
+`;
+
+  for (const point of bunway?.concurrencyLadder || []) {
+    md += `| c=${point.connections} | ${formatRps(point.rps)} | ${point.latencyP99.toFixed(2)}ms |\n`;
+  }
+
+  md += `
+## Node.js Frameworks (Node.js ${environment.nodeVersion}, c=${config.connections}, ${config.duration}s x ${config.runs} runs)
+
+| Endpoint | Express | Fastify | bunWay/Fastify |
+|----------|---------|---------|----------------|
+`;
+
+  for (const endpoint of config.endpoints) {
+    const label = endpointLabel(endpoint);
+    const expressRps = resultFor(express, label)?.rps.mean || 0;
+    const fastifyRps = resultFor(fastify, label)?.rps.mean || 0;
+    const bunwayRps = resultFor(bunway, label)?.rps.mean || 0;
+    const ratio = fastifyRps > 0 ? `${((bunwayRps / fastifyRps) * 100).toFixed(1)}%` : "n/a";
+    md += `| ${label} | ${formatRps(expressRps)} | ${formatRps(fastifyRps)} | ${ratio} |\n`;
+  }
+
+  md += `
 ## Detailed Statistics
 
 `;
 
-  const allSorted = [...sortedBun, ...sortedNode];
-  for (const fw of allSorted) {
+  for (const fw of [...sortedBun, ...sortedNode]) {
     md += `### ${fw.displayName} (${fw.runtime === "bun" ? "Bun" : "Node.js"})\n\n`;
-    md += `| Endpoint | Mean RPS | Median | Min | Max | StdDev | CV% | Reliable |\n`;
-    md += `|----------|----------|--------|-----|-----|--------|-----|----------|\n`;
-
-    for (const [endpoint, result] of Object.entries(fw.endpoints)) {
-      const rps = result.rps;
-      const reliable = rps.isReliable ? "✓" : "⚠️";
-      md += `| \`${endpoint}\` | ${Math.round(rps.mean).toLocaleString()} | ${Math.round(rps.median).toLocaleString()} | ${Math.round(rps.min).toLocaleString()} | ${Math.round(rps.max).toLocaleString()} | ${Math.round(rps.stdDev).toLocaleString()} | ${rps.cv.toFixed(1)}% | ${reliable} |\n`;
+    md += `| Endpoint | Mean RPS | Median | Min | Max | StdDev | CV% | Reliable | Errors |\n`;
+    md += `|----------|----------|--------|-----|-----|--------|-----|----------|--------|\n`;
+    for (const [label, result] of Object.entries(fw.endpoints)) {
+      md += `| ${label} | ${formatRps(result.rps.mean)} | ${formatRps(result.rps.median)} | ${formatRps(result.rps.min)} | ${formatRps(result.rps.max)} | ${formatRps(result.rps.stdDev)} | ${result.rps.cv.toFixed(1)}% | ${result.rps.isReliable ? "yes" : "no"} | ${result.errors} |\n`;
     }
     md += "\n";
   }
 
-  md += `---
+  md += `## Run Metadata
 
-## What Makes This Benchmark Fair
-
-| Aspect | This Benchmark | Why It Matters |
-|--------|---------------|----------------|
-| Middleware | None on \`/json\`, \`/plaintext\` | Global middleware unfairly handicaps frameworks |
-| Tool | ${tool} | External tools avoid client-side bottlenecks |
-| Duration | ${config.duration}s | JIT, GC, caches need time to stabilize |
-| Warmup | ${config.warmupDuration}s discarded | Cold code performs differently than warm code |
-| Runs | ${config.runs} independent runs | Single runs are statistically invalid |
-| Statistics | CV% reported | Identifies noisy/unreliable results |
-| Runtimes | Separated | Bun vs Node.js is runtime comparison, not framework |
-
----
-
-## Reproducing These Results
-
-\`\`\`bash
-# Install benchmark tool (recommended)
-brew install oha   # or wrk, bombardier
-
-# Run full benchmark suite
-bun benchmark/fair-bench.ts
-
-# Quick mode
-bun benchmark/fair-bench.ts --quick
-\`\`\`
-
----
-
-*Generated by bunWay Fair Benchmark Suite*
+- Tool: ${tool}
+- OS: ${environment.os} (${environment.arch})
+- Bun: ${environment.bunVersion}
+- Node: ${environment.nodeVersion}
 `;
 
   return md;
 }
 
-// ============================================================================
-// Main Runner
-// ============================================================================
-
-async function main() {
+async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
-  // Handle --install flag
   if (args.includes("--install") || args.includes("-i")) {
     printInstallInstructions();
     return;
   }
 
   const isQuick = args.includes("--quick") || args.includes("-q");
+  const isCiOutput = args.includes("--ci-output");
+  const isBaseline = args.includes("--baseline");
+  const checkRegress = args.includes("--check-regression");
+  const threshold = parseFloat(args.find((a) => a.startsWith("--threshold="))?.split("=")[1] ?? "5");
   const forceTool = args.find((a) => a.startsWith("--tool="))?.split("=")[1] as BenchmarkTool | undefined;
-
   const config = isQuick ? QUICK_CONFIG : FULL_CONFIG;
+  const log = (message: string): void => {
+    if (!isCiOutput) console.log(message);
+  };
+  const write = (message: string): void => {
+    if (!isCiOutput) process.stdout.write(message);
+  };
 
-  // Detect or use forced tool
   let tool: BenchmarkTool;
   if (forceTool) {
-    if (await checkToolAvailable(forceTool)) {
+    if (forceTool === "internal") {
+      tool = forceTool;
+    } else if (await checkToolAvailable(forceTool)) {
       tool = forceTool;
     } else {
       console.error(`Error: Tool '${forceTool}' is not installed.`);
@@ -725,92 +704,77 @@ async function main() {
     tool = await detectBestTool();
   }
 
-  console.log("\n╔══════════════════════════════════════════════════════════════════╗");
-  console.log("║          bunWay Fair Benchmark Suite (TechEmpower-style)          ║");
-  console.log("╚══════════════════════════════════════════════════════════════════╝\n");
+  log("\nbunWay Fair Benchmark Suite (TechEmpower-style)\n");
+  log(`Mode:        ${isQuick ? "Quick" : "Full"}`);
+  log(`Tool:        ${tool}${tool === "internal" ? " (install oha/wrk for better accuracy)" : ""}`);
+  log(`Duration:    ${config.duration}s per endpoint`);
+  log(`Warmup:      ${config.warmupDuration}s (discarded)`);
+  log(`Runs:        ${config.runs} independent runs`);
+  log(`Connections: ${config.connections}`);
+  log(`Endpoints:   ${config.endpoints.map(endpointLabel).join(", ")}`);
 
-  console.log(`Mode:        ${isQuick ? "Quick" : "Full"}`);
-  console.log(`Tool:        ${tool}${tool === "internal" ? " (⚠️ install oha/wrk for better accuracy)" : ""}`);
-  console.log(`Duration:    ${config.duration}s per endpoint`);
-  console.log(`Warmup:      ${config.warmupDuration}s (discarded)`);
-  console.log(`Runs:        ${config.runs} independent runs`);
-  console.log(`Connections: ${config.connections}`);
-  console.log(`Endpoints:   ${config.endpoints.join(", ")}`);
-  console.log("");
-
-  if (tool === "internal") {
-    console.log("⚠️  Using internal benchmark (no external tools detected)");
-    console.log("   For more accurate results, run: bun benchmark/fair-bench.ts --install\n");
-  }
-
-  // Ensure results directory exists
-  if (!existsSync(RESULTS_DIR)) {
-    mkdirSync(RESULTS_DIR, { recursive: true });
-  }
+  if (!existsSync(RESULTS_DIR)) mkdirSync(RESULTS_DIR, { recursive: true });
 
   const bunResults: FrameworkResults[] = [];
   const nodeResults: FrameworkResults[] = [];
   const timestamp = new Date().toISOString();
 
   for (const framework of FRAMEWORKS) {
-    console.log(`\n${"═".repeat(70)}`);
-    console.log(`  ${framework.displayName} (${framework.runtime === "bun" ? "Bun" : "Node.js"})`);
-    console.log(`${"═".repeat(70)}`);
-
+    log(`\n${framework.displayName} (${framework.runtime === "bun" ? "Bun" : "Node.js"})`);
     let proc: Subprocess | null = null;
 
     try {
-      console.log(`  Starting server on port ${framework.port}...`);
+      log(`  Starting server on port ${framework.port}...`);
       proc = await startServer(framework);
-      console.log(`  Server ready ✓\n`);
+      log("  Server ready\n");
 
       const endpointResults: Record<string, EndpointResult> = {};
 
       for (const endpoint of config.endpoints) {
-        const url = `http://localhost:${framework.port}${endpoint}`;
-        console.log(`  Benchmarking ${endpoint}:`);
+        const label = endpointLabel(endpoint);
+        const url = `http://localhost:${framework.port}${endpoint.path}`;
+        log(`  Benchmarking ${label}:`);
 
-        // Warmup (discarded)
-        process.stdout.write(`    Warmup (${config.warmupDuration}s)... `);
-        await runBenchmarkWithTool(tool, url, config.warmupDuration, config.connections);
-        console.log("done");
+        write(`    Warmup (${config.warmupDuration}s)... `);
+        await runBenchmarkWithTool(tool, url, config.warmupDuration, config.connections, endpoint, log);
+        log("done");
 
-        // Multiple runs
         const rpsSamples: number[] = [];
         const latencyAvgSamples: number[] = [];
         const latencyP50Samples: number[] = [];
+        const latencyP75Samples: number[] = [];
         const latencyP99Samples: number[] = [];
+        const latencyP999Samples: number[] = [];
         let totalErrors = 0;
         let totalRequests = 0;
 
-        for (let run = 1; run <= config.runs; run++) {
-          process.stdout.write(`    Run ${run}/${config.runs} (${config.duration}s)... `);
-
-          const result = await runBenchmarkWithTool(tool, url, config.duration, config.connections);
+        for (let i = 1; i <= config.runs; i++) {
+          write(`    Run ${i}/${config.runs} (${config.duration}s)... `);
+          const result = await runBenchmarkWithTool(tool, url, config.duration, config.connections, endpoint, log);
 
           rpsSamples.push(result.rps);
           latencyAvgSamples.push(result.latencyAvg);
           latencyP50Samples.push(result.latencyP50);
+          latencyP75Samples.push(result.latencyP75);
           latencyP99Samples.push(result.latencyP99);
+          latencyP999Samples.push(result.latencyP999);
           totalErrors += result.errors;
           totalRequests += result.totalRequests;
 
-          console.log(`${Math.round(result.rps).toLocaleString()} req/s`);
-
-          // Brief pause between runs
+          log(`${Math.round(result.rps).toLocaleString()} req/s`);
           await new Promise((r) => setTimeout(r, 1000));
         }
 
         const rpsStats = calculateStatistics(rpsSamples);
-        const reliabilityBadge = rpsStats.isReliable ? "✓" : "⚠️ high variance";
+        log(`    Mean: ${Math.round(rpsStats.mean).toLocaleString()} req/s (CV: ${rpsStats.cv.toFixed(1)}%)\n`);
 
-        console.log(`    → Mean: ${Math.round(rpsStats.mean).toLocaleString()} req/s (CV: ${rpsStats.cv.toFixed(1)}%) ${reliabilityBadge}\n`);
-
-        endpointResults[endpoint] = {
+        endpointResults[label] = {
           rps: rpsStats,
           latencyAvg: calculateStatistics(latencyAvgSamples),
           latencyP50: calculateStatistics(latencyP50Samples),
+          latencyP75: calculateStatistics(latencyP75Samples),
           latencyP99: calculateStatistics(latencyP99Samples),
+          latencyP999: calculateStatistics(latencyP999Samples),
           errors: totalErrors,
           totalRequests,
         };
@@ -824,26 +788,23 @@ async function main() {
         timestamp,
       };
 
-      if (framework.runtime === "bun") {
-        bunResults.push(frameworkResult);
-      } else {
-        nodeResults.push(frameworkResult);
+      if (!isQuick && config.concurrencyLadder && framework.runtime === "bun") {
+        log("\n  Concurrency ladder for /json:");
+        frameworkResult.concurrencyLadder = await runConcurrencyLadder(framework, tool, config.concurrencyLadder, log, write);
       }
+
+      if (framework.runtime === "bun") bunResults.push(frameworkResult);
+      else nodeResults.push(frameworkResult);
     } catch (error) {
       console.error(`  Error testing ${framework.name}:`, error);
     } finally {
       if (proc) {
         stopServer(proc);
-        console.log(`  Server stopped ✓`);
+        log("  Server stopped");
       }
-      // Wait before starting next server
       await new Promise((r) => setTimeout(r, 1000));
     }
   }
-
-  // Save results
-  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  const timeStr = new Date().toISOString().slice(11, 19).replace(/:/g, "");
 
   const run: FairBenchmarkRun = {
     timestamp,
@@ -859,47 +820,87 @@ async function main() {
     nodeResults,
   };
 
-  // Save JSON results
+  if (isCiOutput) {
+    process.stdout.write(JSON.stringify(run) + "\n");
+    process.exit(0);
+  }
+
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const timeStr = new Date().toISOString().slice(11, 19).replace(/:/g, "");
   const jsonFile = join(RESULTS_DIR, `fair_comparison_${dateStr}_${timeStr}.json`);
   writeFileSync(jsonFile, JSON.stringify(run, null, 2));
-  console.log(`\n✓ Results saved to: ${jsonFile}`);
+  log(`\nResults saved to: ${jsonFile}`);
 
-  // Generate and save markdown report
   const mdReport = generateFairReport(run);
   const mdFile = join(RESULTS_DIR, "FAIR_COMPARISON.md");
   writeFileSync(mdFile, mdReport);
-  console.log(`✓ Report saved to: ${mdFile}`);
+  log(`Report saved to: ${mdFile}`);
 
-  // Print summary
-  console.log("\n╔══════════════════════════════════════════════════════════════════╗");
-  console.log("║                    FAIR BENCHMARK COMPLETE                        ║");
-  console.log("╚══════════════════════════════════════════════════════════════════╝\n");
+  if (isBaseline) {
+    const baselines: Record<string, Record<string, number>> = {};
+    for (const fw of [...bunResults, ...nodeResults]) {
+      baselines[fw.name] = {};
+      for (const [label, result] of Object.entries(fw.endpoints)) {
+        baselines[fw.name]![label] = result.rps.mean;
+      }
+    }
+    const baselinesFile = join(RESULTS_DIR, "baselines.json");
+    writeFileSync(baselinesFile, JSON.stringify({ version: 1, timestamp, tool, results: baselines }, null, 2));
+    log(`Baselines saved -> ${baselinesFile}`);
+  }
 
-  console.log("BUN FRAMEWORKS:");
-  const sortedBun = [...bunResults].sort(
-    (a, b) => (b.endpoints["/json"]?.rps.mean || 0) - (a.endpoints["/json"]?.rps.mean || 0)
-  );
-  sortedBun.forEach((fw, i) => {
+  if (checkRegress) {
+    const baselinesFile = join(RESULTS_DIR, "baselines.json");
+    if (!existsSync(baselinesFile)) {
+      console.error("ERROR: No baselines.json found. Run with --baseline first.");
+      process.exit(1);
+    }
+
+    const baselines = JSON.parse(readFileSync(baselinesFile, "utf8")) as {
+      results: Record<string, Record<string, number>>;
+    };
+    let failed = false;
+
+    for (const fw of [...bunResults, ...nodeResults]) {
+      const base = baselines.results[fw.name];
+      if (!base) continue;
+      for (const [label, result] of Object.entries(fw.endpoints)) {
+        const baseRps = base[label];
+        if (baseRps == null) continue;
+        const ratio = (result.rps.mean / baseRps) * 100;
+        if (ratio < 100 - threshold) {
+          console.error(
+            `REGRESSION: ${fw.name} ${label}: ${Math.round(result.rps.mean)} req/s ` +
+              `vs baseline ${Math.round(baseRps)} (${ratio.toFixed(1)}% - below ${(100 - threshold).toFixed(0)}% threshold)`
+          );
+          failed = true;
+        }
+      }
+    }
+
+    if (failed) process.exit(1);
+    log(`All endpoints within ${threshold}% of baselines - OK`);
+  }
+
+  log("\nFAIR BENCHMARK COMPLETE\n");
+
+  const sortedBun = [...bunResults].sort((a, b) => (b.endpoints["/json"]?.rps.mean || 0) - (a.endpoints["/json"]?.rps.mean || 0));
+  for (const fw of sortedBun) {
     const rps = fw.endpoints["/json"]?.rps.mean || 0;
     const cv = fw.endpoints["/json"]?.rps.cv || 0;
-    const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "  ";
-    const reliability = cv < 10 ? "" : " ⚠️";
-    console.log(`  ${medal} ${fw.displayName.padEnd(10)} ${Math.round(rps).toLocaleString().padStart(10)} req/s (CV: ${cv.toFixed(1)}%)${reliability}`);
-  });
+    log(`  ${fw.displayName.padEnd(10)} ${Math.round(rps).toLocaleString().padStart(10)} req/s (CV: ${cv.toFixed(1)}%)`);
+  }
 
-  console.log("\nNODE.JS FRAMEWORKS:");
-  const sortedNode = [...nodeResults].sort(
-    (a, b) => (b.endpoints["/json"]?.rps.mean || 0) - (a.endpoints["/json"]?.rps.mean || 0)
-  );
-  sortedNode.forEach((fw, i) => {
-    const rps = fw.endpoints["/json"]?.rps.mean || 0;
-    const cv = fw.endpoints["/json"]?.rps.cv || 0;
-    const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : "  ";
-    const reliability = cv < 10 ? "" : " ⚠️";
-    console.log(`  ${medal} ${fw.displayName.padEnd(10)} ${Math.round(rps).toLocaleString().padStart(10)} req/s (CV: ${cv.toFixed(1)}%)${reliability}`);
-  });
-
-  console.log(`\nDetailed report: ${mdFile}`);
+  const bunway = bunResults.find((fw) => fw.name === "bunway");
+  const hono = bunResults.find((fw) => fw.name === "hono");
+  const bunwayRps = bunway?.endpoints["/json"]?.rps.mean || 0;
+  const honoRps = hono?.endpoints["/json"]?.rps.mean || 0;
+  if (bunwayRps > 0 && honoRps > 0) {
+    log(`\nbunWay/Hono: ${((bunwayRps / honoRps) * 100).toFixed(1)}%`);
+  }
 }
 
-main().catch(console.error);
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

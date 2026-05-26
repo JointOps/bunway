@@ -1,52 +1,40 @@
 import { Hono } from "hono";
+import type { Context, Next } from "hono";
 
 const app = new Hono();
 
-// JSON serialization benchmark
 app.get("/json", (c) => c.json({ message: "Hello, World!" }));
 
-// Plaintext benchmark
 app.get("/plaintext", (c) => c.text("Hello, World!"));
 
-// Routing benchmark - register 100 routes
-for (let i = 0; i < 100; i++) {
-  app.get(`/route${i}/:id`, (c) => c.json({ route: i, id: c.req.param("id") }));
-}
+app.get("/params/:id", (c) => c.json({ id: c.req.param("id") }));
 
-// Middleware benchmark
-app.use("/middleware", async (c, next) => {
-  for (let i = 0; i < 10; i++) {
-    c.set(`mw${i}`, true);
-  }
-  await next();
-});
-app.get("/middleware", (c) => c.json({ processed: true }));
+app.get("/params/:a/:b/:c", (c) => c.json(c.req.param()));
 
-// Body parsing benchmark
-app.post("/body", async (c) => {
-  const body = await c.req.json();
-  return c.json({ received: true, size: JSON.stringify(body).length });
-});
-
-// Simulated DB latency benchmark
-app.get("/db/:delay", async (c) => {
-  const delay = parseInt(c.req.param("delay") || "5", 10);
-  await new Promise((resolve) => setTimeout(resolve, delay));
+app.get("/db", async (c) => {
+  await new Promise<void>((r) => setTimeout(r, 5));
   return c.json([
     { id: 1, name: "Alice" },
     { id: 2, name: "Bob" },
   ]);
 });
 
-// Health check
-app.get("/health", (c) =>
-  c.json({
-    status: "ok",
-    framework: "hono",
-    memory: process.memoryUsage(),
-    uptime: process.uptime(),
-  })
-);
+app.post("/body", async (c) => {
+  const body = await c.req.json();
+  return c.json({ received: true, bytes: JSON.stringify(body).length });
+});
+
+const makeMiddleware = (i: number) => async (c: Context, next: Next) => {
+  c.set(`m${i}`, i);
+  await next();
+};
+
+app.get("/mw5", ...Array.from({ length: 5 }, (_, i) => makeMiddleware(i)), (c) => c.json({ ok: true }));
+app.get("/mw10", ...Array.from({ length: 10 }, (_, i) => makeMiddleware(i)), (c) => c.json({ ok: true }));
+
+for (let i = 0; i < 100; i++) {
+  app.get(`/route${i}/:id`, (c) => c.json({ route: i, id: c.req.param("id") }));
+}
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 
@@ -55,4 +43,4 @@ export default {
   fetch: app.fetch,
 };
 
-console.log(`Hono benchmark server running on http://localhost:${PORT}`);
+console.log(`Hono benchmark server on http://localhost:${PORT}`);
