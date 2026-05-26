@@ -16,25 +16,34 @@ export function cookieParser(secretOrOptions?: string | string[] | CookieParserO
     secrets = secret ? (Array.isArray(secret) ? secret : [secret]) : [];
   }
 
-  return (req, res, next) => {
-    if (secrets.length > 0) {
-      const signedCookies: Record<string, string> = {};
-      const cookies = { ...req.cookies };
-
-      for (const [name, value] of Object.entries(cookies)) {
-        if (value.startsWith("s:")) {
-          const unsigned = unsign(value.slice(2), secrets);
-          if (unsigned !== false) {
-            signedCookies[name] = unsigned;
-            delete cookies[name];
-          }
-        }
-      }
-
-      req.cookies = cookies;
-      req.signedCookies = signedCookies;
+  return (req, _res, next) => {
+    if (secrets.length === 0) {
+      next();
+      return;
     }
 
+    const signedCookies: Record<string, string> = {};
+    let modified = false;
+
+    for (const [name, value] of Object.entries(req.cookies)) {
+      if (value.startsWith("s:")) {
+        const unsigned = unsign(value.slice(2), secrets);
+        if (unsigned !== false) {
+          signedCookies[name] = unsigned;
+          modified = true;
+        }
+      }
+    }
+
+    if (modified) {
+      const cookies = { ...req.cookies };
+      for (const name of Object.keys(signedCookies)) {
+        delete cookies[name];
+      }
+      req.cookies = cookies;
+    }
+
+    req.signedCookies = signedCookies;
     next();
   };
 }

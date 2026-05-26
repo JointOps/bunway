@@ -67,8 +67,8 @@ export function json(options: JsonOptions = {}): Handler {
       return;
     }
 
-    const contentType = req.get("content-type") || "";
-    if (!matchesType(contentType, typeMatcher)) {
+    const contentType = req.get("content-type");
+    if (!contentType || !matchesType(contentType, typeMatcher)) {
       next();
       return;
     }
@@ -94,8 +94,8 @@ export function urlencoded(options: UrlencodedOptions = {}): Handler {
       return;
     }
 
-    const contentType = req.get("content-type") || "";
-    if (!matchesType(contentType, typeMatcher)) {
+    const contentType = req.get("content-type");
+    if (!contentType || !matchesType(contentType, typeMatcher)) {
       next();
       return;
     }
@@ -121,8 +121,8 @@ export function text(options: TextOptions = {}): Handler {
       return;
     }
 
-    const contentType = req.get("content-type") || "";
-    if (!matchesType(contentType, typeMatcher)) {
+    const contentType = req.get("content-type");
+    if (!contentType || !matchesType(contentType, typeMatcher)) {
       next();
       return;
     }
@@ -149,8 +149,8 @@ export function raw(options: RawOptions = {}): Handler {
       return;
     }
 
-    const contentType = req.get("content-type") || "";
-    if (!matchesType(contentType, typeMatcher)) {
+    const contentType = req.get("content-type");
+    if (!contentType || !matchesType(contentType, typeMatcher)) {
       next();
       return;
     }
