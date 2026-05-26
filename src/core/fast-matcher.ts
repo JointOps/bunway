@@ -243,9 +243,14 @@ export class FastMatcher {
     const route = methodRoutes.get(pathname);
     if (route) return { handlers: route.handlers, params: {}, path: route.path, keys: [] };
 
-    const alt = pathname.endsWith("/") ? pathname.slice(0, -1) : pathname + "/";
-    const altRoute = methodRoutes.get(alt);
-    if (altRoute) return { handlers: altRoute.handlers, params: {}, path: altRoute.path, keys: [] };
+    // Only try trailing-slash alt when exact match failed and path is non-root
+    if (pathname.length > 1) {
+      const alt = pathname.charCodeAt(pathname.length - 1) === 47  // '/'
+        ? pathname.slice(0, -1)
+        : pathname + "/";
+      const altRoute = methodRoutes.get(alt);
+      if (altRoute) return { handlers: altRoute.handlers, params: {}, path: altRoute.path, keys: [] };
+    }
 
     return null;
   }

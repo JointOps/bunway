@@ -3,6 +3,7 @@ import type { BunResponse } from "./response";
 import { negotiateAccept, negotiateSimple, languageMatch, typeIs } from "../utils/content-negotiation";
 
 const DEFAULT_BODY_LIMIT = 1024 * 1024;
+const _decoder = new TextDecoder();
 
 /**
  * Parse an IPv4 address into a 32-bit integer.
@@ -81,6 +82,10 @@ export class BunRequest {
   private _files: UploadedFile[] | Record<string, UploadedFile[]> | null = null;
   private _res?: BunResponse;
   private _queryObj: (URLSearchParams & Record<string, string | string[]>) | null = null;
+  private _acceptCache: Map<string, string | false> | null = null;
+  private _acceptCharsetCache: Map<string, string | false> | null = null;
+  private _acceptEncodingCache: Map<string, string | false> | null = null;
+  private _acceptLanguageCache: Map<string, string | false> | null = null;
 
   locals: Record<string, unknown> = {};
   timedout: boolean = false;
@@ -520,19 +525,55 @@ export class BunRequest {
   }
 
   accepts(...types: string[]): string | false {
-    return negotiateAccept(this.get("accept"), types);
+    const key = types.join("\x00");
+    if (this._acceptCache) {
+      const hit = this._acceptCache.get(key);
+      if (hit !== undefined) return hit;
+    } else {
+      this._acceptCache = new Map();
+    }
+    const result = negotiateAccept(this._original.headers.get("accept") ?? undefined, types);
+    this._acceptCache.set(key, result);
+    return result;
   }
 
   acceptsCharsets(...charsets: string[]): string | false {
-    return negotiateSimple(this.get("accept-charset"), charsets);
+    const key = charsets.join("\x00");
+    if (this._acceptCharsetCache) {
+      const hit = this._acceptCharsetCache.get(key);
+      if (hit !== undefined) return hit;
+    } else {
+      this._acceptCharsetCache = new Map();
+    }
+    const result = negotiateSimple(this._original.headers.get("accept-charset") ?? undefined, charsets);
+    this._acceptCharsetCache.set(key, result);
+    return result;
   }
 
   acceptsEncodings(...encodings: string[]): string | false {
-    return negotiateSimple(this.get("accept-encoding"), encodings);
+    const key = encodings.join("\x00");
+    if (this._acceptEncodingCache) {
+      const hit = this._acceptEncodingCache.get(key);
+      if (hit !== undefined) return hit;
+    } else {
+      this._acceptEncodingCache = new Map();
+    }
+    const result = negotiateSimple(this._original.headers.get("accept-encoding") ?? undefined, encodings);
+    this._acceptEncodingCache.set(key, result);
+    return result;
   }
 
   acceptsLanguages(...languages: string[]): string | false {
-    return negotiateSimple(this.get("accept-language"), languages, languageMatch);
+    const key = languages.join("\x00");
+    if (this._acceptLanguageCache) {
+      const hit = this._acceptLanguageCache.get(key);
+      if (hit !== undefined) return hit;
+    } else {
+      this._acceptLanguageCache = new Map();
+    }
+    const result = negotiateSimple(this._original.headers.get("accept-language") ?? undefined, languages, languageMatch);
+    this._acceptLanguageCache.set(key, result);
+    return result;
   }
 
   range(size: number, options?: { combine?: boolean }): RangeResult | undefined {
@@ -621,7 +662,7 @@ export class BunRequest {
 
   async rawText(): Promise<string> {
     const raw = await this.rawBody();
-    return new TextDecoder().decode(raw);
+    return _decoder.decode(raw);
   }
 
   async parseJson(limit = DEFAULT_BODY_LIMIT): Promise<unknown> {
@@ -630,7 +671,7 @@ export class BunRequest {
     if (raw.byteLength > limit) {
       throw Object.assign(new Error("Payload Too Large"), { status: 413 });
     }
-    const text = new TextDecoder().decode(raw);
+    const text = _decoder.decode(raw);
     if (!text) {
       this._body = {};
       this._bodyParsed = true;
@@ -670,7 +711,7 @@ export class BunRequest {
     if (raw.byteLength > limit) {
       throw Object.assign(new Error("Payload Too Large"), { status: 413 });
     }
-    const text = new TextDecoder().decode(raw);
+    const text = _decoder.decode(raw);
     const params = new URLSearchParams(text);
     this._body = Object.fromEntries(params.entries());
     this._bodyParsed = true;
@@ -683,7 +724,7 @@ export class BunRequest {
     if (raw.byteLength > limit) {
       throw Object.assign(new Error("Payload Too Large"), { status: 413 });
     }
-    this._body = new TextDecoder().decode(raw);
+    this._body = _decoder.decode(raw);
     this._bodyParsed = true;
     return this._body as string;
   }
