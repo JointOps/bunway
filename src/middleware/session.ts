@@ -217,31 +217,15 @@ export function session(options: SessionOptions): Handler {
   }
 
   return async (req, res, next) => {
-    const cookieHeader = req.get("cookie") || "";
-    const cookies: Record<string, string> = {};
-
-    for (const pair of cookieHeader.split(";")) {
-      const idx = pair.indexOf("=");
-      if (idx !== -1) {
-        const key = pair.slice(0, idx).trim();
-        const value = pair.slice(idx + 1).trim();
-        cookies[key] = value;
-      }
-    }
-
     let sessionId: string | null = null;
     let isNew = false;
 
-    const signedSid = cookies[name];
+    // req.cookies is lazy-parsed and cached by BunRequest — no re-parse needed
+    const signedSid = req.cookies[name];
     if (signedSid) {
-      try {
-        const decoded = decodeURIComponent(signedSid);
-        const unsigned = unsignSessionId(decoded, secret);
-        if (unsigned) {
-          sessionId = unsigned;
-        }
-      } catch {
-        sessionId = null;
+      const unsigned = unsignSessionId(signedSid, secret);
+      if (unsigned) {
+        sessionId = unsigned;
       }
     }
 
@@ -260,7 +244,7 @@ export function session(options: SessionOptions): Handler {
     const flashData: Record<string, string[]> = (sessionData._flash as Record<string, string[]>) || {};
     delete sessionData._flash;
 
-    const internalData: SessionData = { ...sessionData };
+    const internalData: SessionData = sessionData;
     let destroyed = false;
 
     // Write queue to ensure session writes happen in order

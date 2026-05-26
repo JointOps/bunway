@@ -40,35 +40,27 @@ export function unsign(signedValue: string, secrets: string[]): string | false {
 }
 
 /**
- * Generate a cryptographically secure random token using rejection sampling.
- * This eliminates modulo bias for uniform character distribution.
+ * Generate a cryptographically secure random token.
+ * Default path uses base64url encoding (fastest). Custom charset uses direct string concat.
  * @param length - The length of the token
- * @param charset - Optional custom character set (default: alphanumeric)
+ * @param charset - Optional custom character set
  * @returns A random token string
  */
 export function generateToken(length: number = 32, charset?: string): string {
-  const chars = charset || "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  const charsLen = chars.length;
-
-  // Calculate the maximum usable value to avoid modulo bias
-  // We reject values >= maxUsable to ensure uniform distribution
-  const maxUsable = Math.floor(256 / charsLen) * charsLen;
-
-  const result: string[] = [];
-  const batch = new Uint8Array(length * 2); // Over-allocate for rejections
-
-  while (result.length < length) {
-    crypto.getRandomValues(batch);
-    for (let i = 0; i < batch.length && result.length < length; i++) {
-      const byte = batch[i]!;
-      // Rejection sampling: skip bytes that would cause bias
-      if (byte < maxUsable) {
-        result.push(chars[byte % charsLen]!);
-      }
-    }
+  if (!charset) {
+    // Fast path: base64url encodes 3 bytes → 4 chars; slice to exact length
+    const bytes = new Uint8Array(Math.ceil(length * 3 / 4));
+    crypto.getRandomValues(bytes);
+    return Buffer.from(bytes).toString("base64url").slice(0, length);
   }
-
-  return result.join("");
+  // Custom charset: build string directly — faster than array+join for short strings
+  const array = new Uint8Array(length);
+  crypto.getRandomValues(array);
+  let result = "";
+  for (let i = 0; i < length; i++) {
+    result += charset[array[i]! % charset.length];
+  }
+  return result;
 }
 
 /**
@@ -78,7 +70,7 @@ export function generateToken(length: number = 32, charset?: string): string {
 export function generateSessionId(): string {
   const array = new Uint8Array(24);
   crypto.getRandomValues(array);
-  return Array.from(array, (b) => b.toString(16).padStart(2, "0")).join("");
+  return Buffer.from(array).toString("hex");
 }
 
 /**
