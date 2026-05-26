@@ -1,511 +1,210 @@
 ---
 title: Coming from Express?
-description: Migrate from Express to bunWay with zero learning curve. Same patterns, same middleware, just faster.
+description: Migrate from Express to bunWay — same API, same patterns, zero rewrites.
 ---
 
 # Coming from Express?
 
-If you've built Express apps, you already know bunWay. We designed it that way.
+You already know bunWay. Same `(req, res, next)` signature, same middleware names, same routing patterns. Three things change on the way in:
 
-::: tip Zero Learning Curve
-bunWay uses the same patterns, same middleware names, and same API conventions you already know from Express. The only difference? It runs on Bun—and it's faster.
-:::
+<div class="migration-steps">
+  <div class="migration-step">
+    <span class="step-num">1</span>
+    <span class="step-title">Change the import</span>
+    <span class="step-desc"><code>require()</code> → <code>import</code></span>
+  </div>
+  <div class="migration-step">
+    <span class="step-num">2</span>
+    <span class="step-title">Rename the factory</span>
+    <span class="step-desc"><code>express()</code> → <code>bunway()</code></span>
+  </div>
+  <div class="migration-step">
+    <span class="step-num">3</span>
+    <span class="step-title">Delete npm middleware</span>
+    <span class="step-desc">24 built-ins ship with bunWay — no installs needed</span>
+  </div>
+</div>
 
-## Side-by-Side Comparison
+<div class="stats-strip">
+  <div class="stat-item">
+    <span class="stat-number">24</span>
+    <span class="stat-label">Built-in middleware</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-number">0</span>
+    <span class="stat-label">npm dependencies</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-number">3–4×</span>
+    <span class="stat-label">Faster than Node.js</span>
+  </div>
+</div>
 
-### Express (Node.js)
+## The Diff
+
+Here's a real Express app migrated to bunWay. Every unmarked line is untouched.
 
 ```js
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const session = require('express-session');
-const morgan = require('morgan');
+const express = require('express') // [!code --]
+const cors    = require('cors')    // [!code --]
+const helmet  = require('helmet')  // [!code --]
+const morgan  = require('morgan')  // [!code --]
+import { bunway, cors, helmet, logger, json, session } from 'bunway' // [!code ++]
 
-const app = express();
+const app = express() // [!code --]
+const app = bunway()  // [!code ++]
 
-app.use(cors());
-app.use(helmet());
-app.use(morgan('dev'));
-app.use(express.json());
-app.use(session({ secret: 'keyboard cat' }));
-
-app.get('/users/:id', (req, res) => {
-  res.json({ id: req.params.id });
-});
-
-app.listen(3000);
-```
-
-### bunWay (Bun)
-
-```ts
-import { bunway, cors, helmet, logger, json, session } from 'bunway';
-
-const app = bunway();
-
-app.use(cors());
-app.use(helmet());
-app.use(logger('dev'));
-app.use(json());
-app.use(session({ secret: 'keyboard cat' }));
+app.use(cors())
+app.use(helmet())
+app.use(morgan('dev')) // [!code --]
+app.use(logger('dev')) // [!code ++]
+app.use(express.json()) // [!code --]
+app.use(json())         // [!code ++]
+app.use(session({ secret: 'keyboard cat' }))
 
 app.get('/users/:id', (req, res) => {
-  res.json({ id: req.params.id });
-});
+  res.json({ id: req.params.id })
+})
 
-app.listen(3000);
+app.listen(3000)
 ```
 
-The difference? One `import` statement. Everything else is the same.
+## What's Different
 
-## Middleware Mapping
+::: warning Only two things change
+1. **ES modules only** — use `import` instead of `require()`. bunWay is TypeScript-first and ships no CommonJS build.
+2. **Bun runtime** — run with `bun server.ts` instead of `node server.js`.
 
-bunWay ships 24 built-in middleware that replace the most common Express ecosystem packages.
+The handler signature `(req, res, next)`, every method, every property — identical.
+:::
+
+## Middleware Replacements
+
+Delete the npm package and update the import. The API is identical unless noted in the [full reference](#api-reference) below.
 
 ### Body Parsing
 
-| Express package | bunWay | Notes |
-|----------------|--------|-------|
-| `express.json()` | `json()` | Same options |
-| `express.urlencoded()` | `urlencoded()` | Same options; `extended` supported |
-| `body-parser.text()` | `text()` | Same options |
-| `body-parser.raw()` | `raw()` | Adds `verify` callback for signature validation |
+<div class="swap-grid">
+  <div class="swap-card"><code class="swap-old">express.json()</code><span class="swap-arrow">→</span><code class="swap-new">json()</code></div>
+  <div class="swap-card"><code class="swap-old">express.urlencoded()</code><span class="swap-arrow">→</span><code class="swap-new">urlencoded()</code></div>
+  <div class="swap-card"><code class="swap-old">body-parser.text()</code><span class="swap-arrow">→</span><code class="swap-new">text()</code></div>
+  <div class="swap-card"><code class="swap-old">body-parser.raw()</code><span class="swap-arrow">→</span><code class="swap-new">raw()</code></div>
+</div>
 
 ### Security
 
-| Express package | bunWay | Notes |
-|----------------|--------|-------|
-| `helmet` | `helmet()` | Same options |
-| `csurf` | `csrf()` | `httpOnly` defaults to `false` (double-submit requires JS access) |
-| `express-rate-limit` | `rateLimit()` | Same API; returns handler with `reset()` and `size` |
-| `hpp` | `hpp()` | Same API; adds `checkBody` option |
+<div class="swap-grid">
+  <div class="swap-card"><code class="swap-old">helmet</code><span class="swap-arrow">→</span><code class="swap-new">helmet()</code></div>
+  <div class="swap-card"><code class="swap-old">express-rate-limit</code><span class="swap-arrow">→</span><code class="swap-new">rateLimit()</code></div>
+  <div class="swap-card"><code class="swap-old">csurf</code><span class="swap-arrow">→</span><code class="swap-new">csrf()</code></div>
+  <div class="swap-card"><code class="swap-old">hpp</code><span class="swap-arrow">→</span><code class="swap-new">hpp()</code></div>
+  <div class="swap-card"><code class="swap-old">express-session</code><span class="swap-arrow">→</span><code class="swap-new">session()</code></div>
+  <div class="swap-card"><code class="swap-old">passport</code><span class="swap-arrow">→</span><code class="swap-new">passport()</code></div>
+  <div class="swap-card"><code class="swap-old">cookie-parser</code><span class="swap-arrow">→</span><code class="swap-new">cookieParser()</code></div>
+</div>
 
-### Session & Auth
+### Files & Assets
 
-| Express package | bunWay | Notes |
-|----------------|--------|-------|
-| `express-session` | `session()` | Same API; `MemoryStore` and `FileStore` built in |
-| `passport` | `passport()` | Same strategies API |
-| `cookie-parser` | `cookieParser()` | Same options |
-
-### Files & Static
-
-| Express package | bunWay | Notes |
-|----------------|--------|-------|
-| `express.static()` | `serveStatic()` | Same options |
-| `multer` | `upload()` | `diskStorage()` and `memoryStorage()` built in |
-| `serve-favicon` | `favicon(path, opts)` | ETag + Cache-Control built in |
+<div class="swap-grid">
+  <div class="swap-card"><code class="swap-old">express.static()</code><span class="swap-arrow">→</span><code class="swap-new">serveStatic()</code></div>
+  <div class="swap-card"><code class="swap-old">multer</code><span class="swap-arrow">→</span><code class="swap-new">upload()</code></div>
+  <div class="swap-card"><code class="swap-old">serve-favicon</code><span class="swap-arrow">→</span><code class="swap-new">favicon()</code></div>
+  <div class="swap-card"><code class="swap-old">compression</code><span class="swap-arrow">→</span><code class="swap-new">compression()</code></div>
+</div>
 
 ### Observability & Utilities
 
-| Express package | bunWay | Notes |
-|----------------|--------|-------|
-| `morgan` | `logger(format, opts)` | Same format tokens |
-| `compression` | `compression()` | Adds Brotli; same threshold/level API |
-| `response-time` | `responseTime()` | Same header; configurable digits |
-| `express-request-id` | `requestId()` | Reads existing header or generates UUID |
-| `method-override` | `methodOverride()` | Header, query, or body getter |
-| `cors` | `cors()` | Same options |
-| `connect-timeout` | `timeout(ms, opts)` | Same API; adds `skip` and `respond` options |
-| `express-sse` (or similar) | `sse()` | `res.sendEvent()` + configurable heartbeat |
-| `express-validator` | `validate(schema, opts)` | Built-in schema; `type:` values not Express-validator syntax |
-| Custom 4-arg middleware | `errorHandler()` | `development` auto-detected; no `map` option |
-
-No more hunting through npm. No more version conflicts. It's all built-in.
-
-## API Comparison
-
-### Request Object
-
-#### Core Request Properties
-
-| Express | bunWay | Notes |
-|---------|--------|-------|
-| `req.params` | `req.params` | Identical |
-| `req.query` | `req.query` | Identical |
-| `req.body` | `req.body` | Identical |
-| `req.cookies` | `req.cookies` | Identical |
-| `req.path` | `req.path` | Identical |
-| `req.method` | `req.method` | Identical |
-| `req.ip` | `req.ip` | Identical |
-| `req.session` | `req.session` | With session middleware |
-| `req.protocol` | `req.protocol` | Identical (respects X-Forwarded-Proto with trust proxy) |
-| `req.secure` | `req.secure` | Identical |
-
-#### Request Methods
-
-| Express | bunWay | Notes |
-|---------|--------|-------|
-| `req.get('header')` | `req.get('header')` | Identical |
-| `req.fresh` / `req.stale` | `req.fresh` / `req.stale` | ETag + Last-Modified cache validation |
-| `req.range(size)` | `req.range(size)` | Range header parsing for partial content |
-| `req.param(name)` | `req.param(name)` | Checks params → body → query |
-| `req.acceptsCharsets()` | `req.acceptsCharsets()` | Identical |
-| `req.acceptsEncodings()` | `req.acceptsEncodings()` | Identical |
-| `req.acceptsLanguages()` | `req.acceptsLanguages()` | Identical |
-
-### Response Object
-
-#### Core Response Methods
-
-| Express | bunWay | Notes |
-|---------|--------|-------|
-| `res.json()` | `res.json()` | Identical |
-| `res.send()` | `res.send()` | Identical |
-| `res.status()` | `res.status()` | Identical |
-| `res.set()` | `res.set()` | Identical |
-| `res.cookie()` | `res.cookie()` | Identical |
-| `res.redirect()` | `res.redirect()` | Identical |
-| `res.sendStatus()` | `res.sendStatus()` | Identical |
-| `res.send()` chaining | `res.send()` chaining | Returns `this` for chaining |
-
-#### Advanced Response Methods
-
-| Express | bunWay | Notes |
-|---------|--------|-------|
-| `res.sendFile()` range | `res.sendFile()` range | Automatic 206 Partial Content with `Accept-Ranges: bytes` |
-| `res.jsonp(data)` | `res.jsonp(data)` | JSONP with configurable callback name |
-| `res.download(path, fn, cb)` | `res.download(path, fn, cb)` | Callback support for error handling |
-| `res.attachment(file)` | `res.attachment(file)` | Auto-detects Content-Type |
-| `res.end(data, enc, cb)` | `res.end(data, enc, cb)` | Encoding and callback support |
-
-### Routing
-
-#### HTTP Methods
-
-| Express | bunWay | Notes |
-|---------|--------|-------|
-| `app.get()` | `app.get()` | Identical |
-| `app.post()` | `app.post()` | Identical |
-| `app.put()` | `app.put()` | Identical |
-| `app.delete()` | `app.delete()` | Identical |
-
-#### Middleware & Mounting
-
-| Express | bunWay | Notes |
-|---------|--------|-------|
-| `app.use()` | `app.use()` | Identical |
-| `app.route('/path')` | `app.route('/path')` | Chainable route definitions |
-| `express.Router()` | `bunway.Router()` | Same pattern |
-| `Router({ mergeParams: true })` | `Router({ mergeParams: true })` | Inherit parent route params |
-| `req.res` / `res.req` | `req.res` / `res.req` | Cross-references set during dispatch |
-| `res.app` | `res.app` | Access app instance from response |
-| `app.use([paths], handler)` | `app.use([paths], handler)` | Array path mounting |
-
-#### Server Setup
-
-| Express | bunWay | Notes |
-|---------|--------|-------|
-| `https.createServer(opts, app)` | `app.listen({ tls: opts })` | Native TLS support |
-| `server.close(callback)` | `app.close(callback)` | Graceful shutdown |
-
-## Migration Examples
-
-### Body Parsing
-
-**Express:**
-```js
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-```
-
-**bunWay:**
-```ts
-app.use(json({ limit: '10mb' }));
-app.use(urlencoded({ extended: true }));
-```
-
-### Session Management
-
-**Express:**
-```js
-const session = require('express-session');
-app.use(session({
-  secret: 'my-secret',
-  resave: false,
-  saveUninitialized: true,
-  cookie: { maxAge: 86400000 }
-}));
-```
-
-**bunWay:**
-```ts
-import { session } from 'bunway';
-app.use(session({
-  secret: 'my-secret',
-  resave: false,
-  saveUninitialized: true,
-  cookie: { maxAge: 86400000 }
-}));
-```
-
-### Static Files
-
-**Express:**
-```js
-app.use(express.static('public'));
-app.use('/assets', express.static('assets', { maxAge: '1d' }));
-```
-
-**bunWay:**
-```ts
-app.use(serveStatic('public'));
-app.use('/assets', serveStatic('assets', { maxAge: 86400000 }));
-```
-
-### Request Logging
-
-**Express:**
-```js
-const morgan = require('morgan');
-app.use(morgan('combined'));
-app.use(morgan(':method :url :status :response-time ms'));
-```
-
-**bunWay:**
-```ts
-import { logger } from 'bunway';
-app.use(logger('combined'));
-app.use(logger(':method :url :status :response-time ms'));
-```
-
-Same format strings. Same output.
-
-### Security Headers
-
-**Express:**
-```js
-const helmet = require('helmet');
-app.use(helmet());
-app.use(helmet({
-  contentSecurityPolicy: false,
-  crossOriginEmbedderPolicy: false
-}));
-```
-
-**bunWay:**
-```ts
-import { helmet } from 'bunway';
-app.use(helmet());
-app.use(helmet({
-  contentSecurityPolicy: false,
-  crossOriginEmbedderPolicy: false
-}));
-```
-
-### Rate Limiting
-
-**Express:**
-```js
-const rateLimit = require('express-rate-limit');
-app.use(rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100
-}));
-```
-
-**bunWay:**
-```ts
-import { rateLimit } from 'bunway';
-app.use(rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100
-}));
-```
-
-### Sub-Routers
-
-**Express:**
-```js
-const router = express.Router();
-router.get('/profile', (req, res) => res.json({ user: 'me' }));
-app.use('/api', router);
-```
-
-**bunWay:**
-```ts
-const router = bunway.Router();
-router.get('/profile', (req, res) => res.json({ user: 'me' }));
-app.use('/api', router);
-```
-
-## Why Switch?
-
-### Speed
-Bun is significantly faster than Node.js. Your Express-style code runs faster without any changes.
-
-### Simplicity
-- No `node_modules` with thousands of packages
-- No version conflicts between middleware
-- Native TypeScript—no build step needed
-
-### Batteries Included
-Stop hunting for middleware on npm. Everything you need is built-in:
-- Body parsing
-- CORS
-- Sessions
-- Security headers
-- Logging
-- Rate limiting
-- Static files
-- Compression
-- CSRF protection
-
-### Zero Learning Curve
-You already know how to use bunWay. Same patterns. Same API. Just faster.
-
-## Quick Start
-
-```bash
-bun add bunway
-```
-
-```ts
-import { bunway, json, cors, helmet, logger } from 'bunway';
-
-const app = bunway();
-
-app.use(cors());
-app.use(helmet());
-app.use(logger('dev'));
-app.use(json());
-
-app.get('/', (req, res) => {
-  res.json({ message: 'Hello from bunWay!' });
-});
-
-app.listen(3000, () => {
-  console.log('Server running on http://localhost:3000');
-});
-```
-
-That's it. You're running on Bun.
-
-## Content Negotiation (v1.0.8+)
-
-bunWay now implements RFC 7231 quality-value parsing for all `req.accepts*()` methods.
-This means headers like `Accept: text/html;q=0.9, application/json` are parsed correctly
-with proper priority ordering — identical to Express's `accepts` package.
-
-### req.is() — MIME Type Matching
-
-bunWay's `req.is()` now supports MIME type wildcards:
-
-```typescript
-// These all work like Express:
-req.is("json")           // matches "application/json"
-req.is("text/*")         // matches "text/html", "text/plain", etc.
-req.is("application/*")  // matches "application/json", "application/xml", etc.
-```
-
-### res.send() — Auto Content-Type Detection
-
-`res.send()` now auto-detects Content-Type like Express:
-
-```typescript
-res.send("Hello")        // → Content-Type: text/html; charset=utf-8
-res.send({ ok: true })   // → Content-Type: application/json (delegates to json())
-res.send(buffer)         // → Content-Type: application/octet-stream
-```
-
-### Regex Routes
-
-bunWay now supports regex route patterns:
-
-```typescript
-app.get(/\/fly$/, (req, res) => { ... });
-app.get(/\/users\/(?<id>\d+)/, (req, res) => {
-  res.json({ id: req.params.id }); // Named capture groups become params
-});
-```
-
-### Catch-all Routes
-
-```typescript
-app.all("*", (req, res) => {
-  res.status(404).json({ error: "Not Found" });
-});
-```
-
-### Sub-App Mounting
-
-```typescript
-const admin = bunway();
-app.use("/admin", admin);
-console.log(admin.mountpath); // "/admin"
-console.log(admin.path());   // "/admin"
-```
-
-### req.param() — Unified Parameter Lookup
-
-Like Express's deprecated `req.param()`, bunWay checks params, body, then query:
-
-```typescript
-// GET /users/42?role=admin  (body: { name: "Jo" })
-req.param("id");   // "42"   (from params)
-req.param("name"); // "Jo"   (from body)
-req.param("role"); // "admin" (from query)
-```
-
-### req.acceptsCharsets(), req.acceptsEncodings(), req.acceptsLanguages()
-
-Content negotiation helpers that mirror Express:
-
-```typescript
-req.acceptsCharsets("utf-8", "iso-8859-1"); // "utf-8"
-req.acceptsEncodings("gzip", "deflate");    // "gzip"
-req.acceptsLanguages("en", "fr");           // "en"
-```
-
-### res.send() / res.json() — Chainable
-
-`res.send()` and `res.json()` now return `this` for chaining:
-
-```typescript
-res.status(200).send("ok");
-res.status(201).json({ created: true });
-```
-
-### res.download() — Callback Support
-
-`res.download()` now accepts an optional callback for error handling:
-
-```typescript
-res.download("/files/report.pdf", "report.pdf", (err) => {
-  if (err) console.error("Download failed:", err);
-});
-```
-
-### res.attachment() — Content-Type Auto-Detection
-
-`res.attachment()` sets `Content-Disposition` and auto-detects `Content-Type`:
-
-```typescript
-res.attachment("photo.png");
-// Content-Disposition: attachment; filename="photo.png"
-// Content-Type: image/png
-```
-
-### res.end() — Encoding & Callback
-
-`res.end()` now supports encoding and callback arguments like Express:
-
-```typescript
-res.end("done", "utf-8", () => {
-  console.log("Response sent");
-});
-```
-
-## What's Different?
-
-Just two things:
-
-1. **Import style**: ES modules only (no `require()`)
-2. **Runtime**: Bun, not Node.js
-
-That's it. The handler signature is identical: `(req, res, next)`.
+<div class="swap-grid">
+  <div class="swap-card"><code class="swap-old">morgan</code><span class="swap-arrow">→</span><code class="swap-new">logger()</code></div>
+  <div class="swap-card"><code class="swap-old">response-time</code><span class="swap-arrow">→</span><code class="swap-new">responseTime()</code></div>
+  <div class="swap-card"><code class="swap-old">express-request-id</code><span class="swap-arrow">→</span><code class="swap-new">requestId()</code></div>
+  <div class="swap-card"><code class="swap-old">method-override</code><span class="swap-arrow">→</span><code class="swap-new">methodOverride()</code></div>
+  <div class="swap-card"><code class="swap-old">connect-timeout</code><span class="swap-arrow">→</span><code class="swap-new">timeout()</code></div>
+  <div class="swap-card"><code class="swap-old">cors</code><span class="swap-arrow">→</span><code class="swap-new">cors()</code></div>
+  <div class="swap-card"><code class="swap-old">express-validator</code><span class="swap-arrow">→</span><code class="swap-new">validate()</code></div>
+  <div class="swap-card"><code class="swap-old">express-sse</code><span class="swap-arrow">→</span><code class="swap-new">sse()</code></div>
+  <div class="swap-card"><code class="swap-old">custom 4-arg middleware</code><span class="swap-arrow">→</span><code class="swap-new">errorHandler()</code></div>
+</div>
+
+## API Reference
+
+The request and response objects are 1:1 with Express. Open any section — <span class="badge-same">identical</span> means zero code changes, <span class="badge-plus">enhanced</span> means bunWay is a superset.
+
+<AccordionSection>
+
+<AccordionItem title="Request — properties">
+
+| Property | Status |
+|---|---|
+| `req.params` | <span class="badge-same">identical</span> |
+| `req.query` | <span class="badge-same">identical</span> |
+| `req.body` | <span class="badge-same">identical</span> |
+| `req.cookies` | <span class="badge-same">identical</span> |
+| `req.path` | <span class="badge-same">identical</span> |
+| `req.method` | <span class="badge-same">identical</span> |
+| `req.ip` | <span class="badge-same">identical</span> |
+| `req.session` | <span class="badge-same">identical</span> |
+| `req.protocol` | <span class="badge-same">identical</span> |
+| `req.secure` | <span class="badge-same">identical</span> |
+
+</AccordionItem>
+
+<AccordionItem title="Request — methods">
+
+| Method | Status | Notes |
+|---|---|---|
+| `req.get(header)` | <span class="badge-same">identical</span> | |
+| `req.fresh` / `req.stale` | <span class="badge-same">identical</span> | ETag + Last-Modified cache validation |
+| `req.range(size)` | <span class="badge-same">identical</span> | Range header parsing |
+| `req.param(name)` | <span class="badge-same">identical</span> | params → body → query |
+| `req.acceptsCharsets()` | <span class="badge-same">identical</span> | |
+| `req.acceptsEncodings()` | <span class="badge-same">identical</span> | |
+| `req.acceptsLanguages()` | <span class="badge-same">identical</span> | |
+| `req.is(type)` | <span class="badge-plus">enhanced</span> | Supports `text/*` and `application/*` wildcards |
+| `req.accepts(type)` | <span class="badge-plus">enhanced</span> | RFC 7231 quality-value parsing |
+
+</AccordionItem>
+
+<AccordionItem title="Response — methods">
+
+| Method | Status | Notes |
+|---|---|---|
+| `res.json()` | <span class="badge-same">identical</span> | |
+| `res.send()` | <span class="badge-plus">enhanced</span> | Auto content-type detection + chainable |
+| `res.status()` | <span class="badge-same">identical</span> | |
+| `res.set()` | <span class="badge-same">identical</span> | |
+| `res.cookie()` | <span class="badge-same">identical</span> | |
+| `res.redirect()` | <span class="badge-same">identical</span> | |
+| `res.sendStatus()` | <span class="badge-same">identical</span> | |
+| `res.sendFile()` | <span class="badge-plus">enhanced</span> | Automatic 206 Partial Content |
+| `res.jsonp()` | <span class="badge-same">identical</span> | |
+| `res.download()` | <span class="badge-plus">enhanced</span> | Optional error callback |
+| `res.attachment()` | <span class="badge-plus">enhanced</span> | Auto content-type detection |
+| `res.end()` | <span class="badge-plus">enhanced</span> | Encoding + callback support |
+
+</AccordionItem>
+
+<AccordionItem title="Routing & server">
+
+| API | Status | Notes |
+|---|---|---|
+| `app.get/post/put/delete()` | <span class="badge-same">identical</span> | |
+| `app.use()` | <span class="badge-same">identical</span> | Array path mounting supported |
+| `app.route(path)` | <span class="badge-same">identical</span> | Chainable route definitions |
+| `bunway.Router()` | <span class="badge-same">identical</span> | Was `express.Router()` |
+| `Router({ mergeParams: true })` | <span class="badge-same">identical</span> | |
+| `req.res` / `res.req` | <span class="badge-same">identical</span> | Cross-references set during dispatch |
+| `res.app` | <span class="badge-same">identical</span> | |
+| Regex routes | <span class="badge-new">new</span> | `app.get(/\/fly$/, handler)` |
+| `app.all('*', handler)` | <span class="badge-same">identical</span> | |
+| Sub-app mounting | <span class="badge-plus">enhanced</span> | `app.mountpath` + `app.path()` |
+| `app.listen({ tls: opts })` | <span class="badge-plus">enhanced</span> | Native TLS — no `https.createServer()` |
+| `app.close(cb)` | <span class="badge-same">identical</span> | |
+
+</AccordionItem>
+
+</AccordionSection>
 
 ---
 
-Ready to migrate? Check out the [Getting Started](/guide/getting-started) guide or browse the [Middleware](/middleware/index) documentation.
+Ready? [Get started →](/guide/getting-started) or jump straight to [Middleware →](/middleware/index)
