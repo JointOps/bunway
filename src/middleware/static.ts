@@ -1,7 +1,15 @@
 import type { Handler } from "../types";
+import type { BunRequest } from "../core/request";
+import type { BunResponse } from "../core/response";
 import { existsSync, statSync, realpathSync } from "fs";
 import { join, resolve } from "path";
 import { getMimeType, generateETag } from "../utils";
+
+interface StatCache {
+  stat: ReturnType<typeof statSync>;
+  filePath: string;
+  expires: number;
+}
 
 /**
  * Check if the resolved file path is safely within the root directory.
@@ -42,6 +50,7 @@ export interface StaticOptions {
   lastModified?: boolean;
   fallthrough?: boolean;
   extensions?: string[];
+  statCacheTtl?: number; // milliseconds, default 5000 (5s). Set 0 to disable.
 }
 
 export function serveStatic(root: string, options: StaticOptions = {}): Handler {
@@ -54,79 +63,34 @@ export function serveStatic(root: string, options: StaticOptions = {}): Handler 
     lastModified = true,
     fallthrough = true,
     extensions = [],
+    statCacheTtl = 5000,
   } = options;
 
   const indexFiles = index === false ? [] : Array.isArray(index) ? index : [index];
   const rootPath = root.startsWith("/") ? root : join(process.cwd(), root);
+  const fileStatCache = statCacheTtl > 0 ? new Map<string, StatCache>() : null;
 
-  return async (req, res, next) => {
-    if (req.method !== "GET" && req.method !== "HEAD") {
-      if (fallthrough) {
-        next();
-        return;
-      }
-      res.status(405).json({ error: "Method Not Allowed" });
-      return;
+  function getCachedStat(urlPath: string): { filePath: string; stat: ReturnType<typeof statSync> } | null {
+    if (!fileStatCache) return null;
+    const cached = fileStatCache.get(urlPath);
+    if (cached && cached.expires > Date.now()) {
+      return { filePath: cached.filePath, stat: cached.stat };
     }
+    return null;
+  }
 
-    let urlPath = decodeURIComponent(req.path);
+  function setCachedStat(urlPath: string, filePath: string, stat: ReturnType<typeof statSync>): void {
+    if (!fileStatCache) return;
+    fileStatCache.set(urlPath, { stat, filePath, expires: Date.now() + statCacheTtl });
+  }
 
-    // Construct initial file path
-    let filePath = join(rootPath, urlPath);
-
-    // Security: Verify path is within root directory (prevents traversal attacks)
-    if (!isPathSafe(filePath, rootPath)) {
-      if (fallthrough) {
-        next();
-        return;
-      }
-      res.status(403).json({ error: "Forbidden" });
-      return;
-    }
-    let stat: ReturnType<typeof statSync> | null = null;
-
-    if (existsSync(filePath)) {
-      stat = statSync(filePath);
-
-      if (stat.isDirectory()) {
-        for (const indexFile of indexFiles) {
-          const indexPath = join(filePath, indexFile);
-          if (existsSync(indexPath)) {
-            filePath = indexPath;
-            stat = statSync(filePath);
-            break;
-          }
-        }
-
-        if (stat.isDirectory()) {
-          if (fallthrough) {
-            next();
-            return;
-          }
-          res.status(404).json({ error: "Not Found" });
-          return;
-        }
-      }
-    } else {
-      for (const ext of extensions) {
-        const extPath = filePath + (ext.startsWith(".") ? ext : `.${ext}`);
-        if (existsSync(extPath)) {
-          filePath = extPath;
-          stat = statSync(filePath);
-          break;
-        }
-      }
-    }
-
-    if (!stat || !stat.isFile()) {
-      if (fallthrough) {
-        next();
-        return;
-      }
-      res.status(404).json({ error: "Not Found" });
-      return;
-    }
-
+  async function serveFile(
+    filePath: string,
+    stat: ReturnType<typeof statSync>,
+    req: BunRequest,
+    res: BunResponse,
+    next: (err?: unknown) => void,
+  ): Promise<void> {
     const fileName = filePath.split("/").pop() || "";
     if (fileName.startsWith(".")) {
       if (dotfiles === "deny") {
@@ -184,5 +148,86 @@ export function serveStatic(root: string, options: StaticOptions = {}): Handler 
     }
 
     res.status(200).send(Bun.file(filePath));
+  }
+
+  return async (req, res, next) => {
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      if (fallthrough) {
+        next();
+        return;
+      }
+      res.status(405).json({ error: "Method Not Allowed" });
+      return;
+    }
+
+    const urlPath = decodeURIComponent(req.path);
+
+    // Check stat cache before hitting the filesystem
+    const cached = getCachedStat(urlPath);
+    if (cached) {
+      await serveFile(cached.filePath, cached.stat, req, res, next);
+      return;
+    }
+
+    // Construct initial file path
+    let filePath = join(rootPath, urlPath);
+
+    // Security: Verify path is within root directory (prevents traversal attacks)
+    if (!isPathSafe(filePath, rootPath)) {
+      if (fallthrough) {
+        next();
+        return;
+      }
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    let stat: ReturnType<typeof statSync> | null = null;
+
+    if (existsSync(filePath)) {
+      stat = statSync(filePath);
+
+      if (stat.isDirectory()) {
+        for (const indexFile of indexFiles) {
+          const indexPath = join(filePath, indexFile);
+          if (existsSync(indexPath)) {
+            filePath = indexPath;
+            stat = statSync(filePath);
+            break;
+          }
+        }
+
+        if (stat.isDirectory()) {
+          if (fallthrough) {
+            next();
+            return;
+          }
+          res.status(404).json({ error: "Not Found" });
+          return;
+        }
+      }
+    } else {
+      for (const ext of extensions) {
+        const extPath = filePath + (ext.startsWith(".") ? ext : `.${ext}`);
+        if (existsSync(extPath)) {
+          filePath = extPath;
+          stat = statSync(filePath);
+          break;
+        }
+      }
+    }
+
+    if (!stat || !stat.isFile()) {
+      if (fallthrough) {
+        next();
+        return;
+      }
+      res.status(404).json({ error: "Not Found" });
+      return;
+    }
+
+    // Cache the resolved stat for future requests
+    setCachedStat(urlPath, filePath, stat);
+    await serveFile(filePath, stat, req, res, next);
   };
 }
