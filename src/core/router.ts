@@ -38,6 +38,18 @@ type ParamHandler = (
 const ROUTE_SIGNAL = "__bunway_route_skip__";
 const ROUTER_SIGNAL = "__bunway_router_skip__";
 
+function make404Body(method: string, pathname: string): string {
+  return `{"error":"Not Found","message":"Cannot ${method} ${pathname}"}`;
+}
+function make405Body(method: string, pathname: string, allow: string): string {
+  return `{"error":"Method Not Allowed","message":"${method} is not allowed for ${pathname}","allowedMethods":"${allow}"}`;
+}
+const JSON_HEADERS = { "Content-Type": "application/json" };
+const JSON_ALLOW_HEADER = (allow: string): Record<string, string> => ({
+  "Content-Type": "application/json",
+  "Allow": allow,
+});
+
 export class Router {
   protected routes: RouteDefinition[] = [];
   protected middlewares: Handler[] = [];
@@ -47,6 +59,7 @@ export class Router {
   protected routerOptions: RouterOptions;
   protected paramHandlers: Map<string, ParamHandler[]> = new Map();
   protected wsRoutes: WebSocketRouteDefinition[] = [];
+  private readonly _mergeParams: boolean;
 
   // Fast matcher for O(1) static routes and compiled regex for dynamic routes
   protected fastMatcher: FastMatcher = new FastMatcher();
@@ -58,6 +71,7 @@ export class Router {
 
   constructor(opts: RouterOptions = {}) {
     this.routerOptions = opts;
+    this._mergeParams = opts.mergeParams === true;
   }
 
   /**
@@ -605,7 +619,7 @@ export class Router {
   async handle(original: Request, server?: BunServer<unknown>): Promise<Response> {
     // Fast pathname extraction - avoids full URL parsing
     const pathname = getPathname(original.url);
-    const method = original.method.toUpperCase();
+    const method = original.method;
 
     // Check child routers first - optimized to avoid creating new Request/URL
     for (const child of this.children) {
@@ -624,31 +638,15 @@ export class Router {
         const matchingMethods = this.fastMatcher.getMatchingMethods(pathname);
         if (matchingMethods.length > 0) {
           const allowedMethods = matchingMethods.join(", ");
-          return new Response(
-            JSON.stringify({
-              error: "Method Not Allowed",
-              message: `${method} is not allowed for ${pathname}`,
-              allowedMethods,
-            }),
-            {
-              status: 405,
-              headers: {
-                "Content-Type": "application/json",
-                Allow: allowedMethods,
-              },
-            }
-          );
+          return new Response(make405Body(method, pathname, allowedMethods), {
+            status: 405,
+            headers: JSON_ALLOW_HEADER(allowedMethods),
+          });
         }
-        return new Response(
-          JSON.stringify({
-            error: "Not Found",
-            message: `Cannot ${method} ${pathname}`,
-          }),
-          {
-            status: 404,
-            headers: { "Content-Type": "application/json" },
-          }
-        );
+        return new Response(make404Body(method, pathname), {
+          status: 404,
+          headers: JSON_HEADERS,
+        });
       }
 
       // Route found - now create req/res for handlers
@@ -671,16 +669,10 @@ export class Router {
       const fallback = await this.dispatchMatchingRoutes(req, res, method, pathname);
       if (fallback) return fallback;
 
-      return new Response(
-        JSON.stringify({
-          error: "Not Found",
-          message: `Cannot ${method} ${pathname}`,
-        }),
-        {
-          status: 404,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
+      return new Response(make404Body(method, pathname), {
+        status: 404,
+        headers: JSON_HEADERS,
+      });
     }
 
     // STANDARD PATH: Has middleware, need req/res upfront
@@ -701,7 +693,7 @@ export class Router {
     for (const child of this.children) {
       const delegated = this.matchChild(child, pathname);
       if (delegated) {
-        const accumulated = this.routerOptions.mergeParams && parentParams
+        const accumulated = this._mergeParams && parentParams
           ? { ...parentParams, ...delegated.parentParams }
           : delegated.parentParams;
         return child.router.handleInternal(original, delegated.childPathname, method, server, accumulated);
@@ -709,7 +701,7 @@ export class Router {
     }
 
     // Determine merged params helper
-    const mergeWith = this.routerOptions.mergeParams && parentParams ? parentParams : undefined;
+    const mergeWith = this._mergeParams && parentParams ? parentParams : undefined;
 
     // Fast path for no middleware
     if (this.middlewares.length === 0 && this.prefixMiddlewares.length === 0 && this.errorHandlers.length === 0) {
@@ -719,31 +711,15 @@ export class Router {
         const matchingMethods = this.fastMatcher.getMatchingMethods(pathname);
         if (matchingMethods.length > 0) {
           const allowedMethods = matchingMethods.join(", ");
-          return new Response(
-            JSON.stringify({
-              error: "Method Not Allowed",
-              message: `${method} is not allowed for ${pathname}`,
-              allowedMethods,
-            }),
-            {
-              status: 405,
-              headers: {
-                "Content-Type": "application/json",
-                Allow: allowedMethods,
-              },
-            }
-          );
+          return new Response(make405Body(method, pathname, allowedMethods), {
+            status: 405,
+            headers: JSON_ALLOW_HEADER(allowedMethods),
+          });
         }
-        return new Response(
-          JSON.stringify({
-            error: "Not Found",
-            message: `Cannot ${method} ${pathname}`,
-          }),
-          {
-            status: 404,
-            headers: { "Content-Type": "application/json" },
-          }
-        );
+        return new Response(make404Body(method, pathname), {
+          status: 404,
+          headers: JSON_HEADERS,
+        });
       }
 
       const req = new BunRequest(original, pathname);
@@ -765,16 +741,10 @@ export class Router {
       const fallback = await this.dispatchMatchingRoutes(req, res, method, pathname, mergeWith);
       if (fallback) return fallback;
 
-      return new Response(
-        JSON.stringify({
-          error: "Not Found",
-          message: `Cannot ${method} ${pathname}`,
-        }),
-        {
-          status: 404,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
+      return new Response(make404Body(method, pathname), {
+        status: 404,
+        headers: JSON_HEADERS,
+      });
     }
 
     return this.handleWithMiddleware(original, pathname, server, mergeWith);
@@ -842,7 +812,7 @@ export class Router {
     }
 
     // Re-read method after middleware — e.g. methodOverride may have changed it
-    const effectiveMethod = req.method.toUpperCase();
+    const effectiveMethod = req.method;
 
     // Fast route matching - O(1) for static routes, single regex for dynamic
     const matchResult = this.fastMatcher.match(effectiveMethod, pathname);
@@ -854,93 +824,94 @@ export class Router {
       const fallback = await this.dispatchMatchingRoutes(req, res, effectiveMethod, pathname, mergeWith);
       if (fallback) return fallback;
 
-      return new Response(
-        JSON.stringify({
-          error: "Not Found",
-          message: `Cannot ${effectiveMethod} ${pathname}`,
-        }),
-        {
-          status: 404,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
+      return new Response(make404Body(effectiveMethod, pathname), {
+        status: 404,
+        headers: JSON_HEADERS,
+      });
     }
 
     // No match found - check for 405 Method Not Allowed
     const matchingMethods = this.fastMatcher.getMatchingMethods(pathname);
     if (matchingMethods.length > 0) {
       const allowedMethods = matchingMethods.join(", ");
-      return new Response(
-        JSON.stringify({
-          error: "Method Not Allowed",
-          message: `${effectiveMethod} is not allowed for ${pathname}`,
-          allowedMethods,
-        }),
-        {
-          status: 405,
-          headers: {
-            "Content-Type": "application/json",
-            Allow: allowedMethods,
-          },
-        }
-      );
+      return new Response(make405Body(effectiveMethod, pathname, allowedMethods), {
+        status: 405,
+        headers: JSON_ALLOW_HEADER(allowedMethods),
+      });
     }
 
     // True 404 - path doesn't exist
-    return new Response(
-      JSON.stringify({
-        error: "Not Found",
-        message: `Cannot ${effectiveMethod} ${pathname}`,
-      }),
-      {
-        status: 404,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+    return new Response(make404Body(effectiveMethod, pathname), {
+      status: 404,
+      headers: JSON_HEADERS,
+    });
   }
 
   private async runPipeline(pipeline: Handler[], req: BunRequest, res: BunResponse): Promise<void> {
+    const len = pipeline.length;
     let idx = 0;
 
     const next = async (err?: unknown): Promise<void> => {
-      if (err === "route") throw ROUTE_SIGNAL;
-      if (err === "router") throw ROUTER_SIGNAL;
-      if (err) throw err;
-      if (res.isSent()) return;
-
-      const handler = pipeline[idx++];
-      if (!handler) return;
-
-      await new Promise<void>((resolve, reject) => {
-        let resolved = false;
-        const done = (error?: unknown) => {
-          if (resolved) return;
-          resolved = true;
-          if (error) {
-            reject(error === "route" ? ROUTE_SIGNAL : error === "router" ? ROUTER_SIGNAL : error);
-          } else {
-            resolve();
-          }
-        };
-
-        try {
-          const result = handler(req, res, done) as unknown;
-          if (result && typeof (result as Promise<void>).then === "function") {
-            (result as Promise<void>).then(() => done()).catch(reject);
-          } else if (!resolved && res.isSent()) {
-            done();
-          }
-        } catch (e) {
-          reject(e);
-        }
-      });
-
-      if (!res.isSent()) {
-        await next();
+      if (err !== undefined) {
+        if (err === "route") throw ROUTE_SIGNAL;
+        if (err === "router") throw ROUTER_SIGNAL;
+        throw err;
       }
+      if (idx >= len || res.isSent()) return;
+
+      const handler = pipeline[idx++]!;
+
+      // Track whether next() was called synchronously
+      let nextCalledSync = false;
+      let syncErr: unknown = undefined;
+
+      const done = (error?: unknown): void => {
+        nextCalledSync = true;
+        syncErr = error;
+      };
+
+      let result: unknown;
+      try {
+        result = handler(req, res, done);
+      } catch (e) {
+        throw e;
+      }
+
+      // Fast path: sync handler called next() inline
+      if (nextCalledSync) {
+        if (syncErr !== undefined) {
+          if (syncErr === "route") throw ROUTE_SIGNAL;
+          if (syncErr === "router") throw ROUTER_SIGNAL;
+          throw syncErr;
+        }
+        // Recurse only if response not yet sent
+        if (!res.isSent()) return next();
+        return;
+      }
+
+      // Slow path: async handler returned a Promise
+      if (
+        result !== null &&
+        result !== undefined &&
+        typeof (result as Promise<void>).then === "function"
+      ) {
+        await (result as Promise<void>);
+        if (nextCalledSync) {
+          if (syncErr !== undefined) {
+            if (syncErr === "route") throw ROUTE_SIGNAL;
+            if (syncErr === "router") throw ROUTER_SIGNAL;
+            throw syncErr;
+          }
+          if (!res.isSent()) return next();
+        }
+        return;
+      }
+
+      // Handler didn't call next() and didn't return a Promise.
+      // If response was sent, we're done. Otherwise request will hang (matches Express).
     };
 
-    await next();
+    return next();
   }
 
   private async handleError(err: unknown, req: BunRequest, res: BunResponse): Promise<Response> {

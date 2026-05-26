@@ -267,33 +267,64 @@ export class BunWayApp extends Router {
   }
 
   private async runUpgradePipeline(pipeline: Handler[], req: BunRequest, res: BunResponse): Promise<void> {
-    for (const handler of pipeline) {
-      if (res.isSent()) return;
+    const len = pipeline.length;
+    let idx = 0;
 
-      await new Promise<void>((resolve, reject) => {
-        let resolved = false;
-        const done = (error?: unknown) => {
-          if (resolved) return;
-          resolved = true;
-          if (error) {
-            reject(error);
-          } else {
-            resolve();
-          }
-        };
+    const next = async (err?: unknown): Promise<void> => {
+      if (err !== undefined) {
+        throw err;
+      }
+      if (idx >= len || res.isSent()) return;
 
-        try {
-          const result = handler(req, res, done) as unknown;
-          if (result && typeof (result as Promise<void>).then === "function") {
-            (result as Promise<void>).then(() => done()).catch(reject);
-          } else if (!resolved && res.isSent()) {
-            done();
-          }
-        } catch (e) {
-          reject(e);
+      const handler = pipeline[idx++]!;
+
+      // Track whether next() was called synchronously
+      let nextCalledSync = false;
+      let syncErr: unknown = undefined;
+
+      const done = (error?: unknown): void => {
+        nextCalledSync = true;
+        syncErr = error;
+      };
+
+      let result: unknown;
+      try {
+        result = handler(req, res, done);
+      } catch (e) {
+        throw e;
+      }
+
+      // Fast path: sync handler called next() inline
+      if (nextCalledSync) {
+        if (syncErr !== undefined) {
+          throw syncErr;
         }
-      });
-    }
+        // Recurse only if response not yet sent
+        if (!res.isSent()) return next();
+        return;
+      }
+
+      // Slow path: async handler returned a Promise
+      if (
+        result !== null &&
+        result !== undefined &&
+        typeof (result as Promise<void>).then === "function"
+      ) {
+        await (result as Promise<void>);
+        if (nextCalledSync) {
+          if (syncErr !== undefined) {
+            throw syncErr;
+          }
+          if (!res.isSent()) return next();
+        }
+        return;
+      }
+
+      // Handler didn't call next() and didn't return a Promise.
+      // If response was sent, we're done. Otherwise request will hang (matches Express).
+    };
+
+    return next();
   }
 }
 
