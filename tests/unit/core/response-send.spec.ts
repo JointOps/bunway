@@ -31,19 +31,18 @@ describe("res.send() Content-Type auto-detection", () => {
     expect(response.headers.get("content-type")).toBe("text/plain");
   });
 
-  it("sets Content-Length for strings", () => {
+  it("omits Content-Length for strings", () => {
     const res = new BunResponse();
     res.send("Hello");
     const response = res.toResponse();
-    expect(response.headers.get("content-length")).toBe("5");
+    expect(response.headers.get("content-length")).toBeNull();
   });
 
-  it("sets Content-Length for UTF-8 strings correctly", () => {
+  it("omits Content-Length for UTF-8 strings", () => {
     const res = new BunResponse();
     res.send("héllo");
     const response = res.toResponse();
-    // 'é' is 2 bytes in UTF-8
-    expect(response.headers.get("content-length")).toBe("6");
+    expect(response.headers.get("content-length")).toBeNull();
   });
 
   it("returns this for chaining", () => {
@@ -73,11 +72,11 @@ describe("res.send() Content-Type auto-detection", () => {
 });
 
 describe("res.send() edge cases", () => {
-  it("sends empty string with correct Content-Length", () => {
+  it("sends empty string without Content-Length", () => {
     const res = new BunResponse();
     res.send("");
     const response = res.toResponse();
-    expect(response.headers.get("content-length")).toBe("0");
+    expect(response.headers.get("content-length")).toBeNull();
     expect(res.headersSent).toBe(true);
   });
 
