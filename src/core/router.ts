@@ -10,7 +10,7 @@ import type {
   WebSocketRouteDefinition,
 } from "../types";
 import { isHttpError } from "./errors";
-import { FastMatcher } from "./fast-matcher";
+import { FastMatcher, type MatchResult } from "./fast-matcher";
 import { getPathname } from "../utils/url";
 import { Route } from "./route";
 
@@ -170,6 +170,50 @@ export class Router {
     }
 
     return null;
+  }
+
+  private async dispatchFromMatch(
+    req: BunRequest,
+    res: BunResponse,
+    method: string,
+    match: MatchResult,
+    mergeWith?: Record<string, string>
+  ): Promise<Response | null> {
+    req.params = mergeWith ? { ...mergeWith, ...match.params } : match.params;
+    req.route = { path: match.path, method };
+
+    // Build param middleware only if there are param handlers registered
+    // and the match has params — avoids allocation in the common case
+    let pipeline: Handler[];
+    if (this.paramHandlers.size > 0 && match.keys.length > 0) {
+      const paramMiddleware: Handler[] = [];
+      for (const [name, value] of Object.entries(match.params)) {
+        const handlers = this.paramHandlers.get(name);
+        if (handlers) {
+          for (const h of handlers) {
+            paramMiddleware.push((r, s, n) => h(r, s, n, value, name));
+          }
+        }
+      }
+      pipeline = paramMiddleware.length > 0
+        ? paramMiddleware.concat(match.handlers)
+        : match.handlers; // zero-alloc hot path: reference, no copy
+    } else {
+      pipeline = match.handlers; // zero-alloc hot path
+    }
+
+    try {
+      await this.runPipeline(pipeline, req, res);
+    } catch (err) {
+      if (err === ROUTE_SIGNAL || err === ROUTER_SIGNAL) return null;
+      return await this.handleError(err, req, res);
+    }
+
+    if (res.isSent()) {
+      return res.isStreaming() ? res.toStreamingResponse() : res.toResponse();
+    }
+
+    return new Response(null, { status: 200 });
   }
 
   private matchChild(
@@ -621,8 +665,11 @@ export class Router {
         this._appContext.setApp(req, res);
       }
 
-      const routed = await this.dispatchMatchingRoutes(req, res, method, pathname);
+      const routed = await this.dispatchFromMatch(req, res, method, matchResult);
       if (routed) return routed;
+
+      const fallback = await this.dispatchMatchingRoutes(req, res, method, pathname);
+      if (fallback) return fallback;
 
       return new Response(
         JSON.stringify({
@@ -712,8 +759,11 @@ export class Router {
         this._appContext.setApp(req, res);
       }
 
-      const routed = await this.dispatchMatchingRoutes(req, res, method, pathname, mergeWith);
+      const routed = await this.dispatchFromMatch(req, res, method, matchResult, mergeWith);
       if (routed) return routed;
+
+      const fallback = await this.dispatchMatchingRoutes(req, res, method, pathname, mergeWith);
+      if (fallback) return fallback;
 
       return new Response(
         JSON.stringify({
@@ -798,8 +848,11 @@ export class Router {
     const matchResult = this.fastMatcher.match(effectiveMethod, pathname);
 
     if (matchResult) {
-      const routed = await this.dispatchMatchingRoutes(req, res, effectiveMethod, pathname, mergeWith);
+      const routed = await this.dispatchFromMatch(req, res, effectiveMethod, matchResult, mergeWith);
       if (routed) return routed;
+
+      const fallback = await this.dispatchMatchingRoutes(req, res, effectiveMethod, pathname, mergeWith);
+      if (fallback) return fallback;
 
       return new Response(
         JSON.stringify({
