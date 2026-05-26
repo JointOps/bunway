@@ -8,7 +8,7 @@
 
 set -e
 
-FLOOR=${PERF_FLOOR:-55000}
+FLOOR=${PERF_FLOOR:-57000}
 
 echo "Starting bunWay server for quick benchmark..."
 PORT=3099 bun benchmark/servers/bunway.ts &
