@@ -1,4 +1,4 @@
-// docs/.vitepress/config.ts — full replacement
+// docs/.vitepress/config.ts
 import { defineConfig } from "vitepress";
 import type { HeadConfig } from "vitepress";
 
@@ -13,7 +13,7 @@ function createCanonicalUrl(relativePath?: string): string {
   let normalized = relativePath.replace(/\\/g, "/");
   normalized = normalized.replace(/(^|\/)index\.md$/, "$1");
   if (normalized && normalized.endsWith(".md")) {
-    normalized = normalized.replace(/\.md$/, ".html");
+    normalized = normalized.replace(/\.md$/, "");
   }
   return new URL(normalized, base).toString();
 }
@@ -23,8 +23,8 @@ export default defineConfig({
   title: SITE_TITLE,
   titleTemplate: ":title | bunWay",
   description: SITE_DESCRIPTION,
-  appearance: "dark",
-  cleanUrls: false,
+  appearance: "force-dark",
+  cleanUrls: true,
   lastUpdated: true,
   head: [
     /* ── Fonts ────────────────────────────────────────────────── */
@@ -37,18 +37,14 @@ export default defineConfig({
     /* ── Meta ─────────────────────────────────────────────────── */
     ["link", { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" }],
     ["meta", { name: "theme-color", content: "#3fc5b7" }],
-    ["meta", { name: "keywords", content: "bunway, bun framework, bun express, express alternative, bun web framework, bun http server, express compatible bun, bun routing, bun middleware, typescript web framework, bun server, express to bun migration, bun rest api" }],
     ["meta", { name: "author", content: "JointOps" }],
     ["meta", { property: "og:type", content: "website" }],
     ["meta", { property: "og:locale", content: "en_US" }],
     ["meta", { property: "og:site_name", content: "bunWay" }],
-    ["meta", { property: "og:image", content: "https://bunway.jointops.dev/og-image.png" }],
     ["meta", { property: "og:image:width", content: "1200" }],
     ["meta", { property: "og:image:height", content: "630" }],
-    ["meta", { property: "og:image:alt", content: "bunWay — Express API. Bun speed. Zero dependencies." }],
     ["meta", { name: "twitter:card", content: "summary_large_image" }],
     ["meta", { name: "twitter:site", content: "@JointOps_" }],
-    ["meta", { name: "twitter:image", content: "https://bunway.jointops.dev/og-image.png" }],
     ["meta", { name: "google-site-verification", content: "MfUtITfQjC9X52HpWU_55nMEkiQTpunoH2pMPqg6unM" }],
     ["script", { type: "application/ld+json" }, JSON.stringify({
       "@context": "https://schema.org",
@@ -87,20 +83,73 @@ export default defineConfig({
       ? `${pageData.title} | bunWay`
       : "bunWay — Express-compatible web framework for Bun";
     const pageDescription = pageData.description || SITE_DESCRIPTION;
-    const pageUrl = canonical;
+
     head.push(["meta", { name: "description", content: pageDescription }]);
     head.push(["meta", { property: "og:title", content: pageTitle }]);
     head.push(["meta", { property: "og:description", content: pageDescription }]);
-    head.push(["meta", { property: "og:url", content: pageUrl }]);
+    head.push(["meta", { property: "og:url", content: canonical }]);
     head.push(["meta", { name: "twitter:title", content: pageTitle }]);
     head.push(["meta", { name: "twitter:description", content: pageDescription }]);
+
+    // Per-page OG image routing — swap filenames once assets are created
+    const ogImage = pageData.relativePath.startsWith("guide/express")
+      ? "https://bunway.jointops.dev/og-express-migration.png"
+      : pageData.relativePath.startsWith("middleware/")
+      ? "https://bunway.jointops.dev/og-middleware.png"
+      : pageData.relativePath.startsWith("guide/")
+      ? "https://bunway.jointops.dev/og-guide.png"
+      : "https://bunway.jointops.dev/og-image.png";
+    head.push(["meta", { property: "og:image", content: ogImage }]);
+    head.push(["meta", { property: "og:image:alt", content: "bunWay — Express API. Bun speed. Zero dependencies." }]);
+    head.push(["meta", { name: "twitter:image", content: ogImage }]);
+
+    // TechArticle schema for guide and middleware pages
+    const isDocPage =
+      pageData.relativePath.startsWith("guide/") ||
+      pageData.relativePath.startsWith("middleware/");
+    if (isDocPage && pageData.title) {
+      head.push(["script", { type: "application/ld+json" }, JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "TechArticle",
+        "name": pageData.title,
+        "description": pageData.description || SITE_DESCRIPTION,
+        "url": canonical,
+        "inLanguage": "en-US",
+        "author": { "@type": "Organization", "name": "JointOps", "url": "https://jointops.dev" },
+        "about": { "@type": "SoftwareApplication", "name": "bunWay" },
+      })]);
+    }
+
+    // BreadcrumbList schema
+    const pathParts = pageData.relativePath
+      .replace(/\.md$/, "")
+      .replace(/(^|\/)index$/, "")
+      .split("/")
+      .filter(Boolean);
+    if (pathParts.length > 0) {
+      const crumbs = [
+        { "@type": "ListItem", position: 1, name: "bunWay", item: "https://bunway.jointops.dev" },
+        ...pathParts.map((part, i) => ({
+          "@type": "ListItem",
+          position: i + 2,
+          name: part.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+          item: `https://bunway.jointops.dev/${pathParts.slice(0, i + 1).join("/")}`,
+        })),
+      ];
+      head.push(["script", { type: "application/ld+json" }, JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": crumbs,
+      })]);
+    }
+
     return head;
   },
   themeConfig: {
     nav: [
       { text: "Docs",       link: "/guide/overview" },
       { text: "Middleware", link: "/middleware/index" },
-      { text: "Changelog",  link: "/community/build-together" },
+      { text: "Roadmap",    link: "/community/build-together" },
       { text: "API",        link: "https://bunway.jointops.dev/api/index.html" },
     ],
     outline: [2, 3],
@@ -143,10 +192,11 @@ export default defineConfig({
             items: [
               { text: "Authentication", link: "/middleware/auth" },
               { text: "CORS",           link: "/middleware/cors" },
-              { text: "Security",       link: "/middleware/security" },
+              { text: "Helmet",         link: "/middleware/security" },
+              { text: "CSRF",           link: "/middleware/csrf" },
               { text: "Rate Limiting",  link: "/middleware/rate-limit" },
               { text: "Session",        link: "/middleware/session" },
-              { text: "HPP Protection", link: "/guide/middleware/hpp" },
+              { text: "HPP Protection", link: "/middleware/hpp" },
             ],
           },
           {
@@ -162,8 +212,8 @@ export default defineConfig({
             text: "Processing",
             collapsed: true,
             items: [
-              { text: "Timeout",         link: "/guide/middleware/timeout" },
-              { text: "Validation",      link: "/guide/middleware/validation" },
+              { text: "Timeout",         link: "/middleware/timeout" },
+              { text: "Validation",      link: "/middleware/validation" },
               { text: "Method Override", link: "/middleware/method-override" },
               { text: "Error Handling",  link: "/middleware/error-handler" },
             ],
