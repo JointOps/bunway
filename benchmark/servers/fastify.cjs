@@ -23,14 +23,11 @@ fastify.post("/body", async (request) => ({
   bytes: JSON.stringify(request.body).length,
 }));
 
-const makeMiddleware = (depth) => async (request) => {
-  for (let i = 0; i < depth; i++) {
-    request[`m${i}`] = i;
-  }
-};
+const mws5 = Array.from({ length: 5 }, (_, i) => async (request) => { request[`m${i}`] = i; });
+const mws10 = Array.from({ length: 10 }, (_, i) => async (request) => { request[`m${i}`] = i; });
 
-fastify.get("/mw5", { preHandler: makeMiddleware(5) }, async () => ({ ok: true }));
-fastify.get("/mw10", { preHandler: makeMiddleware(10) }, async () => ({ ok: true }));
+fastify.get("/mw5", { preHandler: mws5 }, async () => ({ ok: true }));
+fastify.get("/mw10", { preHandler: mws10 }, async () => ({ ok: true }));
 
 for (let i = 0; i < 100; i++) {
   fastify.get(`/route${i}/:id`, async (request) => ({

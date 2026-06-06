@@ -9,6 +9,7 @@
  *   bun benchmark/fair-bench.ts --ci-output
  *   bun benchmark/fair-bench.ts --baseline
  *   bun benchmark/fair-bench.ts --quick --check-regression
+ *   bun benchmark/fair-bench.ts --only bunway,hono
  */
 
 import { spawn, type Subprocess } from "bun";
@@ -681,6 +682,14 @@ async function main(): Promise<void> {
   const checkRegress = args.includes("--check-regression");
   const threshold = parseFloat(args.find((a) => a.startsWith("--threshold="))?.split("=")[1] ?? "5");
   const forceTool = args.find((a) => a.startsWith("--tool="))?.split("=")[1] as BenchmarkTool | undefined;
+  const onlyArg = args.find((a) => a.startsWith("--only=") || a === "--only");
+  const onlyNames = onlyArg
+    ? (onlyArg.startsWith("--only=")
+        ? onlyArg.split("=")[1]!
+        : args[args.indexOf("--only") + 1] ?? ""
+      ).split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
+    : null;
+  const activeFrameworks = onlyNames ? FRAMEWORKS.filter((fw) => onlyNames.includes(fw.name.toLowerCase())) : FRAMEWORKS;
   const config = isQuick ? QUICK_CONFIG : FULL_CONFIG;
   const log = (message: string): void => {
     if (!isCiOutput) console.log(message);
@@ -719,7 +728,7 @@ async function main(): Promise<void> {
   const nodeResults: FrameworkResults[] = [];
   const timestamp = new Date().toISOString();
 
-  for (const framework of FRAMEWORKS) {
+  for (const framework of activeFrameworks) {
     log(`\n${framework.displayName} (${framework.runtime === "bun" ? "Bun" : "Node.js"})`);
     let proc: Subprocess | null = null;
 

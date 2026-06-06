@@ -29,24 +29,37 @@ app.post("/body", ({ body }) => ({
   bytes: JSON.stringify(body).length,
 }));
 
-app.group("/mw5", (group) =>
-  group
-    .derive(() => {
-      const data: Record<string, number> = {};
-      for (let i = 0; i < 5; i++) data[`m${i}`] = i;
-      return { middlewareData: data };
-    })
-    .get("", () => ({ ok: true }))
+app.get(
+  "/mw5",
+  () => ({ ok: true }),
+  {
+    beforeHandle: [
+      ({ request }) => { (request as any).m0 = 0; },
+      ({ request }) => { (request as any).m1 = 1; },
+      ({ request }) => { (request as any).m2 = 2; },
+      ({ request }) => { (request as any).m3 = 3; },
+      ({ request }) => { (request as any).m4 = 4; },
+    ],
+  }
 );
 
-app.group("/mw10", (group) =>
-  group
-    .derive(() => {
-      const data: Record<string, number> = {};
-      for (let i = 0; i < 10; i++) data[`m${i}`] = i;
-      return { middlewareData: data };
-    })
-    .get("", () => ({ ok: true }))
+app.get(
+  "/mw10",
+  () => ({ ok: true }),
+  {
+    beforeHandle: [
+      ({ request }) => { (request as any).m0 = 0; },
+      ({ request }) => { (request as any).m1 = 1; },
+      ({ request }) => { (request as any).m2 = 2; },
+      ({ request }) => { (request as any).m3 = 3; },
+      ({ request }) => { (request as any).m4 = 4; },
+      ({ request }) => { (request as any).m5 = 5; },
+      ({ request }) => { (request as any).m6 = 6; },
+      ({ request }) => { (request as any).m7 = 7; },
+      ({ request }) => { (request as any).m8 = 8; },
+      ({ request }) => { (request as any).m9 = 9; },
+    ],
+  }
 );
 
 for (let i = 0; i < 100; i++) {
