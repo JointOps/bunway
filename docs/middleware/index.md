@@ -18,7 +18,7 @@ bunWay ships with a complete set of Express-compatible middleware—no npm hunti
 | [`cors()`](cors.md) | `cors` | Handle CORS headers and preflight |
 | [`helmet()`](security.md) | `helmet` | Set security headers |
 | [`session()`](session.md) | `express-session` | Session management with stores |
-| [`passport()`](auth.md) | `passport` | Authentication strategies |
+| [`passport`](auth.md) | `passport` | Authentication strategies |
 | [`logger()`](logger.md) | `morgan` | Request logging with formats |
 | [`csrf()`](security.md#csrf-protection) | `csurf` | CSRF protection |
 | [`rateLimit()`](rate-limit.md) | `express-rate-limit` | Rate limiting |
@@ -26,9 +26,9 @@ bunWay ships with a complete set of Express-compatible middleware—no npm hunti
 | [`cookieParser()`](cookies.md) | `cookie-parser` | Parse and sign cookies |
 | [`compression()`](compression.md)           | `compression` | Gzip/Brotli/deflate response compression |
 | [`upload()`](file-uploads.md) | `multer` | File uploads (multipart/form-data) |
-| [`timeout()`](/guide/middleware/timeout)     | `connect-timeout`     | Request timeout with `req.timedout` |
-| [`hpp()`](/guide/middleware/hpp)             | `hpp`                 | HTTP Parameter Pollution protection |
-| [`validate()`](/guide/middleware/validation) | `express-validator`   | Schema-based request validation     |
+| [`timeout()`](./timeout)     | `connect-timeout`     | Request timeout with `req.timedout` |
+| [`hpp()`](./hpp)             | `hpp`                 | HTTP Parameter Pollution protection |
+| [`validate()`](./validation) | `express-validator`   | Schema-based request validation     |
 | [`sse()`](sse.md)                            | `express-sse`         | Server-Sent Events with heartbeat   |
 | [`responseTime()`](response-time.md)         | `response-time`       | X-Response-Time header              |
 | [`requestId()`](request-id.md)               | `express-request-id`  | X-Request-Id generation             |
