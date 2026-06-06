@@ -1,15 +1,17 @@
 ---
-title: Security Middleware
-description: Helmet, CSRF protection, rate limiting, and compression middleware for bunWay.
+title: Helmet — Security Headers
+description: Set HTTP security headers in bunWay with the built-in helmet() middleware — content security policy, HSTS, XSS protection, and more.
 ---
 
-# Security Middleware
+# Helmet — Security Headers
 
-bunWay includes essential security middleware—all Express-compatible, all built-in.
+`helmet()` sets a suite of HTTP security headers that protect against common web vulnerabilities. It's a drop-in replacement for the `helmet` npm package.
 
-## Helmet
+::: tip Coming from Express?
+`import { helmet } from 'bunway'` replaces `import helmet from 'helmet'`. Options are identical.
+:::
 
-Set security headers like the `helmet` npm package.
+## Quick Start
 
 ```ts
 import { bunway, helmet } from 'bunway';
@@ -18,12 +20,12 @@ const app = bunway();
 app.use(helmet());
 ```
 
-### Default Headers
+## Default Headers
 
-Helmet sets these headers by default:
+Helmet sets these headers on every response:
 
-| Header | Value | Purpose |
-|--------|-------|---------|
+| Header | Default Value | Purpose |
+|--------|--------------|---------|
 | Content-Security-Policy | `default-src 'self'...` | Prevent XSS |
 | Cross-Origin-Embedder-Policy | `require-corp` | Isolate resources |
 | Cross-Origin-Opener-Policy | `same-origin` | Isolate browsing context |
@@ -37,19 +39,19 @@ Helmet sets these headers by default:
 | Referrer-Policy | `no-referrer` | Control referrer |
 | X-XSS-Protection | `0` | Disable legacy XSS filter |
 
-### Customization
+## Customization
 
 ```ts
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "cdn.example.com"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "*.example.com"]
+      "default-src": ["'self'"],
+      "script-src":  ["'self'", "'unsafe-inline'", "cdn.example.com"],
+      "style-src":   ["'self'", "'unsafe-inline'"],
+      "img-src":     ["'self'", "data:", "*.example.com"]
     }
   },
-  crossOriginEmbedderPolicy: false,  // Disable
+  crossOriginEmbedderPolicy: false,
   hsts: {
     maxAge: 31536000,
     includeSubDomains: true,
@@ -59,7 +61,7 @@ app.use(helmet({
 }));
 ```
 
-### Options
+## Options
 
 ```ts
 interface HelmetOptions {
@@ -80,145 +82,9 @@ interface HelmetOptions {
 }
 ```
 
-## CSRF Protection
+## Full Security Stack
 
-Protect against Cross-Site Request Forgery attacks.
-
-```ts
-import { bunway, csrf, cookieParser } from 'bunway';
-
-const app = bunway();
-app.use(cookieParser());
-app.use(csrf());
-
-app.get('/form', (req, res) => {
-  res.html(`
-    <form method="POST" action="/submit">
-      <input type="hidden" name="_csrf" value="${req.csrfToken()}">
-      <button type="submit">Submit</button>
-    </form>
-  `);
-});
-
-app.post('/submit', (req, res) => {
-  res.json({ success: true });
-});
-```
-
-### How It Works
-
-1. CSRF middleware generates a token and stores it in a cookie
-2. Include the token in forms as `_csrf` field or in headers as `x-csrf-token`
-3. POST/PUT/DELETE requests must include a valid token
-
-### Options
-
-```ts
-interface CsrfOptions {
-  cookie?: {
-    name?: string;       // Cookie name (default: '_csrf')
-    path?: string;       // Cookie path (default: '/')
-    secure?: boolean;    // HTTPS only (default: true)
-    httpOnly?: boolean;  // HTTP only (default: false — required for double-submit cookie pattern)
-    sameSite?: 'strict' | 'lax' | 'none';  // SameSite (default: 'strict')
-  };
-  ignoreMethods?: string[];  // Methods to skip (default: ['GET', 'HEAD', 'OPTIONS'])
-  headerName?: string;       // Header name (default: 'x-csrf-token')
-  bodyField?: string;        // Body field name (default: '_csrf')
-  tokenLength?: number;      // Token length (default: 32)
-}
-```
-
-### API Usage
-
-For APIs, send the token in a header:
-
-```ts
-// Server
-app.get('/api/csrf-token', (req, res) => {
-  res.json({ token: req.csrfToken() });
-});
-
-// Client
-const { token } = await fetch('/api/csrf-token').then(r => r.json());
-await fetch('/api/data', {
-  method: 'POST',
-  headers: { 'x-csrf-token': token }
-});
-```
-
-## Rate Limiting
-
-Protect your app from abuse with rate limiting.
-
-```ts
-import bunway, { rateLimit } from 'bunway';
-
-const app = bunway();
-
-app.use(rateLimit({
-  windowMs: 60 * 1000,  // 1 minute
-  max: 100              // 100 requests per minute
-}));
-```
-
-bunWay provides two rate limiting options:
-
-- **Built-in `rateLimit()`** - Simple, zero-config, Express-compatible
-- **[hitlimit-bun](https://github.com/JointOps/hitlimit-bun)** - Advanced rate limiting with Redis support, sliding window, and more
-
-[Full Rate Limiting Documentation →](rate-limit.md)
-
-## Compression
-
-Compress responses with gzip or deflate.
-
-```ts
-import { bunway, compression } from 'bunway';
-
-const app = bunway();
-app.use(compression());
-
-app.get('/large-data', (req, res) => {
-  res.json(largeDataset);  // Automatically compressed
-});
-```
-
-### Options
-
-```ts
-interface CompressionOptions {
-  level?: number;      // Compression level 1-9 (default: 6)
-  threshold?: number;  // Min size to compress in bytes (default: 1024)
-  filter?: (contentType: string) => boolean;  // Custom filter
-}
-```
-
-### Custom Filter
-
-```ts
-app.use(compression({
-  threshold: 512,
-  filter: (contentType) => {
-    // Compress JSON and text, skip images
-    return contentType.includes('json') ||
-           contentType.includes('text');
-  }
-}));
-```
-
-### Compressible Types
-
-By default, these content types are compressed:
-
-- `text/*`
-- `application/json`
-- `application/javascript`
-- `application/xml`
-- `application/xhtml+xml`
-- `image/svg+xml`
-
-## Complete Security Setup
+Use `helmet()` alongside bunWay's other security middleware for a complete setup:
 
 ```ts
 import {
@@ -233,24 +99,20 @@ import {
 
 const app = bunway();
 
-// Security headers
 app.use(helmet());
-
-// Compression
 app.use(compression());
-
-// Rate limiting
 app.use(rateLimit({ windowMs: 60000, max: 100 }));
-
-// Cookies and sessions
 app.use(cookieParser());
 app.use(session({ secret: process.env.SESSION_SECRET }));
-
-// CSRF protection
 app.use(csrf());
 
-// Your routes
 app.get('/', (req, res) => res.json({ secure: true }));
-
 app.listen(3000);
 ```
+
+## Related
+
+- [CSRF Protection](./csrf) — prevent cross-site request forgery
+- [Rate Limiting](./rate-limit) — protect against abuse and brute force
+- [Session](./session) — stateful sessions with signing support
+- [HPP Protection](./hpp) — prevent HTTP parameter pollution
