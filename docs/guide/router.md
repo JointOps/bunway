@@ -14,9 +14,9 @@ If you've used Express routing, you already know bunway routing. The patterns ar
 ## Anatomy of a request
 
 1. **Match** – incoming requests match routes by HTTP method + path (supporting `:params`).
-2. **Pipeline** – global middleware → auto body parser → route-specific middleware/handlers.
+2. **Pipeline** – global middleware → route-specific middleware/handlers.
 3. **Execution** – each handler receives `(req, res, next)`. Call `next()` to continue the chain.
-4. **Finalization** – the router chooses the final `Response` (explicit return, `res.last`, or default 200) and merges header bags (e.g., CORS) before returning.
+4. **Finalization** – the router chooses the final `Response` (explicit return or default 200) and merges header bags (e.g., CORS) before returning.
 
 ## Registering routes
 
@@ -142,6 +142,49 @@ api
 
 app.use("/api", api);
 // Routes: GET /api/posts, POST /api/posts
+```
+
+## Route groups
+
+`router.group()` is a concise way to mount a set of routes under a shared prefix with optional per-group middleware. It creates an implicit sub-router, automatically enables `mergeParams`, and mounts it for you.
+
+```ts
+import { Router } from "bunway";
+
+const api = new Router();
+
+api.group("/users", (r) => {
+  r.get("/", listUsers);
+  r.post("/", createUser);
+  r.get("/:id", showUser);
+});
+
+app.use("/api", api);
+// Routes: GET /api/users, POST /api/users, GET /api/users/:id
+```
+
+### Group middleware
+
+Pass a `{ middleware }` option object before the callback to apply middleware to every route in the group:
+
+```ts
+api.group("/admin", { middleware: [requireAuth, requireAdmin] }, (r) => {
+  r.get("/stats", getStats);
+  r.delete("/users/:id", deleteUser);
+});
+// requireAuth + requireAdmin run before all /admin/* handlers
+```
+
+### Parameterized group prefix
+
+Group prefixes support route parameters:
+
+```ts
+api.group("/orgs/:orgId/teams/:teamId", (r) => {
+  r.get("/members", (req, res) => {
+    res.json({ orgId: req.params.orgId, teamId: req.params.teamId });
+  });
+});
 ```
 
 ## Middleware ordering
