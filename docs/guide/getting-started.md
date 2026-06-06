@@ -67,8 +67,12 @@ curl -X POST http://localhost:7070/echo \
 
 :::
 
-::: tip Auto body parsing
-By default, bunway parses JSON and URL-encoded bodies automatically. The parsed payload is available on `req.body` right away.
+::: tip Body parsing
+Body parsing is opt-in. Register body-parsing middleware before routes that need `req.body`:
+```ts
+app.use(json())
+app.use(urlencoded())
+```
 :::
 
 Want the raw Fetch API? Return a `Response` directly and bunway will still apply middleware headers.

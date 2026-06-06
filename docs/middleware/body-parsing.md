@@ -1,13 +1,13 @@
 ---
 title: Body Parsing Middleware
-description: Understand how bunWay parses JSON, urlencoded, and text payloads automatically, and learn to customize limits and overrides.
+description: Understand how to register bunWay's body-parsing middleware for JSON, urlencoded, and text payloads.
 ---
 
 # Body Parsing Middleware
 
 bunway includes lightweight helpers for parsing common content types, just like Express. Each helper exposes the same signature and respects router-level or per-request overrides.
 
-Every router ships with an auto parser that runs before your handlers. If a request matches a configured content type, `req.body` is already waiting for you—no manual parsing required.
+Register the appropriate middleware before any route that reads `req.body`.
 
 ::: tip Coming from Express?
 These work exactly like `express.json()`, `express.urlencoded()`, and `body-parser.text()`.
@@ -44,7 +44,7 @@ curl -X POST http://localhost:7070/echo \
 `req.body` caches its value for the rest of the request. Bun's zero-copy buffers keep things fast without re-reading the stream.
 :::
 
-Behind the scenes each helper calls the matching `BunRequest.tryParse*` method. Parsed bodies land on `req.body`.
+Behind the scenes each helper calls the matching `BunRequest.parse*` method (`parseJson`, `parseUrlencoded`, `parseText`). Parsed bodies land on `req.body`.
 
 ## json()
 
@@ -84,6 +84,10 @@ Options:
 | `limit`    | `number`                                            | 1 MiB                                 | Max payload size before returning 413 |
 | `extended` | `boolean`                                           | `false`                               | Parse nested objects (qs-style)       |
 | `type`     | `string \| RegExp \| ((contentType) => boolean)`    | `"application/x-www-form-urlencoded"` | Match strategy for enabling the parser |
+
+::: warning `extended` not yet implemented
+`extended` is accepted for Express API compatibility but is not currently implemented. All urlencoded bodies are parsed with `URLSearchParams` — nested object syntax (`a[b]=1`) is not supported regardless of this option.
+:::
 
 ## text()
 
@@ -187,13 +191,13 @@ app.use(
 Unlike `json()` or `urlencoded()`, `raw()` sets `req.body` to a `Buffer` instance. Convert to string with `req.body.toString()` or parse as JSON with `JSON.parse(req.body.toString())` if needed.
 :::
 
-## Auto parsing pipeline
+## Middleware pipeline
 
-Each router inserts an auto body parser before your route handlers. The pipeline looks like this:
+Body-parsing middleware fits into the standard middleware chain like any other `app.use()` call:
 
 1. Global middleware you registered (`cors()`, logging, etc.).
-2. Auto parser resolves router defaults and `req.body` is populated when content types match.
-3. Your route-specific middleware/handlers run with the cached payload.
+2. Body-parsing middleware (`json()`, `urlencoded()`, etc.) populates `req.body` for matching content types.
+3. Your route-specific middleware/handlers run with the parsed payload.
 
 Skip redundant work by calling `req.isBodyParsed()` inside custom middleware to avoid duplicate parsing.
 

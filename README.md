@@ -65,7 +65,7 @@ bunWay ships all of that in a single import with zero dependencies.
 | Metric | Value |
 |--------|-------|
 | Production dependencies | **0** |
-| Built-in middleware | **19** |
+| Built-in middleware | **24** |
 | Express API parity | **97%+** |
 | Test suite | **1,662 tests**, 3,653 assertions |
 | TypeScript | **100%** strict mode, no `any` |
