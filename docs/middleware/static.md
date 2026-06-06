@@ -47,6 +47,7 @@ interface StaticOptions {
   lastModified?: boolean;  // Set Last-Modified header (default: true)
   fallthrough?: boolean;   // Pass to next middleware if not found (default: true)
   extensions?: string[];   // Try these extensions (default: [])
+  statCacheTtl?: number;   // TTL for stat cache in ms (default: 5000)
 }
 ```
 

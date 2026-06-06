@@ -48,6 +48,10 @@ interface SessionOptions {
 }
 ```
 
+::: warning Unimplemented options
+`resave` and `rolling` are accepted for Express API compatibility but are not currently implemented — they have no effect. Do not rely on them for session behavior.
+:::
+
 ## Session Object
 
 The session is available on `req.session`:
