@@ -23,7 +23,7 @@ const copyInstall = async () => {
       <!-- Version badge -->
       <a href="https://github.com/JointOps/bunway/releases" target="_blank" class="badge">
         <span class="pulse"></span>
-        v1.0.8 — 24 built-in middleware
+        v1.0.8 — 23 built-in middleware
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
              stroke="currentColor" stroke-width="2.5">
           <path d="M5 12h14M12 5l7 7-7 7"/>
@@ -49,7 +49,7 @@ const copyInstall = async () => {
           <span class="stat-label">dependencies</span>
         </div>
         <div class="stat">
-          <span class="stat-value">24</span>
+          <span class="stat-value">23</span>
           <span class="stat-label">built-in middleware</span>
         </div>
         <div class="stat">

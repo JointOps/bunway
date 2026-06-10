@@ -10,7 +10,7 @@
 
 **Express API. Bun speed. Zero dependencies.**
 
-bunWay is a web framework for Bun that speaks Express fluently. Same `(req, res, next)` signature. Same middleware patterns. Same routing. Just faster, lighter, and with 24 middleware built right in. No rewrites. No new API to learn. Drop it in and ship.
+bunWay is a web framework for Bun that speaks Express fluently. Same `(req, res, next)` signature. Same middleware patterns. Same routing. Just faster, lighter, and with 23 middleware built right in. No rewrites. No new API to learn. Drop it in and ship.
 
 ```ts
 import { bunway, cors, helmet, logger, json, session } from "bunway";
@@ -54,7 +54,7 @@ bunWay ships all of that in a single import with zero dependencies.
 |---|---|---|
 | **Runtime** | Node.js | Bun (native speed) |
 | **Production dependencies** | 30+ packages for a real app | **0** |
-| **Middleware** | Install, configure, and maintain separately | **24 built-in**, one import |
+| **Middleware** | Install, configure, and maintain separately | **23 built-in**, one import |
 | **TypeScript** | `@types/express` + build step | Native. Strict types included. |
 | **TLS/HTTPS** | `https.createServer(opts, app)` | `app.listen({ tls: { cert, key } })` |
 | **API compatibility** | — | **97%+** Express 4.x parity |

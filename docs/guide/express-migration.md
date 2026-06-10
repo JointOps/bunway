@@ -21,13 +21,13 @@ You already know bunWay. Same `(req, res, next)` signature, same middleware name
   <div class="migration-step">
     <span class="step-num">3</span>
     <span class="step-title">Delete npm middleware</span>
-    <span class="step-desc">24 built-ins ship with bunWay — no installs needed</span>
+    <span class="step-desc">23 built-ins ship with bunWay — no installs needed</span>
   </div>
 </div>
 
 <div class="stats-strip">
   <div class="stat-item">
-    <span class="stat-number">24</span>
+    <span class="stat-number">23</span>
     <span class="stat-label">Built-in middleware</span>
   </div>
   <div class="stat-item">
@@ -99,7 +99,6 @@ Delete the npm package and update the import. The API is identical unless noted 
   <div class="swap-card"><code class="swap-old">csurf</code><span class="swap-arrow">→</span><code class="swap-new">csrf()</code></div>
   <div class="swap-card"><code class="swap-old">hpp</code><span class="swap-arrow">→</span><code class="swap-new">hpp()</code></div>
   <div class="swap-card"><code class="swap-old">express-session</code><span class="swap-arrow">→</span><code class="swap-new">session()</code></div>
-  <div class="swap-card"><code class="swap-old">passport</code><span class="swap-arrow">→</span><code class="swap-new">passport()</code></div>
   <div class="swap-card"><code class="swap-old">cookie-parser</code><span class="swap-arrow">→</span><code class="swap-new">cookieParser()</code></div>
 </div>
 

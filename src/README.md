@@ -1,6 +1,6 @@
 # bunWay
 
-**Express API. Bun speed. Zero dependencies. 24 middleware built in.**
+**Express API. Bun speed. Zero dependencies. 23 middleware built in.**
 
 Stop choosing between rewriting your backend and missing out on Bun's performance. bunWay gives you a third option: **change your import and ship.**
 
@@ -64,7 +64,6 @@ In Express, that's 8 separate `npm install` commands, 8 packages to audit, 8 set
 | CORS | `cors` | `cors()` |
 | Security headers | `helmet` | `helmet()` |
 | Sessions | `express-session` | `session()` |
-| Authentication | `passport` | `passport` |
 | Logging | `morgan` | `logger()` — same format strings |
 | CSRF protection | `csurf` | `csrf()` |
 | Compression | `compression` | `compression()` |
@@ -76,7 +75,7 @@ In Express, that's 8 separate `npm install` commands, 8 packages to audit, 8 set
 | Request validation | `express-validator` | `validate()` |
 | Error handling | Custom middleware | `errorHandler()` |
 
-**24 middleware. Zero dependencies. One `import` statement.**
+**23 middleware. Zero dependencies. One `import` statement.**
 
 ---
 
