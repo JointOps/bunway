@@ -2,7 +2,8 @@ import type { CookieOptions, SendFileOptions } from "../types";
 import type { BunRequest } from "./request";
 import { existsSync, statSync } from "fs";
 import { join, extname, basename, resolve } from "path";
-import { getBaseMimeType } from "../utils/mime";
+import { getBaseMimeType, getMimeType } from "../utils/mime";
+import { generateBodyETag } from "../utils/crypto";
 import { brotliCompressSync } from "zlib";
 
 export interface RenderOptions {
@@ -117,13 +118,19 @@ export class BunResponse {
     return this;
   }
 
-  set(name: string, value: string): this {
-    this.headersMap().set(this.headerKey(name), value);
+  set(name: string | Record<string, string>, value?: string): this {
+    if (typeof name === "object") {
+      for (const [k, v] of Object.entries(name)) {
+        this.headersMap().set(this.headerKey(k), v);
+      }
+    } else {
+      this.headersMap().set(this.headerKey(name), value!);
+    }
     return this;
   }
 
-  header(name: string, value: string): this {
-    return this.set(name, value);
+  header(name: string | Record<string, string>, value?: string): this {
+    return this.set(name as string, value!);
   }
 
   get(name: string): string | undefined {
@@ -152,7 +159,11 @@ export class BunResponse {
   }
 
   type(mimeType: string): this {
-    this.headersMap().set("content-type", mimeType);
+    // Express: shorthand like "json" → look up MIME type, full type "a/b" used as-is
+    const resolved = mimeType.includes("/")
+      ? mimeType
+      : getMimeType("x." + mimeType);
+    this.headersMap().set("content-type", resolved);
     return this;
   }
 
@@ -205,8 +216,9 @@ export class BunResponse {
   }
 
   json(data: unknown): this {
+    const spaces = this._app?.get("json spaces") as number | undefined;
     this.headersMap().set("content-type", "application/json");
-    this._body = JSON.stringify(data);
+    this._body = spaces ? JSON.stringify(data, null, spaces) : JSON.stringify(data);
     this._sent = true;
     return this;
   }
@@ -410,9 +422,7 @@ export class BunResponse {
     if (options.expires) {
       cookie += `; Expires=${options.expires.toUTCString()}`;
     }
-    if (options.path) {
-      cookie += `; Path=${options.path}`;
-    }
+    cookie += `; Path=${options.path ?? "/"}`;
     if (options.domain) {
       cookie += `; Domain=${options.domain}`;
     }
@@ -800,6 +810,19 @@ export class BunResponse {
 
   toResponse(): Response {
     let body: ResponseBody = this._body;
+
+    // Auto-ETag: add weak ETag for 200 string-body responses when enabled (Express default)
+    if (
+      this._statusCode === 200 &&
+      typeof body === "string" &&
+      body.length > 0 &&
+      !this.hasHeader("etag")
+    ) {
+      const etagSetting = this._app?.get("etag");
+      if (etagSetting !== false) {
+        this.headersMap().set("etag", generateBodyETag(body));
+      }
+    }
 
     if (
       this._compressionEncoding &&

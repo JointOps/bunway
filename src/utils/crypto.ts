@@ -86,6 +86,15 @@ export function generateETag(size: number, mtimeMs: number): string {
 }
 
 /**
+ * Generate a weak ETag from a response body string.
+ */
+export function generateBodyETag(body: string): string {
+  const len = Buffer.byteLength(body, "utf8");
+  const hash = Bun.hash(body);
+  return `W/"${len.toString(16)}-${hash.toString(16)}"`;
+}
+
+/**
  * Sign a session ID with "s:" prefix for session cookies.
  * @param sessionId - The session ID to sign
  * @param secret - The secret key
