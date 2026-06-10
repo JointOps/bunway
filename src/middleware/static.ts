@@ -1,12 +1,12 @@
 import type { Handler } from "../types";
 import type { BunRequest } from "../core/request";
 import type { BunResponse } from "../core/response";
-import { existsSync, statSync, realpathSync } from "fs";
+import { existsSync, statSync, realpathSync, type Stats } from "fs";
 import { join, resolve } from "path";
 import { getMimeType, generateETag } from "../utils";
 
 interface StatCache {
-  stat: ReturnType<typeof statSync>;
+  stat: Stats;
   filePath: string;
   expires: number;
 }
@@ -70,7 +70,7 @@ export function serveStatic(root: string, options: StaticOptions = {}): Handler 
   const rootPath = root.startsWith("/") ? root : join(process.cwd(), root);
   const fileStatCache = statCacheTtl > 0 ? new Map<string, StatCache>() : null;
 
-  function getCachedStat(urlPath: string): { filePath: string; stat: ReturnType<typeof statSync> } | null {
+  function getCachedStat(urlPath: string): { filePath: string; stat: Stats } | null {
     if (!fileStatCache) return null;
     const cached = fileStatCache.get(urlPath);
     if (cached && cached.expires > Date.now()) {
@@ -79,14 +79,14 @@ export function serveStatic(root: string, options: StaticOptions = {}): Handler 
     return null;
   }
 
-  function setCachedStat(urlPath: string, filePath: string, stat: ReturnType<typeof statSync>): void {
+  function setCachedStat(urlPath: string, filePath: string, stat: Stats): void {
     if (!fileStatCache) return;
     fileStatCache.set(urlPath, { stat, filePath, expires: Date.now() + statCacheTtl });
   }
 
   async function serveFile(
     filePath: string,
-    stat: ReturnType<typeof statSync>,
+    stat: Stats,
     req: BunRequest,
     res: BunResponse,
     next: (err?: unknown) => void,
@@ -182,17 +182,17 @@ export function serveStatic(root: string, options: StaticOptions = {}): Handler 
       return;
     }
 
-    let stat: ReturnType<typeof statSync> | null = null;
+    let stat: Stats | null = null;
 
     if (existsSync(filePath)) {
-      stat = statSync(filePath);
+      stat = statSync(filePath) as Stats;
 
       if (stat.isDirectory()) {
         for (const indexFile of indexFiles) {
           const indexPath = join(filePath, indexFile);
           if (existsSync(indexPath)) {
             filePath = indexPath;
-            stat = statSync(filePath);
+            stat = statSync(filePath) as Stats;
             break;
           }
         }
@@ -211,7 +211,7 @@ export function serveStatic(root: string, options: StaticOptions = {}): Handler 
         const extPath = filePath + (ext.startsWith(".") ? ext : `.${ext}`);
         if (existsSync(extPath)) {
           filePath = extPath;
-          stat = statSync(filePath);
+          stat = statSync(filePath) as Stats;
           break;
         }
       }

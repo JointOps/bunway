@@ -89,6 +89,7 @@ export class BunRequest {
 
   locals: Record<string, unknown> = {};
   timedout: boolean = false;
+  private _baseUrl: string = "";
 
   /**
    * Create a new BunRequest.
@@ -141,6 +142,10 @@ export class BunRequest {
    */
   setSocketIp(ip: string | null): void {
     this._socketIp = ip;
+  }
+
+  setBaseUrl(baseUrl: string): void {
+    this._baseUrl = baseUrl;
   }
 
   setApp(app: RequestAppContext): void {
@@ -215,7 +220,8 @@ export class BunRequest {
   }
 
   get url(): string {
-    return this._original.url;
+    // Express: req.url is relative to the mount point (prefix stripped)
+    return this._pathname + this.parsedUrl.search;
   }
 
   get path(): string {
@@ -227,8 +233,12 @@ export class BunRequest {
   }
 
   get originalUrl(): string {
-    const search = this.parsedUrl.search;
-    return this._pathname + search;
+    const parsed = this.parsedUrl;
+    return parsed.pathname + parsed.search;
+  }
+
+  get baseUrl(): string {
+    return this._baseUrl;
   }
 
   get query(): URLSearchParams & Record<string, string | string[]> {
@@ -293,11 +303,6 @@ export class BunRequest {
     // e.g., "foo.bar.example.com" -> ["bar", "foo"]
     if (parts.length <= 2) return [];
     return parts.slice(0, -2).reverse();
-  }
-
-  private _baseUrl = "";
-  get baseUrl(): string {
-    return this._baseUrl;
   }
 
   set baseUrl(value: string) {
