@@ -1,7 +1,7 @@
 {
   "name": "bunway",
   "version": "1.0.8",
-  "description": "The Express-compatible web framework for Bun. Same API, zero dependencies, 24 built-in middleware, 97%+ Express parity.",
+  "description": "The Express-compatible web framework for Bun. Same API, zero dependencies, 23 built-in middleware, 97%+ Express parity.",
   "private": true,
   "type": "module",
   "module": "./src/index.ts",
@@ -84,15 +84,15 @@
     "benchmark:ci": "bash benchmark/scripts/ci-check.sh",
 
     "docs": "typedoc --options typedoc.json",
-    "docs:dev": "npm run docs && vitepress dev docs",
-    "docs:build": "npm run docs && vitepress build docs",
+    "docs:dev": "bun run docs && vitepress dev docs",
+    "docs:build": "bun run docs && vitepress build docs",
     "docs:preview": "vitepress preview docs",
 
     "build": "tsc --project tsconfig.json",
-    "sync:version": "node scripts/sync-version.mjs",
-    "prepare:dist": "rm -rf dist && npm run build && node scripts/prepare-dist.mjs",
-    "check:dist": "node scripts/verify-dist.mjs",
-    "release": "npm run typecheck && npm run test && npm run docs:build && npm run prepare:dist && npm run check:dist && npm publish dist --access public"
+    "sync:version": "bun scripts/sync-version.mjs",
+    "prepare:dist": "rm -rf dist && bun run build && bun scripts/prepare-dist.mjs",
+    "check:dist": "bun scripts/verify-dist.mjs",
+    "release": "bun run typecheck && bun run test && bun run docs:build && bun run prepare:dist && bun run check:dist && npm publish dist --access public"
   },
   "devDependencies": {
     "@types/bun": "latest",
