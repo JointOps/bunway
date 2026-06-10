@@ -151,4 +151,77 @@ describe("router.param()", () => {
     expect(response.status).toBe(200);
     expect(ran).toBe(false);
   });
+
+  it("runs param callback only once when next('route') skips to a second route with the same param", async () => {
+    const app = bunway();
+    let callCount = 0;
+
+    app.param("id", (req, res, next, value) => {
+      callCount++;
+      next();
+    });
+
+    app.get("/items/:id", (req, res, next) => {
+      next("route");
+    });
+
+    app.get("/items/:id", (req, res) => {
+      res.json({ callCount });
+    });
+
+    const response = await app.handle(buildRequest("/items/42"));
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).callCount).toBe(1);
+  });
+
+  it("runs param callback only once even when multiple routes with the same param are traversed via next('route')", async () => {
+    const app = bunway();
+    const calls: string[] = [];
+
+    app.param("userId", (req, res, next, value) => {
+      calls.push(value);
+      next();
+    });
+
+    app.get("/users/:userId", (req, res, next) => next("route"));
+    app.get("/users/:userId", (req, res, next) => next("route"));
+    app.get("/users/:userId", (req, res) => {
+      res.json({ calls });
+    });
+
+    const response = await app.handle(buildRequest("/users/99"));
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).calls).toEqual(["99"]);
+  });
+
+  it("runs param callbacks independently for different param names", async () => {
+    const app = bunway();
+    const calls: string[] = [];
+
+    app.param("category", (req, res, next, value) => {
+      calls.push(`category:${value}`);
+      next();
+    });
+
+    app.param("id", (req, res, next, value) => {
+      calls.push(`id:${value}`);
+      next();
+    });
+
+    app.get("/shop/:category/:id", (req, res, next) => next("route"));
+    app.get("/shop/:category/:id", (req, res) => {
+      res.json({ calls });
+    });
+
+    const response = await app.handle(buildRequest("/shop/electronics/7"));
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.calls).toContain("category:electronics");
+    expect(body.calls).toContain("id:7");
+    expect(body.calls.filter((c: string) => c.startsWith("category:")).length).toBe(1);
+    expect(body.calls.filter((c: string) => c.startsWith("id:")).length).toBe(1);
+  });
 });
