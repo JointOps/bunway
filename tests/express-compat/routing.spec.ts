@@ -123,7 +123,7 @@ describe("Express Compatibility: Routing", () => {
     const response = await app.handle(buildRequest("/api/v1/posts"));
     const data = await response.json();
     expect(data.path).toBe("/posts");
-    expect(data.url).toContain("/api/v1/posts");
+    expect(data.url).toBe("/posts");
   });
 
   test("multiple handlers per route work like Express", async () => {

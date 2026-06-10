@@ -238,4 +238,41 @@ describe("Express Compatibility: Error Handling", () => {
     const response = await app.handle(buildRequest("/test"));
     expect(response.status).toBe(500);
   });
+
+  test("3-arg function is not treated as error handler even with err param name like Express", async () => {
+    const app = bunway();
+    let normalMiddlewareCalled = false;
+
+    app.get("/test", (req, res, next) => next(new Error("oops")));
+
+    // 3 args — must NOT intercept errors
+    app.use((err: any, req: any, next: any) => {
+      normalMiddlewareCalled = true;
+    });
+
+    app.use((err: Error, req: any, res: any, next: any) => {
+      res.status(500).json({ caught: true });
+    });
+
+    const response = await app.handle(buildRequest("/test"));
+    expect(response.status).toBe(500);
+    expect(normalMiddlewareCalled).toBe(false);
+  });
+
+  test("error from child router reaches parent app error handler like Express", async () => {
+    const app = bunway();
+    const router = new Router();
+
+    router.get("/fail", (req, res, next) => next(new Error("child error")));
+    // no error handler on the router itself
+
+    app.use("/api", router);
+    app.use((err: Error, req: any, res: any, next: any) => {
+      res.status(500).json({ caughtByParent: true, message: err.message });
+    });
+
+    const response = await app.handle(buildRequest("/api/fail"));
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ caughtByParent: true, message: "child error" });
+  });
 });

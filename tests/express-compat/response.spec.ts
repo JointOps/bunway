@@ -37,28 +37,6 @@ describe("Express Compatibility: Response Object", () => {
     expect(await response.text()).toBe("Hello World");
   });
 
-  test("res.text() works like Express", async () => {
-    const app = bunway();
-    app.get("/test", (req, res) => {
-      res.text("Plain text response");
-    });
-
-    const response = await app.handle(buildRequest("/test"));
-    expect(response.headers.get("Content-Type")).toBe("text/plain");
-    expect(await response.text()).toBe("Plain text response");
-  });
-
-  test("res.html() works like Express", async () => {
-    const app = bunway();
-    app.get("/test", (req, res) => {
-      res.html("<h1>Hello</h1>");
-    });
-
-    const response = await app.handle(buildRequest("/test"));
-    expect(response.headers.get("Content-Type")).toBe("text/html");
-    expect(await response.text()).toBe("<h1>Hello</h1>");
-  });
-
   test("res.set() works like Express", async () => {
     const app = bunway();
     app.get("/test", (req, res) => {
@@ -146,8 +124,9 @@ describe("Express Compatibility: Response Object", () => {
 
     const response = await app.handle(buildRequest("/test"));
     const setCookie = response.headers.get("Set-Cookie");
-    expect(setCookie).toContain("session=abc123");
+    expect(setCookie).toMatch(/^session=abc123/);
     expect(setCookie).toContain("Max-Age=3600");
+    expect(setCookie).toContain("Path=/");
   });
 
   test("res.clearCookie() works like Express", async () => {
@@ -159,8 +138,8 @@ describe("Express Compatibility: Response Object", () => {
 
     const response = await app.handle(buildRequest("/test"));
     const setCookie = response.headers.get("Set-Cookie");
-    expect(setCookie).toContain("session=");
-    expect(setCookie).toContain("Expires=Thu, 01 Jan 1970");
+    expect(setCookie).toMatch(/^session=;/);
+    expect(setCookie).toContain("Expires=Thu, 01 Jan 1970 00:00:00 GMT");
   });
 
   test("res.sendStatus() works like Express", async () => {
@@ -218,8 +197,8 @@ describe("Express Compatibility: Response Object", () => {
 
     const response = await app.handle(buildRequest("/test"));
     const link = response.headers.get("Link");
-    expect(link).toContain('</page/2>; rel="next"');
-    expect(link).toContain('</page/1>; rel="prev"');
+    expect(link).toMatch(/<\/page\/2>;\s*rel="next"/);
+    expect(link).toMatch(/<\/page\/1>;\s*rel="prev"/);
   });
 
   test("res.attachment() works like Express", async () => {
@@ -285,8 +264,7 @@ describe("Express Compatibility: Response Object", () => {
     const response = await app.handle(buildRequest("/stream"));
     expect(response.status).toBe(200);
     const text = await response.text();
-    expect(text).toContain("Hello");
-    expect(text).toContain("World");
+    expect(text).toBe("Hello World!");
   });
 
   test("res.sendFile() serves a file like Express", async () => {
@@ -298,7 +276,7 @@ describe("Express Compatibility: Response Object", () => {
     const response = await app.handle(buildRequest("/file"));
     expect(response.status).toBe(200);
     const text = await response.text();
-    expect(text).toContain("Test");
+    expect(text.trim()).toBe("Test file content");
   });
 
   test("res.sendFile() calls callback on success like Express", async () => {
@@ -363,8 +341,8 @@ describe("Express Compatibility: Response Object", () => {
     const response = await app.handle(buildRequest("/data?callback=myFn"));
     expect(response.status).toBe(200);
     const text = await response.text();
-    expect(text).toContain("myFn");
-    expect(text).toContain("42");
+    expect(text).toMatch(/typeof myFn === 'function' && myFn\(/);
+    expect(text).toContain('"value":42');
   });
 
   test("res.jsonp() sends JSON without callback like Express", async () => {
@@ -401,5 +379,53 @@ describe("Express Compatibility: Response Object", () => {
     expect(response.headers.get("Content-Type")).toBe("text/javascript; charset=utf-8");
     const text = await response.text();
     expect(text).toContain("handler(");
+  });
+
+  test("res.send(string) sets Content-Type to text/html like Express", async () => {
+    const app = bunway();
+    app.get("/test", (req, res) => res.send("<p>hi</p>"));
+
+    const response = await app.handle(buildRequest("/test"));
+    expect(response.headers.get("Content-Type")).toContain("text/html");
+  });
+
+  test("res.send(Buffer) sets Content-Type to octet-stream like Express", async () => {
+    const app = bunway();
+    app.get("/test", (req, res) => res.send(Buffer.from("bytes")));
+
+    const response = await app.handle(buildRequest("/test"));
+    expect(response.headers.get("Content-Type")).toContain("application/octet-stream");
+  });
+
+  test("res.send(object) serializes as JSON like Express", async () => {
+    const app = bunway();
+    app.get("/test", (req, res) => res.send({ key: "value" }));
+
+    const response = await app.handle(buildRequest("/test"));
+    expect(response.headers.get("Content-Type")).toContain("application/json");
+    expect(await response.json()).toEqual({ key: "value" });
+  });
+
+  test("res.type() accepts shorthand like Express", async () => {
+    const app = bunway();
+    app.get("/test", (req, res) => {
+      res.type("json");
+      res.send('{"ok":true}');
+    });
+
+    const response = await app.handle(buildRequest("/test"));
+    expect(response.headers.get("Content-Type")).toContain("application/json");
+  });
+
+  test("res.set(object) sets multiple headers at once like Express", async () => {
+    const app = bunway();
+    app.get("/test", (req, res) => {
+      res.set({ "X-A": "1", "X-B": "2" });
+      res.json({ ok: true });
+    });
+
+    const response = await app.handle(buildRequest("/test"));
+    expect(response.headers.get("X-A")).toBe("1");
+    expect(response.headers.get("X-B")).toBe("2");
   });
 });

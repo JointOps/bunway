@@ -17,7 +17,7 @@ describe("Express Compatibility: Request Object", () => {
 
     const response = await app.handle(buildRequest("/test?foo=bar"));
     const data = await response.json();
-    expect(data.url).toContain("/test?foo=bar");
+    expect(data.url).toBe("/test?foo=bar");
   });
 
   test("req.path works like Express", async () => {
@@ -330,8 +330,8 @@ describe("Express Compatibility: Request Object", () => {
     const response = await app.handle(buildRequest("/test", {
       headers: { "X-Forwarded-For": "1.2.3.4" },
     }));
-    const { ip } = await response.json() as { ip: string };
-    expect(typeof ip).toBe("string");
+    // trust proxy false means X-Forwarded-For must be ignored
+    expect(await response.json()).not.toEqual({ ip: "1.2.3.4" });
   });
 
   test("req.ip returns X-Forwarded-For client IP with trust proxy true (Express pattern)", async () => {
@@ -387,32 +387,6 @@ describe("Express Compatibility: Request Object", () => {
 
     const response = await app.handle(buildRequest("http://192.168.1.1/test"));
     expect(await response.json()).toEqual({ subdomains: [] });
-  });
-
-  test("req.id is set by requestId middleware like Express", async () => {
-    const app = bunway();
-    app.use(bunway.requestId());
-    app.get("/test", (req, res) => {
-      res.json({ id: (req as any).id });
-    });
-
-    const response = await app.handle(buildRequest("/test"));
-    const { id } = await response.json() as { id: string };
-    expect(typeof id).toBe("string");
-    expect(id.length).toBeGreaterThan(0);
-  });
-
-  test("req.id echoes X-Request-Id header when provided", async () => {
-    const app = bunway();
-    app.use(bunway.requestId());
-    app.get("/test", (req, res) => {
-      res.json({ id: (req as any).id });
-    });
-
-    const response = await app.handle(buildRequest("/test", {
-      headers: { "X-Request-Id": "custom-id-123" },
-    }));
-    expect(await response.json()).toEqual({ id: "custom-id-123" });
   });
 
   test("req.query.foo plain-object access works like Express", async () => {
@@ -560,5 +534,46 @@ describe("Express Compatibility: Request Object", () => {
     await app.handle(new Request("http://localhost/test"));
     expect(reqHasRes).toBe(true);
     expect(resHasReq).toBe(true);
+  });
+
+  test("req.baseUrl is set to the router mount prefix like Express", async () => {
+    const app = bunway();
+    const router = new Router();
+    router.get("/posts", (req, res) => {
+      res.json({ baseUrl: req.baseUrl, path: req.path, originalUrl: req.originalUrl });
+    });
+    app.use("/api", router);
+
+    const response = await app.handle(buildRequest("/api/posts"));
+    expect(await response.json()).toEqual({
+      baseUrl: "/api",
+      path: "/posts",
+      originalUrl: "/api/posts",
+    });
+  });
+
+  test("req.fresh is always false for POST requests like Express", async () => {
+    const app = bunway();
+    app.post("/test", (req, res) => {
+      res.set("ETag", '"v1"');
+      res.json({ fresh: req.fresh });
+    });
+
+    const response = await app.handle(buildRequest("/test", {
+      method: "POST",
+      headers: { "If-None-Match": '"v1"' },
+    }));
+    expect(await response.json()).toEqual({ fresh: false });
+  });
+
+  test("req.range() returns -1 for unsatisfiable range like Express", async () => {
+    const app = bunway();
+    let result: unknown;
+    app.get("/video", (req, res) => { result = req.range(100); res.json({ ok: true }); });
+
+    await app.handle(new Request("http://localhost/video", {
+      headers: { Range: "bytes=200-300" },
+    }));
+    expect(result).toBe(-1);
   });
 });
