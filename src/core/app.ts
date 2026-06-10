@@ -100,6 +100,10 @@ export class BunWayApp extends Router {
 
   set(setting: string, value: unknown): this {
     this.settings[setting] = value;
+    if (setting === "strict routing") {
+      this.routerOptions.strict = value === true;
+      this.fastMatcher.setStrict(value === true);
+    }
     return this;
   }
 

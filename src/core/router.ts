@@ -53,6 +53,7 @@ const JSON_ALLOW_HEADER = (allow: string): Record<string, string> => ({
 export class Router {
   protected routes: RouteDefinition[] = [];
   protected middlewares: Handler[] = [];
+  protected postMiddlewares: Handler[] = [];
   protected prefixMiddlewares: Array<{ prefix: string; handlers: Handler[] }> = [];
   protected errorHandlers: ErrorHandler[] = [];
   protected children: SubRouter[] = [];
@@ -60,6 +61,7 @@ export class Router {
   protected paramHandlers: Map<string, ParamHandler[]> = new Map();
   protected wsRoutes: WebSocketRouteDefinition[] = [];
   private readonly _mergeParams: boolean;
+  private _routeRegistered = false;
 
   // Fast matcher for O(1) static routes and compiled regex for dynamic routes
   protected fastMatcher: FastMatcher = new FastMatcher();
@@ -109,7 +111,7 @@ export class Router {
     pathname: string
   ): Array<{ route: RouteDefinition; params: Record<string, string> }> {
     const methods = method === "HEAD" ? ["HEAD", "GET"] : [method];
-    const pathnames = pathname === "/"
+    const pathnames = (pathname === "/" || this.routerOptions.strict)
       ? [pathname]
       : [pathname, pathname.endsWith("/") ? pathname.slice(0, -1) : pathname + "/"];
     const matches: Array<{ route: RouteDefinition; params: Record<string, string> }> = [];
@@ -147,7 +149,9 @@ export class Router {
     res: BunResponse,
     method: string,
     pathname: string,
-    mergeWith?: Record<string, string>
+    mergeWith?: Record<string, string>,
+    calledParams: Set<string> = new Set(),
+    errorBubble?: (err: unknown, req: BunRequest, res: BunResponse) => Promise<Response>
   ): Promise<Response | null> {
     const matches = this.collectRouteMatches(method, pathname);
 
@@ -157,8 +161,10 @@ export class Router {
 
       const paramMiddleware: Handler[] = [];
       for (const [name, value] of Object.entries(params)) {
+        if (calledParams.has(name)) continue;
         const handlers = this.paramHandlers.get(name);
         if (handlers) {
+          calledParams.add(name);
           for (const handler of handlers) {
             paramMiddleware.push((r, s, n) => handler(r, s, n, value, name));
           }
@@ -170,7 +176,7 @@ export class Router {
       } catch (err) {
         if (err === ROUTE_SIGNAL) continue;
         if (err === ROUTER_SIGNAL) break;
-        return await this.handleError(err, req, res);
+        return await this.handleError(err, req, res, errorBubble);
       }
 
       if (res.isSent()) {
@@ -191,7 +197,9 @@ export class Router {
     res: BunResponse,
     method: string,
     match: MatchResult,
-    mergeWith?: Record<string, string>
+    mergeWith?: Record<string, string>,
+    calledParams?: Set<string>,
+    errorBubble?: (err: unknown, req: BunRequest, res: BunResponse) => Promise<Response>
   ): Promise<Response | null> {
     req.params = mergeWith ? { ...mergeWith, ...match.params } : match.params;
     req.route = { path: match.path, method };
@@ -204,6 +212,7 @@ export class Router {
       for (const [name, value] of Object.entries(match.params)) {
         const handlers = this.paramHandlers.get(name);
         if (handlers) {
+          calledParams?.add(name);
           for (const h of handlers) {
             paramMiddleware.push((r, s, n) => h(r, s, n, value, name));
           }
@@ -220,7 +229,7 @@ export class Router {
       await this.runPipeline(pipeline, req, res);
     } catch (err) {
       if (err === ROUTE_SIGNAL || err === ROUTER_SIGNAL) return null;
-      return await this.handleError(err, req, res);
+      return await this.handleError(err, req, res, errorBubble);
     }
 
     if (res.isSent()) {
@@ -286,6 +295,7 @@ export class Router {
   private addRoute(method: string, path: string, handlers: Handler[]): void {
     const { regex, keys } = this.pathToRegex(path);
     this.routes.push({ method, path, regex, keys, handlers });
+    this._routeRegistered = true;
 
     // Also register with fast matcher for O(1) lookup
     this.fastMatcher.add(method, path, handlers);
@@ -427,6 +437,9 @@ export class Router {
     if (typeof pathOrHandler === "function") {
       if (pathOrHandler.length === 4) {
         this.errorHandlers.push(pathOrHandler as unknown as ErrorHandler);
+      } else if (this._routeRegistered) {
+        // Post-route middleware: registered after routes, skipped in error mode
+        this.postMiddlewares.push(pathOrHandler);
       } else {
         this.middlewares.push(pathOrHandler);
       }
@@ -625,12 +638,15 @@ export class Router {
     for (const child of this.children) {
       const delegated = this.matchChild(child, pathname);
       if (delegated) {
-        return child.router.handleInternal(original, delegated.childPathname, method, server, delegated.parentParams);
+        const parentBubble = this.errorHandlers.length > 0
+          ? (e: unknown, rq: BunRequest, rs: BunResponse) => this.handleError(e, rq, rs)
+          : undefined;
+        return child.router.handleInternal(original, delegated.childPathname, method, server, delegated.parentParams, child.prefix, parentBubble);
       }
     }
 
     // FAST PATH: If no middleware, check route existence before creating objects
-    if (this.middlewares.length === 0 && this.prefixMiddlewares.length === 0 && this.errorHandlers.length === 0) {
+    if (this.middlewares.length === 0 && this.prefixMiddlewares.length === 0 && this.errorHandlers.length === 0 && this.postMiddlewares.length === 0) {
       const matchResult = this.fastMatcher.match(method, pathname);
 
       if (!matchResult) {
@@ -663,10 +679,11 @@ export class Router {
         this._appContext.setApp(req, res);
       }
 
-      const routed = await this.dispatchFromMatch(req, res, method, matchResult);
+      const paramsSeen = new Set<string>();
+      const routed = await this.dispatchFromMatch(req, res, method, matchResult, undefined, paramsSeen);
       if (routed) return routed;
 
-      const fallback = await this.dispatchMatchingRoutes(req, res, method, pathname);
+      const fallback = await this.dispatchMatchingRoutes(req, res, method, pathname, undefined, paramsSeen);
       if (fallback) return fallback;
 
       return new Response(make404Body(method, pathname), {
@@ -687,7 +704,9 @@ export class Router {
     pathname: string,
     method: string,
     server?: BunServer<unknown>,
-    parentParams?: Record<string, string>
+    parentParams?: Record<string, string>,
+    baseUrl?: string,
+    errorBubble?: (err: unknown, req: BunRequest, res: BunResponse) => Promise<Response>
   ): Promise<Response> {
     // Check child routers first
     for (const child of this.children) {
@@ -696,7 +715,12 @@ export class Router {
         const accumulated = this._mergeParams && parentParams
           ? { ...parentParams, ...delegated.parentParams }
           : delegated.parentParams;
-        return child.router.handleInternal(original, delegated.childPathname, method, server, accumulated);
+        const childBaseUrl = (baseUrl ?? "") + child.prefix;
+        // Bubble: child's own handlers first, then this router's handlers, then parent's bubble
+        const childBubble = this.errorHandlers.length > 0
+          ? (e: unknown, rq: BunRequest, rs: BunResponse) => this.handleError(e, rq, rs, errorBubble)
+          : errorBubble;
+        return child.router.handleInternal(original, delegated.childPathname, method, server, accumulated, childBaseUrl, childBubble);
       }
     }
 
@@ -704,7 +728,7 @@ export class Router {
     const mergeWith = this._mergeParams && parentParams ? parentParams : undefined;
 
     // Fast path for no middleware
-    if (this.middlewares.length === 0 && this.prefixMiddlewares.length === 0 && this.errorHandlers.length === 0) {
+    if (this.middlewares.length === 0 && this.prefixMiddlewares.length === 0 && this.errorHandlers.length === 0 && this.postMiddlewares.length === 0) {
       const matchResult = this.fastMatcher.match(method, pathname);
 
       if (!matchResult) {
@@ -723,6 +747,7 @@ export class Router {
       }
 
       const req = new BunRequest(original, pathname);
+      if (baseUrl !== undefined) req.setBaseUrl(baseUrl);
       const res = new BunResponse();
 
       if (server?.requestIP) {
@@ -735,11 +760,16 @@ export class Router {
         this._appContext.setApp(req, res);
       }
 
-      const routed = await this.dispatchFromMatch(req, res, method, matchResult, mergeWith);
-      if (routed) return routed;
+      const paramsSeen = new Set<string>();
+      try {
+        const routed = await this.dispatchFromMatch(req, res, method, matchResult, mergeWith, paramsSeen, errorBubble);
+        if (routed) return routed;
 
-      const fallback = await this.dispatchMatchingRoutes(req, res, method, pathname, mergeWith);
-      if (fallback) return fallback;
+        const fallback = await this.dispatchMatchingRoutes(req, res, method, pathname, mergeWith, paramsSeen, errorBubble);
+        if (fallback) return fallback;
+      } catch (err) {
+        return await this.handleError(err, req, res, errorBubble);
+      }
 
       return new Response(make404Body(method, pathname), {
         status: 404,
@@ -747,7 +777,7 @@ export class Router {
       });
     }
 
-    return this.handleWithMiddleware(original, pathname, server, mergeWith);
+    return this.handleWithMiddleware(original, pathname, server, mergeWith, baseUrl, errorBubble);
   }
 
   /**
@@ -757,9 +787,12 @@ export class Router {
     original: Request,
     pathname: string,
     server?: BunServer<unknown>,
-    mergeWith?: Record<string, string>
+    mergeWith?: Record<string, string>,
+    baseUrl?: string,
+    errorBubble?: (err: unknown, req: BunRequest, res: BunResponse) => Promise<Response>
   ): Promise<Response> {
     const req = new BunRequest(original, pathname);
+    if (baseUrl !== undefined) req.setBaseUrl(baseUrl);
     const res = new BunResponse();
 
     // Inject app context directly (avoids middleware overhead)
@@ -780,7 +813,7 @@ export class Router {
     try {
       await this.runPipeline([...this.middlewares], req, res);
     } catch (err) {
-      return await this.handleError(err, req, res);
+      return await this.handleError(err, req, res, errorBubble);
     }
 
     if (res.isSent()) {
@@ -798,7 +831,7 @@ export class Router {
         try {
           await this.runPipeline(handlers, req, res);
         } catch (err) {
-          return await this.handleError(err, req, res);
+          return await this.handleError(err, req, res, errorBubble);
         } finally {
           (req as any)._pathname = savedPath;
         }
@@ -818,11 +851,16 @@ export class Router {
     const matchResult = this.fastMatcher.match(effectiveMethod, pathname);
 
     if (matchResult) {
-      const routed = await this.dispatchFromMatch(req, res, effectiveMethod, matchResult, mergeWith);
-      if (routed) return routed;
+      const paramsSeen = new Set<string>();
+      try {
+        const routed = await this.dispatchFromMatch(req, res, effectiveMethod, matchResult, mergeWith, paramsSeen, errorBubble);
+        if (routed) return routed;
 
-      const fallback = await this.dispatchMatchingRoutes(req, res, effectiveMethod, pathname, mergeWith);
-      if (fallback) return fallback;
+        const fallback = await this.dispatchMatchingRoutes(req, res, effectiveMethod, pathname, mergeWith, paramsSeen, errorBubble);
+        if (fallback) return fallback;
+      } catch (err) {
+        return await this.handleError(err, req, res, errorBubble);
+      }
 
       return new Response(make404Body(effectiveMethod, pathname), {
         status: 404,
@@ -914,7 +952,12 @@ export class Router {
     return next();
   }
 
-  private async handleError(err: unknown, req: BunRequest, res: BunResponse): Promise<Response> {
+  private async handleError(
+    err: unknown,
+    req: BunRequest,
+    res: BunResponse,
+    errorBubble?: (err: unknown, req: BunRequest, res: BunResponse) => Promise<Response>
+  ): Promise<Response> {
     for (const handler of this.errorHandlers) {
       try {
         const result = handler(err, req, res, () => {}) as unknown;
@@ -925,6 +968,11 @@ export class Router {
       } catch {
         continue;
       }
+    }
+
+    // No local handler handled it — bubble to parent if available
+    if (errorBubble) {
+      return errorBubble(err, req, res);
     }
 
     if (isHttpError(err)) {
