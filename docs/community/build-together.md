@@ -46,7 +46,6 @@ bunway is a community-powered project building the Bun-native, Express-compatibl
     <ul>
       <li><code>session()</code> – session middleware with Memory/File stores</li>
       <li><code>csrf()</code> – CSRF protection (double-submit cookie pattern)</li>
-      <li><code>passport()</code> – authentication middleware</li>
     </ul>
   </div>
   <div class="timeline__node">
@@ -112,7 +111,7 @@ bunway is a community-powered project building the Bun-native, Express-compatibl
 
 ## Where we need help
 
-All 21 middleware are working. Here's what's left — every item below is an open invitation:
+All 20 middleware are working. Here's what's left — every item below is an open invitation:
 
 - **Test coverage** – pick any middleware that interests you and write its test suite
 - **Option parity** – compare a middleware against its Express counterpart, find a missing option, open an issue or send a PR
