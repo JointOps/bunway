@@ -668,6 +668,7 @@ export class Router {
       // Route found - now create req/res for handlers
       const req = new BunRequest(original, pathname);
       const res = new BunResponse();
+      res.setReq(req);
 
       if (server?.requestIP) {
         const socketAddr = server.requestIP(original);
@@ -749,6 +750,7 @@ export class Router {
       const req = new BunRequest(original, pathname);
       if (baseUrl !== undefined) req.setBaseUrl(baseUrl);
       const res = new BunResponse();
+      res.setReq(req);
 
       if (server?.requestIP) {
         const socketAddr = server.requestIP(original);
@@ -794,6 +796,7 @@ export class Router {
     const req = new BunRequest(original, pathname);
     if (baseUrl !== undefined) req.setBaseUrl(baseUrl);
     const res = new BunResponse();
+    res.setReq(req);
 
     // Inject app context directly (avoids middleware overhead)
     if (this._appContext) {
