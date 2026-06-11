@@ -22,7 +22,7 @@ describe("BunRequest (Unit)", () => {
 
     it("should expose url", () => {
       const req = createRequest("http://localhost/users?page=1");
-      expect(req.url).toBe("http://localhost/users?page=1");
+      expect(req.url).toBe("/users?page=1");
     });
 
     it("should expose path (pathname)", () => {

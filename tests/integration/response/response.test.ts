@@ -154,7 +154,7 @@ describe("BunResponse", () => {
       res.cookie("token", "xyz", {
         httpOnly: true,
         secure: true,
-        maxAge: 3600,
+        maxAge: 3_600_000,
         path: "/",
         sameSite: "strict",
       });

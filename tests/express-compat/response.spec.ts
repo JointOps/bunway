@@ -118,7 +118,7 @@ describe("Express Compatibility: Response Object", () => {
   test("res.cookie() works like Express", async () => {
     const app = bunway();
     app.get("/test", (req, res) => {
-      res.cookie("session", "abc123", { maxAge: 3600 });
+      res.cookie("session", "abc123", { maxAge: 3_600_000 });
       res.json({ ok: true });
     });
 

@@ -31,7 +31,7 @@ describe("Express Compatibility: Cookie Handling", () => {
     const setCookie = response.headers.get("Set-Cookie");
     expect(setCookie).toContain("session=xyz789");
     expect(setCookie).toContain("HttpOnly");
-    expect(setCookie).toContain("Max-Age=3600000");
+    expect(setCookie).toContain("Max-Age=3600");
   });
 
   test("res.clearCookie() clears cookies like Express", async () => {
@@ -78,17 +78,19 @@ describe("Express Compatibility: Cookie Handling", () => {
 
     app.get("/test", (req, res) => {
       res.json({
-        signedCookiesEmpty: Object.keys(req.signedCookies).length === 0,
-        tamperedInPlain: "session" in req.cookies
+        tokenValue: req.signedCookies["session"],
+        tokenInSignedCookies: "session" in req.signedCookies,
+        tokenInPlain: "session" in req.cookies,
       });
     });
 
     const response = await app.handle(buildRequest("/test", {
       headers: { "Cookie": "session=s:tampered-value.bad-signature" }
     }));
-    const data = await response.json() as { signedCookiesEmpty: boolean; tamperedInPlain: boolean };
-    expect(data.signedCookiesEmpty).toBe(true);
-    expect(data.tamperedInPlain).toBe(true);
+    const data = await response.json() as { tokenValue: string | false; tokenInSignedCookies: boolean; tokenInPlain: boolean };
+    expect(data.tokenValue).toBe(false);              // Express: tampered → false
+    expect(data.tokenInSignedCookies).toBe(true);    // present in signedCookies
+    expect(data.tokenInPlain).toBe(false);            // absent from plain cookies
   });
 
   test("Cookie options work like Express", async () => {

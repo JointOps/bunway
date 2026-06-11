@@ -99,12 +99,9 @@ describe("responseTime middleware", () => {
     expect(res.headers.get("x-response-time")).toMatch(/^\d+\.\dms$/);
   });
 
-  it("digits: -1 throws RangeError (unguarded toFixed)", async () => {
-    const app = bunway();
-    app.use(responseTime({ digits: -1, suffix: false }));
-    app.get("/ping", (_req, res) => res.json({ ok: true }));
-    // The error is thrown during response finalization (outside the error-handler
-    // middleware chain), so the promise itself rejects rather than producing a 500.
-    await expect(app.handle(new Request("http://localhost/ping"))).rejects.toThrow(RangeError);
+  it("digits: -1 throws RangeError at configuration time", () => {
+    // Fail fast: invalid digits is caught when the middleware factory is called,
+    // not silently during request handling.
+    expect(() => responseTime({ digits: -1, suffix: false })).toThrow(RangeError);
   });
 });

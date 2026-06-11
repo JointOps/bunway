@@ -153,6 +153,29 @@ describe("Crypto Utils (Unit)", () => {
       const result = unsignSessionId("nosprefix.signature", "secret");
       expect(result).toBe(false);
     });
+
+    it("accepts a string array — primary key validates", () => {
+      const sid = "array-sid";
+      const signed = signSessionId(sid, "new-key");
+      expect(unsignSessionId(signed, ["new-key", "old-key"])).toBe(sid);
+    });
+
+    it("accepts a string array — rotated key validates", () => {
+      const sid = "rotated-sid";
+      const signed = signSessionId(sid, "old-key");
+      expect(unsignSessionId(signed, ["new-key", "old-key"])).toBe(sid);
+    });
+
+    it("accepts a string array — returns false when no key matches", () => {
+      const signed = signSessionId("sid", "correct");
+      expect(unsignSessionId(signed, ["wrong-1", "wrong-2"])).toBe(false);
+    });
+
+    it("single string secret still works (backwards compat with array signature)", () => {
+      const sid = "compat-sid";
+      const signed = signSessionId(sid, "secret");
+      expect(unsignSessionId(signed, "secret")).toBe(sid);
+    });
   });
 
   describe("timingSafeCompare()", () => {

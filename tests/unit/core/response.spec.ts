@@ -309,9 +309,10 @@ describe("BunResponse (Unit)", () => {
       expect(cookie).toContain("Secure");
     });
 
-    it("should support maxAge option", () => {
-      res.cookie("name", "value", { maxAge: 3600 });
+    it("should support maxAge option (accepts milliseconds, emits seconds)", () => {
+      res.cookie("name", "value", { maxAge: 3_600_000 }); // 1 hour in ms
       expect(res.get("Set-Cookie")).toContain("Max-Age=3600");
+      expect(res.get("Set-Cookie")).toContain("Expires=");  // auto-generated
     });
 
     it("should support path option", () => {
@@ -345,6 +346,54 @@ describe("BunResponse (Unit)", () => {
     it("should support chaining", () => {
       const result = res.cookie("name", "value");
       expect(result).toBe(res);
+    });
+
+    it("res.cookie() maxAge: 0 → Max-Age=0 (immediate expiry)", () => {
+      res.cookie("tok", "v", { maxAge: 0 });
+      expect(res.get("Set-Cookie")).toContain("Max-Age=0");
+    });
+
+    it("res.cookie() maxAge: 500ms → Max-Age=0 (sub-second rounds down)", () => {
+      res.cookie("tok", "v", { maxAge: 500 }); // 500ms → Math.floor(0.5) = 0
+      expect(res.get("Set-Cookie")).toContain("Max-Age=0");
+    });
+
+    it("res.cookie() no maxAge → no Max-Age or Expires in header", () => {
+      res.cookie("tok", "v");
+      const h = res.get("Set-Cookie")!;
+      expect(h).not.toContain("Max-Age=");
+      expect(h).not.toContain("Expires=");
+    });
+
+    it("res.cookie() with both maxAge and explicit expires → exactly one Expires", () => {
+      const future = new Date(Date.now() + 99_999);
+      res.cookie("tok", "v", { maxAge: 3_600_000, expires: future });
+      const h = res.get("Set-Cookie")!;
+      const expiresCount = (h.match(/Expires=/g) || []).length;
+      expect(expiresCount).toBe(1); // no duplicate auto-generated Expires
+    });
+
+    describe("res.clearCookie() — Phase 2", () => {
+      it("clearCookie with maxAge in options → no Max-Age header, Expires=epoch", () => {
+        res.clearCookie("tok", { maxAge: 86_400_000 });
+        const h = res.get("Set-Cookie")!;
+        expect(h).not.toContain("Max-Age=");
+        expect(h).toContain("Expires=Thu, 01 Jan 1970 00:00:00 GMT");
+      });
+
+      it("clearCookie preserves domain and path from options", () => {
+        res.clearCookie("tok", { domain: "example.com", path: "/api" });
+        const h = res.get("Set-Cookie")!;
+        expect(h).toContain("Domain=example.com");
+        expect(h).toContain("Path=/api");
+        expect(h).toContain("Expires=Thu, 01 Jan 1970 00:00:00 GMT");
+        expect(h).not.toContain("Max-Age=");
+      });
+
+      it("clearCookie with no options → Expires=epoch", () => {
+        res.clearCookie("tok");
+        expect(res.get("Set-Cookie")).toContain("Expires=Thu, 01 Jan 1970 00:00:00 GMT");
+      });
     });
   });
 

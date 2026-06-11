@@ -333,6 +333,51 @@ export function createMockResponse(): {
 }
 
 // ============================================
+// SpyStore
+// ============================================
+
+export class SpyStore implements SessionStore {
+  readonly calls: Array<{
+    method: "get" | "set" | "destroy" | "touch";
+    sid: string;
+    data?: SessionData;
+    maxAge?: number;
+  }> = [];
+  private _data = new Map<string, { session: SessionData; maxAge?: number }>();
+
+  async get(sid: string): Promise<SessionData | null> {
+    this.calls.push({ method: "get", sid });
+    const entry = this._data.get(sid);
+    return entry ? { ...entry.session } : null;
+  }
+
+  async set(sid: string, session: SessionData, maxAge?: number): Promise<void> {
+    this.calls.push({ method: "set", sid, data: { ...session }, maxAge });
+    this._data.set(sid, { session: { ...session }, maxAge });
+  }
+
+  async destroy(sid: string): Promise<void> {
+    this.calls.push({ method: "destroy", sid });
+    this._data.delete(sid);
+  }
+
+  async touch(sid: string, data: SessionData): Promise<void> {
+    this.calls.push({ method: "touch", sid, data: { ...data } });
+    // No TTL update — call tracking only
+  }
+
+  /** Pre-populate data without recording a set call (use in test setup) */
+  seed(sid: string, session: SessionData, maxAge?: number): void {
+    this._data.set(sid, { session: { ...session }, maxAge });
+  }
+
+  /** Clear call log between setup and assertion phases */
+  reset(): void {
+    this.calls.length = 0;
+  }
+}
+
+// ============================================
 // Assertion Helpers
 // ============================================
 
@@ -387,6 +432,7 @@ export function expectNoHeader(response: Response, name: string): void {
 // Server Lifecycle Helpers
 // ============================================
 
+import type { SessionStore, SessionData } from "../../src/middleware/session";
 import type { Server } from "bun";
 
 /**
