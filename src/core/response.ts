@@ -3,7 +3,7 @@ import type { BunRequest } from "./request";
 import { existsSync, statSync } from "fs";
 import { join, extname, basename, resolve } from "path";
 import { getBaseMimeType, getMimeType } from "../utils/mime";
-import { generateBodyETag } from "../utils/crypto";
+import { generateBodyETag, sign } from "../utils/crypto";
 import { brotliCompressSync } from "zlib";
 
 export interface RenderOptions {
@@ -413,11 +413,30 @@ export class BunResponse {
     this._sent = true;
   }
 
-  cookie(name: string, value: string, options: CookieOptions = {}): this {
-    let cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)}`;
+  cookie(name: string, value: string | Record<string, unknown>, options: CookieOptions = {}): this {
+    let strValue: string = typeof value === "object"
+      ? "j:" + JSON.stringify(value)
+      : String(value);
 
-    if (options.maxAge !== undefined) {
-      cookie += `; Max-Age=${options.maxAge}`;
+    if (options.signed) {
+      const secret = this._req?.secret;
+      if (!secret) {
+        throw new Error(
+          'cookieParser("secret") required for signed cookies — mount cookieParser before res.cookie({ signed: true })'
+        );
+      }
+      strValue = "s:" + sign(strValue, secret);
+    }
+
+    let cookie = `${encodeURIComponent(name)}=${encodeURIComponent(strValue)}`;
+
+    if (options.maxAge != null) {
+      const maxAgeMs = options.maxAge;
+      const maxAgeSec = Math.floor(maxAgeMs / 1000);
+      cookie += `; Max-Age=${maxAgeSec}`;
+      if (!options.expires) {
+        cookie += `; Expires=${new Date(Date.now() + maxAgeMs).toUTCString()}`;
+      }
     }
     if (options.expires) {
       cookie += `; Expires=${options.expires.toUTCString()}`;
@@ -443,8 +462,9 @@ export class BunResponse {
   }
 
   clearCookie(name: string, options: CookieOptions = {}): this {
+    const { maxAge: _dropped, ...rest } = options;
     return this.cookie(name, "", {
-      ...options,
+      ...rest,
       expires: new Date(0),
     });
   }
