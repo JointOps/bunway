@@ -1,5 +1,6 @@
 import type { UploadedFile } from "../types";
 import type { BunResponse } from "./response";
+import type { Session, SessionData, SessionStore } from "../middleware/session";
 import { negotiateAccept, negotiateSimple, languageMatch, typeIs } from "../utils/content-negotiation";
 
 const DEFAULT_BODY_LIMIT = 1024 * 1024;
@@ -75,8 +76,9 @@ export class BunRequest {
   private _rawBody: Uint8Array | null = null;
   private _bodyParsed = false;
   private _cookies: Record<string, string> | null = null;
-  private _signedCookies: Record<string, string> = {};
+  private _signedCookies: Record<string, string | false> = {};
   private _app?: RequestAppContext;
+  private _secret: string | undefined = undefined;
   private _socketIp: string | null = null;
   private _file: UploadedFile | null = null;
   private _files: UploadedFile[] | Record<string, UploadedFile[]> | null = null;
@@ -90,6 +92,19 @@ export class BunRequest {
   locals: Record<string, unknown> = {};
   timedout: boolean = false;
   private _baseUrl: string = "";
+
+  // Populated by session() middleware
+  declare session: Session & SessionData;
+  declare sessionID: string;
+  declare sessionStore: SessionStore;
+
+  get secret(): string | undefined {
+    return this._secret;
+  }
+
+  set secret(value: string | undefined) {
+    this._secret = value;
+  }
 
   /**
    * Create a new BunRequest.
@@ -455,11 +470,11 @@ export class BunRequest {
     this._cookies = value;
   }
 
-  get signedCookies(): Record<string, string> {
+  get signedCookies(): Record<string, string | false> {
     return this._signedCookies;
   }
 
-  set signedCookies(value: Record<string, string>) {
+  set signedCookies(value: Record<string, string | false>) {
     this._signedCookies = value;
   }
 

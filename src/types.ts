@@ -44,7 +44,7 @@ export interface CookieOptions {
   domain?: string;
   expires?: Date;
   httpOnly?: boolean;
-  maxAge?: number;
+  maxAge?: number;  // milliseconds — res.cookie() converts to seconds in Set-Cookie
   path?: string;
   sameSite?: "strict" | "lax" | "none" | boolean;
   secure?: boolean;
