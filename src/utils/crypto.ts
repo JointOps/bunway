@@ -111,9 +111,13 @@ export function signSessionId(sessionId: string, secret: string): string {
  * @param secret - The secret key
  * @returns The session ID if valid, false otherwise
  */
-export function unsignSessionId(signedValue: string, secret: string): string | false {
+export function unsignSessionId(
+  signedValue: string,
+  secrets: string | string[]
+): string | false {
   if (!signedValue.startsWith("s:")) return false;
-  return unsign(signedValue.slice(2), [secret]);
+  const arr = Array.isArray(secrets) ? secrets : [secrets];
+  return unsign(signedValue.slice(2), arr);
 }
 
 /**
