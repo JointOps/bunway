@@ -4,7 +4,7 @@
 [![CI](https://github.com/JointOps/bunway/actions/workflows/ci.yml/badge.svg)](https://github.com/JointOps/bunway/actions/workflows/ci.yml)
 [![bun only](https://img.shields.io/badge/runtime-bun%201.0+-1e7c73?logo=bun&logoColor=white)](https://bun.sh)
 [![zero deps](https://img.shields.io/badge/dependencies-0-brightgreen)](https://www.npmjs.com/package/bunway)
-[![tests](https://img.shields.io/badge/tests-2417%20passing-brightgreen)]()
+[![tests](https://img.shields.io/badge/tests-2423%20passing-brightgreen)]()
 [![docs](https://img.shields.io/badge/docs-bunway.jointops.dev-3fc5b7)](https://bunway.jointops.dev/)
 [![license](https://img.shields.io/badge/license-MIT-lightgrey.svg)](./LICENSE)
 

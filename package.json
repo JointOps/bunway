@@ -1,6 +1,6 @@
 {
   "name": "bunway",
-  "version": "1.0.8",
+  "version": "1.1.0",
   "description": "The Express-compatible web framework for Bun. Same API, zero dependencies, 26 built-in middleware, 97%+ Express parity.",
   "private": true,
   "type": "module",
