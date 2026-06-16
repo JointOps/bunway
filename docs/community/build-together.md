@@ -86,7 +86,7 @@ bunway is a community-powered project building the Bun-native, Express-compatibl
     <h3>Middleware hardening & 100% parity</h3>
     <p>Every middleware is working — now we're completing them to full parity with their Express counterparts and hardening with comprehensive test coverage.</p>
     <ul>
-      <li class="todo">Full test suites for all 21 middleware</li>
+      <li class="todo">Full test suites for all 26 middleware</li>
       <li class="todo">100% option parity with Express counterpart packages</li>
       <li class="todo">Edge case coverage and stress testing</li>
       <li class="todo">Pluggable stores for rate-limit (Redis, etc.)</li>
@@ -111,7 +111,7 @@ bunway is a community-powered project building the Bun-native, Express-compatibl
 
 ## Where we need help
 
-All 20 middleware are working. Here's what's left — every item below is an open invitation:
+All 26 middleware are working. Here's what's left — every item below is an open invitation:
 
 - **Test coverage** – pick any middleware that interests you and write its test suite
 - **Option parity** – compare a middleware against its Express counterpart, find a missing option, open an issue or send a PR

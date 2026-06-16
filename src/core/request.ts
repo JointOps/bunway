@@ -1,4 +1,4 @@
-import type { UploadedFile } from "../types";
+import type { UploadedFile, AuthUser } from "../types";
 import type { BunResponse } from "./response";
 import type { Session, SessionData, SessionStore } from "../middleware/session";
 import { negotiateAccept, negotiateSimple, languageMatch, typeIs } from "../utils/content-negotiation";
@@ -97,6 +97,17 @@ export class BunRequest {
   declare session: Session & SessionData;
   declare sessionID: string;
   declare sessionStore: SessionStore;
+  // Populated by jwt(), passport.initialize(), or any auth middleware
+  declare user: AuthUser | undefined;
+  // express-jwt compatibility alias — same reference as req.user
+  declare auth: AuthUser | undefined;
+  // Populated by passport.initialize()
+  declare isAuthenticated: () => boolean;
+  declare isUnauthenticated: () => boolean;
+  declare login: (user: AuthUser, options?: Record<string, unknown>) => Promise<void>;
+  declare logout: (options?: Record<string, unknown>) => Promise<void>;
+  // Populated by csrf() middleware
+  declare csrfToken: () => string;
 
   get secret(): string | undefined {
     return this._secret;
@@ -222,7 +233,9 @@ export class BunRequest {
       if (pattern === ip) {
         return true;
       }
-      // Proper CIDR matching for IPv4
+      // Proper CIDR matching for IPv4 only — an IPv6 CIDR (e.g. "2001:db8::/32")
+      // never matches here. Use an exact address or the loopback/linklocal/
+      // uniquelocal keywords above for IPv6 ranges until this is implemented.
       if (pattern.includes("/") && isIPv4InCIDR(ip, pattern)) {
         return true;
       }

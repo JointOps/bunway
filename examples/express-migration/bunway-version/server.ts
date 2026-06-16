@@ -1,4 +1,5 @@
-import bunway from "bunway";
+import bunway, { passportInitialize, passportSession, passportAuthenticate } from "bunway";
+import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 
 const app = bunway();
@@ -31,9 +32,8 @@ app.use(
   })
 );
 
-const passport = bunway.passport();
-app.use(passport.initialize());
-app.use(passport.session());
+app.use(passportInitialize(passport));
+app.use(passportSession(passport));
 
 const users = [
   { id: 1, username: "admin", password: "password123" },
@@ -90,7 +90,7 @@ app.get("/", (req, res) => {
   });
 });
 
-app.post("/api/auth/login", passport.authenticate("local"), (req, res) => {
+app.post("/api/auth/login", passportAuthenticate(passport, "local"), (req, res) => {
   res.json({
     message: "Logged in successfully",
     user: { id: req.user.id, username: req.user.username },

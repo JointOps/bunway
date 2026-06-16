@@ -109,3 +109,19 @@ export interface BunWayLogger {
   error(message: string, meta?: Record<string, unknown>): void;
   debug?(message: string, meta?: Record<string, unknown>): void;
 }
+
+/**
+ * Extend this interface to type req.user for your application.
+ * @example
+ * declare module "bunway" {
+ *   interface AuthUser {
+ *     id: string;
+ *     email: string;
+ *     role: "admin" | "user";
+ *     scope?: string[];
+ *   }
+ * }
+ */
+export interface AuthUser {
+  [key: string]: unknown;
+}

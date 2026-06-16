@@ -1,7 +1,7 @@
 {
   "name": "bunway",
   "version": "1.0.8",
-  "description": "The Express-compatible web framework for Bun. Same API, zero dependencies, 23 built-in middleware, 97%+ Express parity.",
+  "description": "The Express-compatible web framework for Bun. Same API, zero dependencies, 26 built-in middleware, 97%+ Express parity.",
   "private": true,
   "type": "module",
   "module": "./src/index.ts",
@@ -67,7 +67,6 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
-
     "test": "bun test",
     "test:unit": "bun test tests/unit",
     "test:integration": "bun test tests/integration",
@@ -76,18 +75,15 @@
     "test:coverage": "bun test --coverage",
     "test:watch": "bun test --watch",
     "compat:score": "bun scripts/express-compat-score.ts",
-
     "benchmark": "bun benchmark/fair-bench.ts",
     "benchmark:quick": "bun benchmark/fair-bench.ts --quick",
     "benchmark:baseline": "bun benchmark/fair-bench.ts --baseline",
     "benchmark:regression": "bun benchmark/fair-bench.ts --quick --check-regression",
     "benchmark:ci": "bash benchmark/scripts/ci-check.sh",
-
     "docs": "typedoc --options typedoc.json",
     "docs:dev": "bun run docs && vitepress dev docs",
     "docs:build": "bun run docs && vitepress build docs",
     "docs:preview": "vitepress preview docs",
-
     "build": "tsc --project tsconfig.json",
     "sync:version": "bun scripts/sync-version.mjs",
     "prepare:dist": "rm -rf dist && bun run build && bun scripts/prepare-dist.mjs",
@@ -96,11 +92,15 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "@types/passport": "^1.0.17",
+    "@types/passport-local": "^1.0.38",
     "autocannon": "^8.0.0",
     "elysia": "^1.4.22",
     "express": "^5.2.1",
     "fastify": "^5.7.2",
     "hono": "^4.11.7",
+    "passport": "^0.7.0",
+    "passport-local": "^1.0.0",
     "prettier": "^3.8.1",
     "typedoc": "^0.28.17",
     "vitepress": "^1.6.4"

@@ -18,6 +18,9 @@ import { responseTime } from "./middleware/response-time";
 import { requestId } from "./middleware/request-id";
 import { methodOverride } from "./middleware/method-override";
 import { favicon } from "./middleware/favicon";
+import { jwt, jwtSign, jwtDecode } from "./middleware/jwt";
+import { passport, passportInitialize, passportSession, passportAuthenticate } from "./middleware/passport";
+import { tokenVault, VaultMemoryStore } from "./middleware/token-vault";
 
 interface BunwayFactory {
   (options?: BunWayOptions): BunWayApp;
@@ -43,6 +46,12 @@ interface BunwayFactory {
   requestId: typeof requestId;
   methodOverride: typeof methodOverride;
   favicon: typeof favicon;
+  jwt: typeof jwt;
+  passport: typeof passport;
+  passportInitialize: typeof passportInitialize;
+  passportSession: typeof passportSession;
+  passportAuthenticate: typeof passportAuthenticate;
+  tokenVault: typeof tokenVault;
 }
 
 const bunway = ((options?: BunWayOptions) => createBunway(options)) as BunwayFactory;
@@ -69,6 +78,12 @@ bunway.responseTime = responseTime;
 bunway.requestId = requestId;
 bunway.methodOverride = methodOverride;
 bunway.favicon = favicon;
+bunway.jwt = jwt;
+bunway.passport = passport;
+bunway.passportInitialize = passportInitialize;
+bunway.passportSession = passportSession;
+bunway.passportAuthenticate = passportAuthenticate;
+bunway.tokenVault = tokenVault;
 
 export default bunway;
 export { bunway };
@@ -100,6 +115,10 @@ export { responseTime } from "./middleware/response-time";
 export { requestId } from "./middleware/request-id";
 export { methodOverride } from "./middleware/method-override";
 export { favicon } from "./middleware/favicon";
+export { jwt, jwtSign, jwtDecode } from "./middleware/jwt";
+export { passport, passportInitialize, passportSession, passportAuthenticate } from "./middleware/passport";
+export { tokenVault, VaultMemoryStore } from "./middleware/token-vault";
+export type { VaultStore, VaultEntry, TokenVaultOptions, TokenPair, TokenVault } from "./middleware/token-vault";
 
 export type { Handler, ErrorHandler, NextFunction, RouterOptions, ListenOptions, TlsOptions, CookieOptions, SendFileOptions } from "./types";
 export type { RangeResult, RangeSpec } from "./core/request";
@@ -126,6 +145,8 @@ export type { ResponseTimeOptions } from "./middleware/response-time";
 export type { RequestIdOptions } from "./middleware/request-id";
 export type { MethodOverrideOptions } from "./middleware/method-override";
 export type { FaviconOptions } from "./middleware/favicon";
+export type { JwtOptions, JwtPayload, JwtHeader, JwtAlgorithm } from "./middleware/jwt";
+export type { AuthUser } from "./types";
 
 // WebSocket types
 export type { WebSocketData, WebSocketHandlers, WebSocketRouteDefinition, BunWebSocket } from "./types";

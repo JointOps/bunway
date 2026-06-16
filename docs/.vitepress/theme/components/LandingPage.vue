@@ -190,7 +190,7 @@ app.<span class="fn">post</span>(<span class="str">'/contact'</span>, <span clas
           <span class="callout-num">0</span>
           <span class="callout-text">transitive dependencies</span>
           <span class="callout-divider">·</span>
-          <span class="callout-num">24</span>
+          <span class="callout-num">26</span>
           <span class="callout-text">middleware, all fully typed</span>
         </div>
       </div>

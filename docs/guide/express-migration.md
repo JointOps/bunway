@@ -35,8 +35,8 @@ You already know bunWay. Same `(req, res, next)` signature, same middleware name
     <span class="stat-label">npm dependencies</span>
   </div>
   <div class="stat-item">
-    <span class="stat-number">3–4×</span>
-    <span class="stat-label">Faster than Node.js</span>
+    <span class="stat-number">~1.6×</span>
+    <span class="stat-label">Faster than Express</span>
   </div>
 </div>
 
@@ -190,7 +190,7 @@ The request and response objects are 1:1 with Express. Open any section — <spa
 | `app.get/post/put/delete()` | <span class="badge-same">identical</span> | |
 | `app.use()` | <span class="badge-same">identical</span> | Array path mounting supported |
 | `app.route(path)` | <span class="badge-same">identical</span> | Chainable route definitions |
-| `bunway.Router()` | <span class="badge-same">identical</span> | Was `express.Router()` |
+| `import { Router } from "bunway"` | <span class="badge-same">identical</span> | Was `express.Router()` |
 | `Router({ mergeParams: true })` | <span class="badge-same">identical</span> | |
 | `req.res` / `res.req` | <span class="badge-same">identical</span> | Cross-references set during dispatch |
 | `res.app` | <span class="badge-same">identical</span> | |

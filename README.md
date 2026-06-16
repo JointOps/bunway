@@ -2,15 +2,15 @@
 
 [![npm version](https://img.shields.io/npm/v/bunway.svg?logo=npm&label=npm)](https://www.npmjs.com/package/bunway)
 [![CI](https://github.com/JointOps/bunway/actions/workflows/ci.yml/badge.svg)](https://github.com/JointOps/bunway/actions/workflows/ci.yml)
-[![bun only](https://img.shields.io/badge/runtime-bun%201.1+-1e7c73?logo=bun&logoColor=white)](https://bun.sh)
+[![bun only](https://img.shields.io/badge/runtime-bun%201.0+-1e7c73?logo=bun&logoColor=white)](https://bun.sh)
 [![zero deps](https://img.shields.io/badge/dependencies-0-brightgreen)](https://www.npmjs.com/package/bunway)
-[![tests](https://img.shields.io/badge/tests-1662%20passing-brightgreen)]()
+[![tests](https://img.shields.io/badge/tests-2417%20passing-brightgreen)]()
 [![docs](https://img.shields.io/badge/docs-bunway.jointops.dev-3fc5b7)](https://bunway.jointops.dev/)
 [![license](https://img.shields.io/badge/license-MIT-lightgrey.svg)](./LICENSE)
 
 **Express API. Bun speed. Zero dependencies.**
 
-bunWay is a web framework for Bun that speaks Express fluently. Same `(req, res, next)` signature. Same middleware patterns. Same routing. Just faster, lighter, and with 23 middleware built right in. No rewrites. No new API to learn. Drop it in and ship.
+bunWay is a web framework for Bun that speaks Express fluently. Same `(req, res, next)` signature. Same middleware patterns. Same routing. Just faster, lighter, and with 26 middleware built right in. No rewrites. No new API to learn. Drop it in and ship.
 
 ```ts
 import { bunway, cors, helmet, logger, json, session } from "bunway";
@@ -36,7 +36,7 @@ If you've written Express before, you just wrote bunWay.
 
 ## Quick Links
 
-[Install](#getting-started) · [Why bunWay?](#why-bunway) · [Express Compatibility](#express-compatibility) · [Middleware](#built-in-middleware-23) · [Routing](#routing) · [Docs](https://bunway.jointops.dev/)
+[Install](#getting-started) · [Why bunWay?](#why-bunway) · [Express Compatibility](#express-compatibility) · [Middleware](#built-in-middleware-26) · [Routing](#routing) · [Docs](https://bunway.jointops.dev/)
 
 ---
 
@@ -54,10 +54,10 @@ bunWay ships all of that in a single import with zero dependencies.
 |---|---|---|
 | **Runtime** | Node.js | Bun (native speed) |
 | **Production dependencies** | 30+ packages for a real app | **0** |
-| **Middleware** | Install, configure, and maintain separately | **23 built-in**, one import |
+| **Middleware** | Install, configure, and maintain separately | **26 built-in**, one import |
 | **TypeScript** | `@types/express` + build step | Native. Strict types included. |
 | **TLS/HTTPS** | `https.createServer(opts, app)` | `app.listen({ tls: { cert, key } })` |
-| **API compatibility** | — | **97%+** Express 4.x parity |
+| **API compatibility** | — | **Broad** Express 4.x parity — [see what's different](https://bunway.jointops.dev/guide/express-migration.html#what-s-different) |
 | **Learning curve** | — | **None.** Same API. |
 
 ### By the numbers
@@ -65,9 +65,8 @@ bunWay ships all of that in a single import with zero dependencies.
 | Metric | Value |
 |--------|-------|
 | Production dependencies | **0** |
-| Built-in middleware | **23** |
-| Express API parity | **97%+** |
-| Test suite | **1,662 tests**, 3,653 assertions |
+| Built-in middleware | **26** |
+| Test suite | **2,417 tests**, 4,827 assertions |
 | TypeScript | **100%** strict mode, no `any` |
 
 ---
@@ -120,8 +119,10 @@ bunWay implements the Express 4.x API surface. Your existing code, middleware pa
 | `app.get(setting)` | Same | Read app settings |
 | `app.enable(setting)` / `app.disable(setting)` | Same | Boolean settings |
 | `app.enabled(setting)` / `app.disabled(setting)` | Same | Boolean settings check |
+| `app.getSettings()` | New | Returns a read-only snapshot of all app settings |
 | `app.locals` | Same | App-level shared data |
 | `app.engine(ext, fn)` | Same | Template engine registration |
+| `app.getEngine(ext)` | New | Look up the registered engine for an extension |
 | `res.render(view, locals, cb)` | Same | Template rendering |
 | `router.param(name, handler)` | Same | Route parameter pre-processing |
 
@@ -187,6 +188,10 @@ if (app.enabled("strict routing")) { /* ... */ }
 | `req.res`, `res.req`, `res.app` | Same | Cross-references |
 | `req.rawBody()` | Async | Returns raw `Uint8Array` before body parsing |
 | `req.rawText()` | Async | Returns raw body as string |
+| `req.user` | Same | Populated by `jwt()` or `passport.initialize()` |
+| `req.auth` | Same | `express-jwt`-compatible alias for `req.user` |
+| `req.isAuthenticated()`, `req.isUnauthenticated()` | Same | Set by `passport.initialize()` |
+| `req.login()`, `req.logout()` | Same | Set by `passport.initialize()` |
 
 ### Response Object — Full Parity
 
@@ -254,7 +259,7 @@ if (app.enabled("strict routing")) { /* ... */ }
 
 ---
 
-## Built-in Middleware (23)
+## Built-in Middleware (26)
 
 Every middleware Express developers reach for is built in. One import. No version conflicts. No supply chain risk.
 
@@ -282,6 +287,15 @@ import {
   session,        // Session management (memory + file stores)
   cookieParser,   // Cookie parsing
 
+  // Authentication
+  jwt,                   // Bearer JWT verification (HMAC, JWKS/RS, role/scope gating)
+  jwtSign,                // Standalone HS256/384/512 token signing
+  jwtDecode,               // Decode (no verify) a token's payload
+  passportInitialize,      // Adapt passport.js to bunWay's req/res
+  passportSession,         // Restore req.user from a Passport session
+  passportAuthenticate,    // Run a Passport strategy
+  tokenVault,              // Access/refresh token issuance with rotation & reuse detection
+
   // Observability
   logger,         // Request logging (morgan format strings)
   timeout,        // Request timeout with req.timedout flag
@@ -305,7 +319,7 @@ app.use(helmet());
 app.use(cors({ origin: "https://myapp.com" }));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 app.use(hpp());
-app.use(csrf());
+app.use(csrf({ secret: process.env.CSRF_SECRET! }));
 
 // Body parsing
 app.use(json({ limit: "10mb" }));
@@ -553,10 +567,11 @@ const signed = signCookie("value", "secret");
 const original = unsignCookie(signed, "secret"); // "value" or false
 ```
 
-### `csrf(options?)`
+### `csrf(options)`
 
 | Option | Default | Description |
 |--------|---------|-------------|
+| `secret` | _required_ | Signing secret for token generation |
 | `cookie.name` | `"_csrf"` | Cookie that stores the token |
 | `cookie.secure` | `true` | HTTPS-only |
 | `cookie.httpOnly` | `false` | Readable by JS (needed for SPA form submission) |
@@ -567,6 +582,85 @@ const original = unsignCookie(signed, "secret"); // "value" or false
 | `tokenLength` | `32` | Token byte length |
 
 `req.csrfToken()` returns the current token. Submit it via the `x-csrf-token` header or `_csrf` body field.
+
+### `jwt(options)`
+
+Verifies `Authorization: Bearer <token>` JWTs. Exactly one of `secret` or `jwksUri` is required.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `secret` | — | HMAC/asymmetric secret, or `(header) => Promise<secret>` |
+| `jwksUri` | — | Remote JWKS endpoint (alternative to `secret`) |
+| `jwksCacheTtl` | `600000` | JWKS cache lifetime in ms |
+| `algorithms` | `["HS256"]` | Accepted algorithms |
+| `audience` / `issuer` | — | Required `aud`/`iss` claim value(s) |
+| `credentialsRequired` | `true` | Reject requests with no token |
+| `getToken` | Bearer header | `(req) => string \| undefined` — custom token extraction |
+| `isRevoked` | — | `(payload, token) => Promise<boolean>` |
+| `onVerified` | — | `(payload, req) => AuthUser` — transform the verified payload |
+| `role` / `scope` | — | Gate the route by role (any-of) or scope (all-of); mismatch → `403` |
+| `roleField` / `scopeField` | `role`/`roles`, `scope`/`scopes` | Custom claim names |
+| `requestProperty` | `"user"` | Where the verified payload is attached |
+
+Supported asymmetric algorithms: `RS256`/`RS384`/`RS512`, `ES256`/`ES384`/`ES512`, and `PS256`/`PS384`/`PS512` (RSA-PSS).
+
+```ts
+import { jwt, jwtSign } from "bunway";
+
+const token = jwtSign({ sub: "alice", role: "admin" }, process.env.JWT_SECRET!, { expiresIn: 3600 });
+app.use("/api", jwt({ secret: process.env.JWT_SECRET! }));
+```
+
+[Full documentation →](https://bunway.jointops.dev/middleware/jwt.html)
+
+### `passportInitialize(passport)` / `passportSession(passport)` / `passportAuthenticate(passport, strategy, options?)`
+
+Adapters for the real `passport` npm package — bunWay does not reimplement Passport, it bridges its `req`/`res` expectations onto `BunRequest`/`BunResponse`. `passportInitialize()` must run before `passportAuthenticate()`; `passportSession()` (after `session()`) restores `req.user` from a saved session.
+
+```ts
+import passport from "passport";
+import { Strategy as LocalStrategy } from "passport-local";
+import { passportInitialize, passportAuthenticate } from "bunway";
+
+passport.use(new LocalStrategy((username, password, done) => { /* ... */ }));
+app.use(passportInitialize(passport));
+app.post("/login", passportAuthenticate(passport, "local", { session: false }), (req, res) => {
+  res.json({ id: req.user?.id });
+});
+```
+
+Adds `req.login()`/`req.logOut()`/`req.isAuthenticated()`/`req.isUnauthenticated()`. The `keepSessionInfo` logout option is accepted for Express compatibility but is currently a no-op.
+
+[Full documentation →](https://bunway.jointops.dev/middleware/passport.html)
+
+### `tokenVault(options)`
+
+Issues short-lived access tokens and rotating, single-use refresh tokens with reuse detection. Not Express-style middleware — returns a `{ issue, rotate, revoke, revokeAll }` object you call from your own routes.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `accessSecret` / `refreshSecret` | _required_ | ≥ 32 characters each |
+| `accessExpiresIn` / `refreshExpiresIn` | _required_ | Lifetimes in seconds |
+| `store` | `new VaultMemoryStore()` | Custom `VaultStore` (Redis/DB for production) |
+| `cookie` | — | If set, refresh tokens are managed as an httpOnly cookie instead of returned in the body |
+| `onReuse` | — | `(familyId, req?) => void` — fires when a consumed refresh token is replayed |
+
+```ts
+import { tokenVault } from "bunway";
+
+const vault = tokenVault({
+  accessSecret: process.env.ACCESS_SECRET!,
+  refreshSecret: process.env.REFRESH_SECRET!,
+  accessExpiresIn: 900,
+  refreshExpiresIn: 604800,
+});
+
+const { accessToken, refreshToken } = await vault.issue({ sub: "alice" });
+```
+
+> **Note**: `VaultMemoryStore` starts a background GC interval in its constructor — call `.dispose()` on it when discarding an instance (e.g. in tests) to stop the timer.
+
+[Full documentation →](https://bunway.jointops.dev/middleware/token-vault.html)
 
 ### `compression(options?)`
 
@@ -1172,6 +1266,8 @@ app.set("trust proxy", ["10.0.0.1", "192.168.1.0/24"]); // array
 app.set("trust proxy", (ip, i) => i < 2);  // function: i = hop distance from client
 ```
 
+> **Note**: CIDR notation (`"192.168.1.0/24"`) only matches IPv4 ranges. An IPv6 CIDR (e.g. `"2001:db8::/32"`) will never match, so a proxy reachable only over IPv6 won't be trusted via a CIDR entry — use an exact IPv6 address, or the `"loopback"`/`"linklocal"`/`"uniquelocal"` keywords (which do handle their respective IPv6 ranges), or a custom function instead. An untrusted proxy fails closed: `req.ip` falls back to the direct socket address rather than honoring `X-Forwarded-*`, so this affects correctness (e.g. `req.ip` behind an IPv6-only load balancer) rather than security.
+
 ---
 
 ## Custom Logging
@@ -1333,6 +1429,10 @@ import type {
   ValidationSchema, ValidationOptions, ValidationError, FieldRule, ValidationSource,
   SseOptions, ResponseTimeOptions, RequestIdOptions, MethodOverrideOptions, FaviconOptions,
   ErrorHandlerOptions, HttpErrorOptions,
+
+  // Auth-related types (jwt, passport, token-vault)
+  AuthUser, JwtOptions, JwtPayload, JwtHeader, JwtAlgorithm,
+  VaultStore, VaultEntry, TokenVaultOptions, TokenPair, TokenVault,
 } from "bunway";
 ```
 
@@ -1343,7 +1443,7 @@ The constant `BUNWAY_DEFAULT_PORT` (value: `3000`) is also exported.
 ## Testing
 
 ```
-1,662 tests | 3,653 assertions | 91 test files | ~4s on M-series Mac
+2,417 tests | 4,827 assertions | 113 test files | ~10s on M-series Mac
 ```
 
 Test categories:

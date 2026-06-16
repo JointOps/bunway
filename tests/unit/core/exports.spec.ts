@@ -7,6 +7,10 @@ describe("src/index.ts — all public symbols are exported", () => {
     "timeout", "cors", "compression", "validate", "session", "csrf",
     "rateLimit", "serveStatic",
     "sse", "responseTime", "requestId", "methodOverride", "favicon",
+    "jwt", "jwtSign", "jwtDecode",
+    "passport", "passportInitialize", "passportSession", "passportAuthenticate",
+    "tokenVault",
+    "VaultMemoryStore",
   ];
 
   for (const name of REQUIRED) {

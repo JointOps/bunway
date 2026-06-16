@@ -17,9 +17,11 @@ This directory demonstrates how easy it is to migrate an Express application to 
 
 | Express | bunway |
 |---------|--------|
-| 7+ npm packages | 1 package |
-| express, express-session, passport, helmet, cors, express-rate-limit, cookie-parser, multer | bunway |
-| ~1.5MB node_modules | ~150KB |
+| 7+ npm packages | 3 packages |
+| express, express-session, passport, helmet, cors, express-rate-limit, cookie-parser, multer | bunway, passport, passport-local |
+| ~1.5MB node_modules | smaller `node_modules` |
+
+bunway implements session management, security headers, CORS, rate limiting, cookie parsing, and file uploads natively (no extra packages needed for those). `passport` and `passport-local` are still required because bunway's `passportInitialize`/`passportSession`/`passportAuthenticate` middleware drive a real Passport.js instance — they don't reimplement Passport itself.
 
 ### Code Changes
 
@@ -38,12 +40,15 @@ app.use(express.json());
 
 **bunway:**
 ```typescript
-import bunway from "bunway";
+import bunway, { passportInitialize, passportSession } from "bunway";
+import passport from "passport";
 
 const app = bunway();
 app.use(bunway.helmet());
 app.use(bunway.cors());
 app.use(bunway.json());
+app.use(passportInitialize(passport));
+app.use(passportSession(passport));
 ```
 
 **Everything else stays the same.**
