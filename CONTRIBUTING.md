@@ -17,8 +17,8 @@ By participating in this project you agree to follow our [Code of Conduct](./COD
 - `bun run test` – execute the Bun test suite.
 - `bun run typecheck` – run TypeScript in `--noEmit` mode.
 - `bun run docs:build` – build the VitePress guides (regenerates TypeDoc automatically).
-- `npm run prepare:dist` – build the distributable package into `dist/`.
-- `npm run check:dist` – verify the built package before publishing.
+- `bun run prepare:dist` – build the distributable package into `dist/`.
+- `bun run check:dist` – verify the built package before publishing.
 
 ### Working on docs
 
@@ -45,7 +45,7 @@ All tests use Bun’s built-in runner. Please add coverage for new behaviour in 
 ## Release process (maintainers)
 
 1. Update the version in the `VERSION` file following semver (this is the source of truth).
-2. Run `npm run release` – this syncs the version, checks the tree, builds docs and dist, verifies the package, and publishes `dist/` to npm.
+2. Run `bun run release` – this runs the typecheck and full test suite, builds docs and dist, verifies the package, and publishes `dist/` to npm.
 3. Create a GitHub release with notes summarising the changes.
 
 ## Community guidelines

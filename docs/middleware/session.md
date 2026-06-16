@@ -48,9 +48,7 @@ interface SessionOptions {
 }
 ```
 
-::: warning Unimplemented options
-`resave` and `rolling` are accepted for Express API compatibility but are not currently implemented — they have no effect. Do not rely on them for session behavior.
-:::
+`resave` force-saves the session to the store when its data hasn't changed (useful for stores without a `touch()` method, to keep the stored TTL fresh). `rolling` re-sends the `Set-Cookie` header and touches the store on every response, extending both the cookie's and the session's lifetime as long as the user stays active.
 
 ## Session Object
 

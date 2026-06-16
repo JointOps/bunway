@@ -63,6 +63,10 @@ Preflight (`OPTIONS`) requests are answered automatically with:
 
 The middleware also ensures the proper `Vary` header is set to keep caches honest.
 
+::: warning Custom OPTIONS handlers
+By default (`preflightContinue: false`), `cors()` responds to every `OPTIONS` request itself and ends the response — it never calls `next()`, so a custom `app.options(...)` route handler registered after it will never run. This matches the behavior of the `cors` npm package. Set `preflightContinue: true` if you need your own `OPTIONS` handling to execute.
+:::
+
 ## Header merging
 
 CORS headers are set directly on the response. bunway's router finalizer preserves these headers even if your handler returns a native `Response` object:

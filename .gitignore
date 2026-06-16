@@ -53,3 +53,6 @@ marketing/
 
 # graphify
 graphify-out
+
+# Transient test artifacts (e.g. session FileStore test fixtures)
+test-sessions/
