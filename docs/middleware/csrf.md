@@ -18,7 +18,7 @@ import { bunway, csrf, cookieParser } from 'bunway';
 
 const app = bunway();
 app.use(cookieParser());
-app.use(csrf());
+app.use(csrf({ secret: process.env.CSRF_SECRET! }));
 
 app.get('/form', (req, res) => {
   res.html(`
@@ -65,6 +65,7 @@ await fetch('/api/data', {
 
 ```ts
 interface CsrfOptions {
+  secret: string;            // Required: signing secret for token generation
   cookie?: {
     name?: string;       // Cookie name (default: '_csrf')
     path?: string;       // Cookie path (default: '/')
@@ -85,6 +86,7 @@ interface CsrfOptions {
 
 ```ts
 app.use(csrf({
+  secret: process.env.CSRF_SECRET!,
   cookie: {
     name: 'XSRF-TOKEN',   // Angular-compatible name
     secure: true,
@@ -97,9 +99,10 @@ app.use(csrf({
 ### Skip CSRF for specific routes
 
 ```ts
+const csrfProtection = csrf({ secret: process.env.CSRF_SECRET! });
 app.use((req, res, next) => {
   if (req.path.startsWith('/webhooks/')) return next();
-  csrf()(req, res, next);
+  csrfProtection(req, res, next);
 });
 ```
 

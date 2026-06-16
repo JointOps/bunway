@@ -104,7 +104,7 @@ app.use(compression());
 app.use(rateLimit({ windowMs: 60000, max: 100 }));
 app.use(cookieParser());
 app.use(session({ secret: process.env.SESSION_SECRET }));
-app.use(csrf());
+app.use(csrf({ secret: process.env.CSRF_SECRET! }));
 
 app.get('/', (req, res) => res.json({ secure: true }));
 app.listen(3000);
