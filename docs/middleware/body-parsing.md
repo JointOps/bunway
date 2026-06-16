@@ -203,7 +203,7 @@ Skip redundant work by calling `req.isBodyParsed()` inside custom middleware to 
 
 ## Error handling
 
-If parsing fails (invalid JSON, payload too large), bunway returns a `413` or `400` response automatically.
+If parsing fails (invalid JSON, payload too large, a `raw()` `verify` callback throwing), the body parser calls `next(err)` with an `HttpError` carrying the right status (`400`/`413`/`403`) — it never responds directly. With no custom [`errorHandler()`](error-handler.md) mounted, bunway's default error handling produces the same `413`/`400`/`403` response automatically; with one mounted, it sees and can react to body-parsing errors like any other error in the pipeline.
 
 ---
 
