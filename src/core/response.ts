@@ -12,6 +12,11 @@ export interface RenderOptions {
 
 type ResponseBody = string | ArrayBuffer | Uint8Array | Blob | null;
 
+// brotliCompressSync's cost grows much faster with input size than gzip's —
+// past this size the event-loop-blocking time isn't worth brotli's ratio gain,
+// so large bodies fall back to gzip instead.
+const BROTLI_SYNC_MAX_BYTES = 256 * 1024;
+
 export interface AppContext {
   get(setting: string): unknown;
   getEngine(ext: string): ((path: string, options: Record<string, unknown>, callback: (err: Error | null, html?: string) => void) => void) | undefined;
@@ -853,17 +858,24 @@ export class BunResponse {
       if (!this._compressionFilter || this._compressionFilter(contentType)) {
         const buf = Buffer.from(body, "utf-8");
         let compressed: Buffer;
+        let encoding = this._compressionEncoding;
 
-        if (this._compressionEncoding === "br") {
+        if (encoding === "br" && buf.byteLength > BROTLI_SYNC_MAX_BYTES) {
+          // Brotli's sync cost scales poorly with size and would block the
+          // event loop for too long on large bodies — gzip is far cheaper.
+          encoding = "gzip";
+        }
+
+        if (encoding === "br") {
           compressed = Buffer.from(brotliCompressSync(buf));
-        } else if (this._compressionEncoding === "gzip") {
+        } else if (encoding === "gzip") {
           compressed = Buffer.from(Bun.gzipSync(buf, { level: this._compressionLevel } as Parameters<typeof Bun.gzipSync>[1]));
         } else {
           compressed = Buffer.from(Bun.deflateSync(buf, { level: this._compressionLevel } as Parameters<typeof Bun.deflateSync>[1]));
         }
 
         body = compressed;
-        this.headersMap().set("content-encoding", this._compressionEncoding);
+        this.headersMap().set("content-encoding", encoding);
         this.headersMap().set("content-length", String(compressed.byteLength));
         this.headersMap().set("vary", "Accept-Encoding");
       }
