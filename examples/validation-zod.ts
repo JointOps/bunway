@@ -1,8 +1,8 @@
 /**
  * Example: Request validation with Zod
  *
- * bunWay doesn't include built-in validation - we let you choose your library.
- * This example shows how to use Zod for request validation.
+ * bunWay ships a built-in validate() middleware, but this example shows how
+ * to use Zod instead if you prefer schema-first validation.
  *
  * Install: bun add zod
  */
