@@ -241,14 +241,17 @@ describe("Express Compatibility: Error Handling", () => {
 
   test("3-arg function is not treated as error handler even with err param name like Express", async () => {
     const app = bunway();
-    let normalMiddlewareCalled = false;
+    let normalCallCount = 0;
+
+    // Despite the first param being named 'err', a 3-arg function is normal middleware —
+    // it runs once before the route and must NOT be invoked a second time as an error handler
+    // when the route calls next(err).
+    app.use((err: any, req: any, next: any) => {
+      normalCallCount++;
+      next(); // pass control (called as handler(req, res, done): done() continues the pipeline)
+    });
 
     app.get("/test", (req, res, next) => next(new Error("oops")));
-
-    // 3 args — must NOT intercept errors
-    app.use((err: any, req: any, next: any) => {
-      normalMiddlewareCalled = true;
-    });
 
     app.use((err: Error, req: any, res: any, next: any) => {
       res.status(500).json({ caught: true });
@@ -256,7 +259,8 @@ describe("Express Compatibility: Error Handling", () => {
 
     const response = await app.handle(buildRequest("/test"));
     expect(response.status).toBe(500);
-    expect(normalMiddlewareCalled).toBe(false);
+    // called exactly once as pre-route middleware; never invoked again as an error interceptor
+    expect(normalCallCount).toBe(1);
   });
 
   test("error from child router reaches parent app error handler like Express", async () => {

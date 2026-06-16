@@ -53,7 +53,6 @@ const JSON_ALLOW_HEADER = (allow: string): Record<string, string> => ({
 export class Router {
   protected routes: RouteDefinition[] = [];
   protected middlewares: Handler[] = [];
-  protected postMiddlewares: Handler[] = [];
   protected prefixMiddlewares: Array<{ prefix: string; handlers: Handler[] }> = [];
   protected errorHandlers: ErrorHandler[] = [];
   protected children: SubRouter[] = [];
@@ -61,7 +60,6 @@ export class Router {
   protected paramHandlers: Map<string, ParamHandler[]> = new Map();
   protected wsRoutes: WebSocketRouteDefinition[] = [];
   private readonly _mergeParams: boolean;
-  private _routeRegistered = false;
 
   // Fast matcher for O(1) static routes and compiled regex for dynamic routes
   protected fastMatcher: FastMatcher = new FastMatcher();
@@ -295,7 +293,6 @@ export class Router {
   private addRoute(method: string, path: string, handlers: Handler[]): void {
     const { regex, keys } = this.pathToRegex(path);
     this.routes.push({ method, path, regex, keys, handlers });
-    this._routeRegistered = true;
 
     // Also register with fast matcher for O(1) lookup
     this.fastMatcher.add(method, path, handlers);
@@ -437,9 +434,6 @@ export class Router {
     if (typeof pathOrHandler === "function") {
       if (pathOrHandler.length === 4) {
         this.errorHandlers.push(pathOrHandler as unknown as ErrorHandler);
-      } else if (this._routeRegistered) {
-        // Post-route middleware: registered after routes, skipped in error mode
-        this.postMiddlewares.push(pathOrHandler);
       } else {
         this.middlewares.push(pathOrHandler);
       }
@@ -646,7 +640,7 @@ export class Router {
     }
 
     // FAST PATH: If no middleware, check route existence before creating objects
-    if (this.middlewares.length === 0 && this.prefixMiddlewares.length === 0 && this.errorHandlers.length === 0 && this.postMiddlewares.length === 0) {
+    if (this.middlewares.length === 0 && this.prefixMiddlewares.length === 0 && this.errorHandlers.length === 0) {
       const matchResult = this.fastMatcher.match(method, pathname);
 
       if (!matchResult) {
@@ -729,7 +723,7 @@ export class Router {
     const mergeWith = this._mergeParams && parentParams ? parentParams : undefined;
 
     // Fast path for no middleware
-    if (this.middlewares.length === 0 && this.prefixMiddlewares.length === 0 && this.errorHandlers.length === 0 && this.postMiddlewares.length === 0) {
+    if (this.middlewares.length === 0 && this.prefixMiddlewares.length === 0 && this.errorHandlers.length === 0) {
       const matchResult = this.fastMatcher.match(method, pathname);
 
       if (!matchResult) {
