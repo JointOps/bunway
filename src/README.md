@@ -77,11 +77,6 @@ In Express, that's 8 separate `npm install` commands, 8 packages to audit, 8 set
 | JWT auth | `express-jwt` | `jwt()` / `jwtSign()` / `jwtDecode()` |
 | Passport auth | `passport` | `passportInitialize()` / `passportSession()` / `passportAuthenticate()` |
 | Token rotation | Custom | `tokenVault()` |
-| Favicon | `serve-favicon` | `favicon()` |
-| Method override | `method-override` | `methodOverride()` |
-| Request ID | `express-request-id` | `requestId()` |
-| Response time | `response-time` | `responseTime()` |
-| Server-sent events | `express-sse` | `sse()` |
 
 **26 middleware. Zero dependencies. One `import` statement.**
 
@@ -174,7 +169,7 @@ app.post("/users", validate({
 app.use(helmet());                                         // 11 security headers
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 })); // per-IP rate limiting
 app.use(hpp());                                             // parameter pollution protection
-app.use(csrf({ secret: process.env.CSRF_SECRET! }));        // CSRF tokens
+app.use(csrf());                                            // CSRF tokens
 app.use(timeout(5000));                                     // 408 on slow requests
 ```
 
@@ -202,8 +197,8 @@ process.on("SIGTERM", () => app.close());
 |---|---|
 | Production dependencies | **0** |
 | Built-in middleware | **26** |
-| Test suite | **2,423 tests** · 4,837 assertions |
-| TypeScript | **Strict mode** · types included |
+| Test suite | **1,662 tests** · 3,653 assertions |
+| TypeScript | **Strict mode** · no `any` · types included |
 
 ---
 
