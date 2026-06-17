@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { json, urlencoded, text, raw } from "../../../src/middleware/body-parser";
 import { BunRequest } from "../../../src/core/request";
 import { BunResponse } from "../../../src/core/response";
+import { isHttpError } from "../../../src/core/errors";
 
 const createPostRequest = (
   contentType: string,
@@ -74,31 +75,30 @@ describe("body-parser middleware (Unit)", () => {
       expect(req.body).toEqual(payload);
     });
 
-    it("should return 400 for invalid JSON", async () => {
+    it("forwards invalid JSON as a 400 HttpError via next(err)", async () => {
       const req = createPostRequest("application/json", "{invalid json}");
       const res = new BunResponse();
-      let called = false;
+      let nextErr: unknown = "NOT_CALLED";
 
-      await json()(req, res, () => { called = true; });
+      await json()(req, res, (err) => { nextErr = err; });
 
-      expect(called).toBe(false);
-      const response = res.toResponse();
-      expect(response.status).toBe(400);
-      const body = await response.json();
-      expect(body.error).toContain("Invalid JSON");
+      expect(isHttpError(nextErr)).toBe(true);
+      expect((nextErr as any).status).toBe(400);
+      expect((nextErr as any).message).toContain("Invalid JSON");
+      // The middleware itself never touches res — error handling is the caller's job.
+      expect(res.isSent()).toBe(false);
     });
 
-    it("should return 413 for oversized body", async () => {
+    it("forwards oversized body as a 413 HttpError via next(err)", async () => {
       const largePayload = JSON.stringify({ data: "x".repeat(200) });
       const req = createPostRequest("application/json", largePayload);
       const res = new BunResponse();
-      let called = false;
+      let nextErr: unknown = "NOT_CALLED";
 
-      await json({ limit: 10 })(req, res, () => { called = true; });
+      await json({ limit: 10 })(req, res, (err) => { nextErr = err; });
 
-      expect(called).toBe(false);
-      const response = res.toResponse();
-      expect(response.status).toBe(413);
+      expect(isHttpError(nextErr)).toBe(true);
+      expect((nextErr as any).status).toBe(413);
     });
 
     it("should accept custom type matcher as string", async () => {
@@ -162,19 +162,18 @@ describe("body-parser middleware (Unit)", () => {
       expect(req.body).toEqual({ name: "John", age: "30" });
     });
 
-    it("should return 413 for oversized body", async () => {
+    it("forwards oversized body as a 413 HttpError via next(err)", async () => {
       const req = createPostRequest(
         "application/x-www-form-urlencoded",
         "data=" + "x".repeat(200)
       );
       const res = new BunResponse();
-      let called = false;
+      let nextErr: unknown = "NOT_CALLED";
 
-      await urlencoded({ limit: 10 })(req, res, () => { called = true; });
+      await urlencoded({ limit: 10 })(req, res, (err) => { nextErr = err; });
 
-      expect(called).toBe(false);
-      const response = res.toResponse();
-      expect(response.status).toBe(413);
+      expect(isHttpError(nextErr)).toBe(true);
+      expect((nextErr as any).status).toBe(413);
     });
   });
 
@@ -201,16 +200,15 @@ describe("body-parser middleware (Unit)", () => {
       expect(req.body).toBe("Hello, world!");
     });
 
-    it("should return 413 for oversized body", async () => {
+    it("forwards oversized body as a 413 HttpError via next(err)", async () => {
       const req = createPostRequest("text/plain", "x".repeat(200));
       const res = new BunResponse();
-      let called = false;
+      let nextErr: unknown = "NOT_CALLED";
 
-      await text({ limit: 10 })(req, res, () => { called = true; });
+      await text({ limit: 10 })(req, res, (err) => { nextErr = err; });
 
-      expect(called).toBe(false);
-      const response = res.toResponse();
-      expect(response.status).toBe(413);
+      expect(isHttpError(nextErr)).toBe(true);
+      expect((nextErr as any).status).toBe(413);
     });
   });
 
@@ -257,7 +255,7 @@ describe("body-parser middleware (Unit)", () => {
       expect(Buffer.isBuffer(req.body)).toBe(true);
     });
 
-    it("should return 413 for oversized body", async () => {
+    it("forwards oversized body as a 413 HttpError via next(err)", async () => {
       const largePayload = new Uint8Array(200);
       const req = new BunRequest(
         new Request("http://localhost/test", {
@@ -268,13 +266,12 @@ describe("body-parser middleware (Unit)", () => {
         "/test"
       );
       const res = new BunResponse();
-      let called = false;
+      let nextErr: unknown = "NOT_CALLED";
 
-      await raw({ limit: 10 })(req, res, () => { called = true; });
+      await raw({ limit: 10 })(req, res, (err) => { nextErr = err; });
 
-      expect(called).toBe(false);
-      const response = res.toResponse();
-      expect(response.status).toBe(413);
+      expect(isHttpError(nextErr)).toBe(true);
+      expect((nextErr as any).status).toBe(413);
     });
 
     it("should call verify function with buffer", async () => {
@@ -304,7 +301,7 @@ describe("body-parser middleware (Unit)", () => {
       expect(verifyBuffer![1]).toBe(0xFE);
     });
 
-    it("should return 403 if verify throws", async () => {
+    it("forwards a verify() throw as a 403 HttpError via next(err)", async () => {
       const payload = new Uint8Array([0x01]);
       const req = new BunRequest(
         new Request("http://localhost/test", {
@@ -315,19 +312,17 @@ describe("body-parser middleware (Unit)", () => {
         "/test"
       );
       const res = new BunResponse();
-      let called = false;
+      let nextErr: unknown = "NOT_CALLED";
 
       const verify = () => {
         throw new Error("Signature mismatch");
       };
 
-      await raw({ verify })(req, res, () => { called = true; });
+      await raw({ verify })(req, res, (err) => { nextErr = err; });
 
-      expect(called).toBe(false);
-      const response = res.toResponse();
-      expect(response.status).toBe(403);
-      const body = await response.json();
-      expect(body.error).toBe("Signature mismatch");
+      expect(isHttpError(nextErr)).toBe(true);
+      expect((nextErr as any).status).toBe(403);
+      expect((nextErr as any).message).toBe("Signature mismatch");
     });
 
     it("should skip non-matching content type", async () => {
@@ -370,6 +365,102 @@ describe("body-parser middleware (Unit)", () => {
 
       expect(called).toBe(true);
       expect(Buffer.isBuffer(req.body)).toBe(true);
+    });
+
+    it("should use custom type matcher with function", async () => {
+      const payload = new Uint8Array([0xAB, 0xCD]);
+      const req = new BunRequest(
+        new Request("http://localhost/test", {
+          method: "POST",
+          headers: { "content-type": "application/x-custom" },
+          body: payload,
+        }),
+        "/test"
+      );
+      const res = new BunResponse();
+      let called = false;
+
+      await raw({ type: (ct) => ct.includes("x-custom") })(req, res, () => { called = true; });
+
+      expect(called).toBe(true);
+      expect(Buffer.isBuffer(req.body)).toBe(true);
+    });
+
+    it("should accept 'gb' string limit without rejecting small payload", async () => {
+      const payload = new Uint8Array([0x01, 0x02]);
+      const req = new BunRequest(
+        new Request("http://localhost/test", {
+          method: "POST",
+          headers: { "content-type": "application/octet-stream" },
+          body: payload,
+        }),
+        "/test"
+      );
+      const res = new BunResponse();
+      let called = false;
+
+      await raw({ limit: "1gb" })(req, res, () => { called = true; });
+
+      expect(called).toBe(true);
+      expect(Buffer.isBuffer(req.body)).toBe(true);
+    });
+
+    it("falls back to DEFAULT_LIMIT (1MB) for unrecognized limit string", async () => {
+      const payload = new Uint8Array(5);
+      const req = new BunRequest(
+        new Request("http://localhost/test", {
+          method: "POST",
+          headers: { "content-type": "application/octet-stream" },
+          body: payload,
+        }),
+        "/test"
+      );
+      const res = new BunResponse();
+      let called = false;
+
+      await raw({ limit: "not-a-valid-limit" as any })(req, res, () => { called = true; });
+
+      expect(called).toBe(true);
+    });
+  });
+
+  describe("text() type matchers", () => {
+    it("should accept RegExp type matcher", async () => {
+      const req = createPostRequest("text/markdown", "# Hello");
+      const res = new BunResponse();
+      let called = false;
+
+      await text({ type: /text\// })(req, res, () => { called = true; });
+
+      expect(called).toBe(true);
+      expect(req.body).toBe("# Hello");
+    });
+
+    it("should accept function type matcher", async () => {
+      const req = createPostRequest("text/csv", "a,b,c");
+      const res = new BunResponse();
+      let called = false;
+
+      await text({ type: (ct) => ct.startsWith("text/") })(req, res, () => { called = true; });
+
+      expect(called).toBe(true);
+      expect(req.body).toBe("a,b,c");
+    });
+  });
+
+  describe("urlencoded() type matchers", () => {
+    it("should accept RegExp type matcher", async () => {
+      const req = createPostRequest(
+        "application/x-www-form-urlencoded; charset=utf-8",
+        "name=test&val=1"
+      );
+      const res = new BunResponse();
+      let called = false;
+
+      await urlencoded({ type: /application\/x-www-form-urlencoded/ })(req, res, () => { called = true; });
+
+      expect(called).toBe(true);
+      expect((req.body as Record<string, string>).name).toBe("test");
     });
   });
 });

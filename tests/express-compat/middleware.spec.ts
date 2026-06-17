@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import bunway, { Router } from "../../src";
-import { buildRequest } from "../utils/testUtils";
+import { buildRequest } from "../utils/test-helpers";
 
 describe("Express Compatibility: Middleware Chain", () => {
   test("middleware executes in order like Express", async () => {
@@ -131,9 +131,9 @@ describe("Express Compatibility: Middleware Chain", () => {
     app.use((req, res, next) => {
       next(new Error("test error"));
     });
-    app.use((err: Error, req: any, res: any, next: any) => {
-      res.status(500).json({ error: err.message });
-    });
+    app.use(((err: any, _req: any, res: any, _next: any) => {
+      res.status(500).json({ error: (err as Error).message });
+    }) as any);
     app.get("/test", (req, res) => res.json({ ok: true }));
 
     const response = await app.handle(buildRequest("/test"));
@@ -177,5 +177,103 @@ describe("Express Compatibility: Middleware Chain", () => {
 
     const response = await app.handle(buildRequest("/api/test"));
     expect(await response.json()).toEqual({ order: ["router", "route"] });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 3 middleware compat (migrated from phase3.spec.ts)
+// ---------------------------------------------------------------------------
+
+import { timeout } from "../../src/middleware/timeout";
+import { hpp } from "../../src/middleware/hpp";
+import { validate } from "../../src/middleware/validation";
+import { json as jsonParser } from "../../src/middleware/body-parser";
+
+const T3 = 20; // base timeout for compat tests (ms)
+
+describe("Express Compatibility: Phase 3 Middleware", () => {
+  test("timeout middleware fires 408 like connect-timeout", async () => {
+    const app = bunway();
+    app.use(timeout(T3));
+    app.get("/slow", async (req, res) => {
+      await new Promise(r => setTimeout(r, T3 * 20));
+      if (!req.timedout) res.json({ ok: true });
+    });
+
+    const response = await app.handle(new Request("http://localhost/slow"));
+    expect(response.status).toBe(408);
+  });
+
+  test("timeout does NOT fire for fast routes like connect-timeout", async () => {
+    const app = bunway();
+    app.use(timeout(500));
+    app.get("/fast", (req, res) => res.json({ timedout: req.timedout }));
+
+    const response = await app.handle(new Request("http://localhost/fast"));
+    expect((await response.json()).timedout).toBe(false);
+  });
+
+  test("req.timedout flag is set with respond:false like connect-timeout", async () => {
+    const app = bunway();
+    app.use(timeout(T3, { respond: false }));
+    app.get("/check", async (req, res) => {
+      await new Promise(r => setTimeout(r, T3 * 10));
+      res.json({ timedout: req.timedout });
+    });
+
+    const response = await app.handle(new Request("http://localhost/check"));
+    expect((await response.json()).timedout).toBe(true);
+  });
+
+  test("hpp sanitizes duplicate body params like hpp npm package", async () => {
+    const app = bunway();
+    app.use(jsonParser());
+    app.use(hpp({ whitelist: ["allowed"] }));
+    app.post("/api", (req, res) => res.json({ body: req.body }));
+
+    const response = await app.handle(new Request("http://localhost/api", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role: ["user", "admin"], allowed: [1, 2] }),
+    }));
+    const body = await response.json();
+    expect(body.body.role).toBe("admin");
+    expect(body.body.allowed).toEqual([1, 2]);
+  });
+
+  test("hpp sanitizes duplicate query params like hpp npm package", async () => {
+    const app = bunway();
+    app.use(hpp());
+    app.get("/search", (req, res) => res.json({ q: req.query.get("q") }));
+
+    const response = await app.handle(new Request("http://localhost/search?q=first&q=second"));
+    const body = await response.json();
+    expect(typeof body.q).toBe("string");
+  });
+
+  test("validate works with body schema like express-validator", async () => {
+    const app = bunway();
+    app.use(jsonParser());
+    app.post("/register", validate({ body: { email: { required: true, type: "email" }, password: { required: true, min: 8 } } }), (_req, res) => res.status(201).json({ ok: true }));
+
+    expect((await app.handle(new Request("http://localhost/register", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "bad", password: "short" }) }))).status).toBe(422);
+    expect((await app.handle(new Request("http://localhost/register", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "u@t.com", password: "securepass" }) }))).status).toBe(201);
+  });
+
+  test("validate works with params schema like express-validator", async () => {
+    const app = bunway();
+    app.get("/users/:id", validate({ params: { id: { required: true, pattern: /^\d+$/ } } }), (req, res) => res.json({ id: req.params.id }));
+
+    expect((await app.handle(new Request("http://localhost/users/42"))).status).toBe(200);
+    expect((await app.handle(new Request("http://localhost/users/abc"))).status).toBe(422);
+  });
+
+  test("validate works with query schema like express-validator", async () => {
+    const app = bunway();
+    app.get("/search", validate({ query: { q: { required: true, min: 2 } } }), (_req, res) => res.json({ ok: true }));
+
+    expect((await app.handle(new Request("http://localhost/search?q=bun"))).status).toBe(200);
+    expect((await app.handle(new Request("http://localhost/search?q=x"))).status).toBe(422);
+    expect((await app.handle(new Request("http://localhost/search"))).status).toBe(422);
   });
 });

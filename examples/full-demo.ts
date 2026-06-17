@@ -91,7 +91,6 @@ export function createApp(): ReturnType<typeof bunway> {
         return false;
       },
       credentials: true,
-      allowPrivateNetwork: true,
     })
   );
 

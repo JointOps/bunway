@@ -5,7 +5,10 @@
  * Based on NestJS and Elysia testing patterns.
  */
 
-import { describe, expect, it, beforeEach } from "bun:test";
+import { describe, expect, it, beforeEach, afterEach } from "bun:test";
+import { mkdtempSync, writeFileSync, rmSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
 import { BunResponse } from "../../../src/core/response";
 import { BunRequest } from "../../../src/core/request";
 
@@ -306,9 +309,10 @@ describe("BunResponse (Unit)", () => {
       expect(cookie).toContain("Secure");
     });
 
-    it("should support maxAge option", () => {
-      res.cookie("name", "value", { maxAge: 3600 });
+    it("should support maxAge option (accepts milliseconds, emits seconds)", () => {
+      res.cookie("name", "value", { maxAge: 3_600_000 }); // 1 hour in ms
       expect(res.get("Set-Cookie")).toContain("Max-Age=3600");
+      expect(res.get("Set-Cookie")).toContain("Expires=");  // auto-generated
     });
 
     it("should support path option", () => {
@@ -326,9 +330,70 @@ describe("BunResponse (Unit)", () => {
       expect(res.get("Set-Cookie")).toContain("SameSite=Strict");
     });
 
+    it("converts sameSite: true to 'Strict'", () => {
+      res.cookie("name", "value", { sameSite: true });
+      expect(res.get("Set-Cookie")).toContain("SameSite=Strict");
+    });
+
+    it("should support expires option with a future Date", () => {
+      const future = new Date(Date.now() + 86400_000);
+      res.cookie("token", "abc", { expires: future });
+      const cookie = res.get("Set-Cookie")!;
+      expect(cookie).toContain("token=abc");
+      expect(cookie).toContain("Expires=");
+    });
+
     it("should support chaining", () => {
       const result = res.cookie("name", "value");
       expect(result).toBe(res);
+    });
+
+    it("res.cookie() maxAge: 0 → Max-Age=0 (immediate expiry)", () => {
+      res.cookie("tok", "v", { maxAge: 0 });
+      expect(res.get("Set-Cookie")).toContain("Max-Age=0");
+    });
+
+    it("res.cookie() maxAge: 500ms → Max-Age=0 (sub-second rounds down)", () => {
+      res.cookie("tok", "v", { maxAge: 500 }); // 500ms → Math.floor(0.5) = 0
+      expect(res.get("Set-Cookie")).toContain("Max-Age=0");
+    });
+
+    it("res.cookie() no maxAge → no Max-Age or Expires in header", () => {
+      res.cookie("tok", "v");
+      const h = res.get("Set-Cookie")!;
+      expect(h).not.toContain("Max-Age=");
+      expect(h).not.toContain("Expires=");
+    });
+
+    it("res.cookie() with both maxAge and explicit expires → exactly one Expires", () => {
+      const future = new Date(Date.now() + 99_999);
+      res.cookie("tok", "v", { maxAge: 3_600_000, expires: future });
+      const h = res.get("Set-Cookie")!;
+      const expiresCount = (h.match(/Expires=/g) || []).length;
+      expect(expiresCount).toBe(1); // no duplicate auto-generated Expires
+    });
+
+    describe("res.clearCookie() — Phase 2", () => {
+      it("clearCookie with maxAge in options → no Max-Age header, Expires=epoch", () => {
+        res.clearCookie("tok", { maxAge: 86_400_000 });
+        const h = res.get("Set-Cookie")!;
+        expect(h).not.toContain("Max-Age=");
+        expect(h).toContain("Expires=Thu, 01 Jan 1970 00:00:00 GMT");
+      });
+
+      it("clearCookie preserves domain and path from options", () => {
+        res.clearCookie("tok", { domain: "example.com", path: "/api" });
+        const h = res.get("Set-Cookie")!;
+        expect(h).toContain("Domain=example.com");
+        expect(h).toContain("Path=/api");
+        expect(h).toContain("Expires=Thu, 01 Jan 1970 00:00:00 GMT");
+        expect(h).not.toContain("Max-Age=");
+      });
+
+      it("clearCookie with no options → Expires=epoch", () => {
+        res.clearCookie("tok");
+        expect(res.get("Set-Cookie")).toContain("Expires=Thu, 01 Jan 1970 00:00:00 GMT");
+      });
     });
   });
 
@@ -667,18 +732,20 @@ describe("res.jsonp()", () => {
     expect(res.get("Content-Type")).toBe("text/javascript; charset=utf-8");
   });
 
-  it("escapes U+2028 and U+2029 in JSONP body", () => {
+  it("escapes U+2028 and U+2029 in JSONP body", async () => {
     const res = new BunResponse();
     const req = new BunRequest(new Request("http://localhost/api?callback=fn"), "/api");
     res.setReq(req);
     res.setApp({ get: () => "callback", getEngine: () => undefined, locals: {} });
     res.jsonp({ text: "line\u2028sep\u2029" });
-    const response = res.toResponse();
-    // The body should have escaped U+2028 and U+2029 since they're valid JSON but invalid JS
-    expect(response).toBeDefined();
+    const body = await res.toResponse().text();
+    expect(body).toContain("\\u2028");
+    expect(body).toContain("\\u2029");
+    expect(body).not.toContain("\u2028");
+    expect(body).not.toContain("\u2029");
   });
 
-  it("respects json spaces setting for JSONP output", () => {
+  it("respects json spaces setting for JSONP output", async () => {
     const res = new BunResponse();
     const req = new BunRequest(new Request("http://localhost/api?callback=fn"), "/api");
     res.setReq(req);
@@ -692,7 +759,307 @@ describe("res.jsonp()", () => {
       locals: {},
     });
     res.jsonp({ a: 1 });
-    // The JSON inside the callback should be pretty-printed with 2 spaces
     expect(res.get("Content-Type")).toBe("text/javascript; charset=utf-8");
+    const body = await res.toResponse().text();
+    expect(body).toContain("  \"a\": 1");
+  });
+});
+
+describe("send() Blob body", () => {
+  it("accepts Blob body and marks response as sent", () => {
+    const res = new BunResponse();
+    const blob = new Blob(["hello blob"], { type: "text/plain" });
+    res.send(blob);
+    expect(res.isSent()).toBe(true);
+  });
+});
+
+describe("vary() case-insensitive deduplication", () => {
+  it("does not add Accept when accept already set with different casing", () => {
+    const res = new BunResponse();
+    res.vary("Accept");
+    res.vary("accept");
+    expect(res.get("Vary")).toBe("Accept");
+  });
+
+  it("deduplicates mixed-case field names in array", () => {
+    const res = new BunResponse();
+    res.vary(["Accept", "Accept-Encoding"]);
+    res.vary(["ACCEPT", "accept-encoding"]);
+    const vary = res.get("Vary")!;
+    const fields = vary.split(",").map((f) => f.trim().toLowerCase());
+    expect(fields.filter((f) => f === "accept").length).toBe(1);
+    expect(fields.filter((f) => f === "accept-encoding").length).toBe(1);
+  });
+});
+
+describe("end() non-streaming mode with chunk", () => {
+  it("sets body and marks sent when end(string) called on non-streaming response", () => {
+    const res = new BunResponse();
+    res.end("final body");
+    expect(res.isSent()).toBe(true);
+  });
+
+  it("sets body when end(ArrayBuffer) called", () => {
+    const res = new BunResponse();
+    res.end(new ArrayBuffer(4));
+    expect(res.isSent()).toBe(true);
+  });
+
+  it("calls callback when end(chunk, callback) called", () => {
+    const res = new BunResponse();
+    let called = false;
+    res.end("chunk", () => { called = true; });
+    expect(called).toBe(true);
+    expect(res.isSent()).toBe(true);
+  });
+
+  it("calls callback when end(undefined, callback) called", () => {
+    const res = new BunResponse();
+    let called = false;
+    res.end(undefined, () => { called = true; });
+    expect(called).toBe(true);
+  });
+});
+
+describe("format()", () => {
+  it("calls first handler when Accept is wildcard */*", () => {
+    const res = new BunResponse();
+    res.setAcceptHeader("*/*");
+    let called = false;
+    res.format({
+      "application/json": () => { called = true; res.json({ ok: true }); },
+    });
+    expect(called).toBe(true);
+    expect(res.get("Content-Type")).toBe("application/json");
+  });
+
+  it("calls html handler for text/html Accept header", () => {
+    const res = new BunResponse();
+    res.setAcceptHeader("text/html");
+    let htmlCalled = false;
+    res.format({
+      html: () => { htmlCalled = true; res.html("<p>ok</p>"); },
+      json: () => {},
+    });
+    expect(htmlCalled).toBe(true);
+    expect(res.get("Content-Type")).toBe("text/html");
+  });
+
+  it("falls back to default handler when no type matches", () => {
+    const res = new BunResponse();
+    res.setAcceptHeader("image/png");
+    let defaultCalled = false;
+    res.format({
+      json: () => {},
+      default: () => { defaultCalled = true; res.send("fallback"); },
+    });
+    expect(defaultCalled).toBe(true);
+  });
+
+  it("sets 406 when no handler matches and no default handler", () => {
+    const res = new BunResponse();
+    res.setAcceptHeader("image/png");
+    res.format({ json: () => {} });
+    expect(res.statusCode).toBe(406);
+    expect(res.isSent()).toBe(true);
+  });
+});
+
+describe("render()", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "bunway-render-test-"));
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true });
+  });
+
+  it("throws when no app context is set", async () => {
+    const res = new BunResponse();
+    await expect(res.render("index")).rejects.toThrow("No app context");
+  });
+
+  it("calls callback with error when no app context", async () => {
+    const res = new BunResponse();
+    let cbErr: Error | null = null;
+    await res.render("index", (err) => { cbErr = err; });
+    expect(cbErr).not.toBeNull();
+    expect(cbErr!.message).toContain("No app context");
+  });
+
+  it("throws when no view engine and view name has no extension", async () => {
+    const res = new BunResponse();
+    res.setApp({ get: () => undefined, getEngine: () => undefined, locals: {} });
+    await expect(res.render("index")).rejects.toThrow("No view engine");
+  });
+
+  it("throws when engine is not registered for the extension", async () => {
+    const res = new BunResponse();
+    res.setApp({
+      get: (s: string) => s === "view engine" ? "ejs" : tmpDir,
+      getEngine: () => undefined,
+      locals: {},
+    });
+    await expect(res.render("index")).rejects.toThrow("No engine registered");
+  });
+
+  it("throws when view file does not exist", async () => {
+    const res = new BunResponse();
+    const engine = (_p: string, _o: any, cb: any) => cb(null, "<html/>");
+    res.setApp({
+      get: (s: string) => s === "view engine" ? "ejs" : tmpDir,
+      getEngine: () => engine,
+      locals: {},
+    });
+    await expect(res.render("missing")).rejects.toThrow("not found");
+  });
+
+  it("sets HTML Content-Type and marks sent on successful render", async () => {
+    writeFileSync(join(tmpDir, "index.ejs"), "");
+    const res = new BunResponse();
+    const engine = (_p: string, _o: any, cb: (err: Error | null, html?: string) => void) =>
+      cb(null, "<html>rendered</html>");
+    res.setApp({
+      get: (s: string) => s === "view engine" ? "ejs" : tmpDir,
+      getEngine: () => engine,
+      locals: {},
+    });
+    await res.render("index");
+    expect(res.get("Content-Type")).toBe("text/html");
+    expect(res.isSent()).toBe(true);
+  });
+
+  it("passes rendered HTML to callback on success", async () => {
+    writeFileSync(join(tmpDir, "page.ejs"), "");
+    const res = new BunResponse();
+    const engine = (_p: string, _o: any, cb: (err: Error | null, html?: string) => void) =>
+      cb(null, "<p>page</p>");
+    res.setApp({
+      get: (s: string) => s === "view engine" ? "ejs" : tmpDir,
+      getEngine: () => engine,
+      locals: {},
+    });
+    let cbHtml: string | undefined;
+    await res.render("page", (err, html) => { cbHtml = html; });
+    expect(cbHtml).toBe("<p>page</p>");
+  });
+
+  it("passes engine error to callback", async () => {
+    writeFileSync(join(tmpDir, "bad.ejs"), "");
+    const res = new BunResponse();
+    const engineErr = new Error("render failed");
+    const engine = (_p: string, _o: any, cb: (err: Error | null, html?: string) => void) =>
+      cb(engineErr);
+    res.setApp({
+      get: (s: string) => s === "view engine" ? "ejs" : tmpDir,
+      getEngine: () => engine,
+      locals: {},
+    });
+    let cbErr: Error | null = null;
+    await res.render("bad", (err) => { cbErr = err; });
+    expect(cbErr).toBe(engineErr);
+  });
+
+  it("rejects when engine errors and no callback provided", async () => {
+    writeFileSync(join(tmpDir, "fail.ejs"), "");
+    const res = new BunResponse();
+    const engineErr = new Error("render exploded");
+    const engine = (_p: string, _o: any, cb: (err: Error | null, html?: string) => void) =>
+      cb(engineErr);
+    res.setApp({
+      get: (s: string) => s === "view engine" ? "ejs" : tmpDir,
+      getEngine: () => engine,
+      locals: {},
+    });
+    await expect(res.render("fail")).rejects.toBe(engineErr);
+  });
+});
+
+describe("sendFile()", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "bunway-sendfile-test-"));
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true });
+  });
+
+  it("sends full file and marks response as sent", async () => {
+    writeFileSync(join(tmpDir, "hello.txt"), "hello world");
+    const res = new BunResponse();
+    await res.sendFile(join(tmpDir, "hello.txt"));
+    expect(res.isSent()).toBe(true);
+    expect(res.get("Content-Type")).toContain("text/plain");
+    expect(res.statusCode).toBe(200);
+  });
+
+  it("calls callback on successful send", async () => {
+    writeFileSync(join(tmpDir, "file.txt"), "data");
+    const res = new BunResponse();
+    let cbCalled = false;
+    await res.sendFile(join(tmpDir, "file.txt"), () => { cbCalled = true; });
+    expect(cbCalled).toBe(true);
+  });
+
+  it("calls callback with error when file does not exist", async () => {
+    const res = new BunResponse();
+    let cbErr: Error | undefined;
+    await res.sendFile(join(tmpDir, "missing.txt"), (err) => { cbErr = err; });
+    expect(cbErr).toBeDefined();
+    expect(cbErr!.message).toContain("ENOENT");
+  });
+
+  it("returns 403 for dotfile when dotfiles option is deny", async () => {
+    writeFileSync(join(tmpDir, ".hidden"), "secret");
+    const res = new BunResponse();
+    await res.sendFile(join(tmpDir, ".hidden"), { dotfiles: "deny" });
+    expect(res.statusCode).toBe(403);
+  });
+});
+
+describe("download()", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "bunway-download-test-"));
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true });
+  });
+
+  it("sets Content-Disposition with file basename when no name given", async () => {
+    writeFileSync(join(tmpDir, "report.pdf"), "pdf content");
+    const res = new BunResponse();
+    await res.download(join(tmpDir, "report.pdf"));
+    expect(res.get("Content-Disposition")).toContain('filename="report.pdf"');
+  });
+
+  it("sets Content-Disposition with custom filename", async () => {
+    writeFileSync(join(tmpDir, "file.txt"), "data");
+    const res = new BunResponse();
+    await res.download(join(tmpDir, "file.txt"), "custom-name.txt");
+    expect(res.get("Content-Disposition")).toContain('filename="custom-name.txt"');
+  });
+
+  it("calls callback on successful download", async () => {
+    writeFileSync(join(tmpDir, "data.txt"), "data");
+    const res = new BunResponse();
+    let cbCalled = false;
+    await res.download(join(tmpDir, "data.txt"), () => { cbCalled = true; });
+    expect(cbCalled).toBe(true);
+  });
+
+  it("calls callback with error when file does not exist", async () => {
+    const res = new BunResponse();
+    let cbErr: Error | undefined;
+    await res.download(join(tmpDir, "missing.txt"), (err) => { cbErr = err; });
+    expect(cbErr).toBeDefined();
+    expect(cbErr!.message).toMatch(/ENOENT/);
   });
 });

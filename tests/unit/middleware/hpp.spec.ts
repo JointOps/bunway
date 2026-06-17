@@ -149,5 +149,13 @@ describe("hpp middleware", () => {
       expect((req.body as Record<string, unknown>).a).toBe(2);
       expect((req.body as Record<string, unknown>).b).toBe(4);
     });
+
+    it("array body where last element is undefined sanitizes to undefined", () => {
+      const mw = hpp();
+      const { req, res } = createReqRes("http://localhost/test");
+      req.body = { role: ["user", undefined] };
+      mw(req, res, () => {});
+      expect((req.body as Record<string, unknown>).role).toBeUndefined();
+    });
   });
 });

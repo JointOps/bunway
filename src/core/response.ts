@@ -2,13 +2,20 @@ import type { CookieOptions, SendFileOptions } from "../types";
 import type { BunRequest } from "./request";
 import { existsSync, statSync } from "fs";
 import { join, extname, basename, resolve } from "path";
-import { getBaseMimeType } from "../utils/mime";
+import { getBaseMimeType, getMimeType } from "../utils/mime";
+import { generateBodyETag, sign } from "../utils/crypto";
+import { brotliCompressSync } from "zlib";
 
 export interface RenderOptions {
   [key: string]: unknown;
 }
 
 type ResponseBody = string | ArrayBuffer | Uint8Array | Blob | null;
+
+// brotliCompressSync's cost grows much faster with input size than gzip's —
+// past this size the event-loop-blocking time isn't worth brotli's ratio gain,
+// so large bodies fall back to gzip instead.
+const BROTLI_SYNC_MAX_BYTES = 256 * 1024;
 
 export interface AppContext {
   get(setting: string): unknown;
@@ -22,12 +29,19 @@ export type FormatHandlers = {
 
 export class BunResponse {
   private _statusCode = 200;
-  private _headers: Headers = new Headers();
+  private _headersMap: Map<string, string> | null = null;
+  private _multiHeaders: Map<string, string[]> | null = null;
   private _body: ResponseBody = null;
   private _sent = false;
   private _app?: AppContext;
   private _acceptHeader?: string;
   private _req?: BunRequest;
+
+  // Compression support (internal only — not in public API)
+  _compressionEncoding: string | null = null;
+  _compressionThreshold = 1024;
+  _compressionLevel = 6;
+  _compressionFilter: ((contentType: string) => boolean) | null = null;
 
   // Streaming support
   private _streaming = false;
@@ -36,6 +50,45 @@ export class BunResponse {
   private _headersFlushed = false;
 
   locals: Record<string, unknown> = {};
+
+  private headersMap(): Map<string, string> {
+    if (this._headersMap === null) this._headersMap = new Map();
+    return this._headersMap;
+  }
+
+  private multiHeaders(): Map<string, string[]> {
+    if (this._multiHeaders === null) this._multiHeaders = new Map();
+    return this._multiHeaders;
+  }
+
+  private headerKey(name: string): string {
+    return name.toLowerCase();
+  }
+
+  private hasHeader(name: string): boolean {
+    const key = this.headerKey(name);
+    return (this._headersMap?.has(key) ?? false) || (this._multiHeaders?.has(key) ?? false);
+  }
+
+  private toHeaders(): Headers | undefined {
+    if (!this._headersMap && !this._multiHeaders) return undefined;
+
+    const headers = new Headers();
+    if (this._headersMap) {
+      for (const [name, value] of this._headersMap) {
+        headers.set(name, value);
+      }
+    }
+    if (this._multiHeaders) {
+      for (const [name, values] of this._multiHeaders) {
+        for (const value of values) {
+          headers.append(name, value);
+        }
+      }
+    }
+
+    return headers;
+  }
 
   setApp(app: AppContext): void {
     this._app = app;
@@ -70,17 +123,28 @@ export class BunResponse {
     return this;
   }
 
-  set(name: string, value: string): this {
-    this._headers.set(name, value);
+  set(name: string | Record<string, string>, value?: string): this {
+    if (typeof name === "object") {
+      for (const [k, v] of Object.entries(name)) {
+        this.headersMap().set(this.headerKey(k), v);
+      }
+    } else {
+      this.headersMap().set(this.headerKey(name), value!);
+    }
     return this;
   }
 
-  header(name: string, value: string): this {
-    return this.set(name, value);
+  header(name: string | Record<string, string>, value?: string): this {
+    return this.set(name as string, value!);
   }
 
   get(name: string): string | undefined {
-    return this._headers.get(name) ?? undefined;
+    const key = this.headerKey(name);
+    const multi = this._multiHeaders?.get(key);
+    const single = this._headersMap?.get(key);
+    if (single !== undefined && multi !== undefined) return [single, ...multi].join(", ");
+    if (multi !== undefined) return multi.join(", ");
+    return single;
   }
 
   getHeader(name: string): string | undefined {
@@ -88,12 +152,23 @@ export class BunResponse {
   }
 
   append(name: string, value: string): this {
-    this._headers.append(name, value);
+    const lower = this.headerKey(name);
+    const map = this.multiHeaders();
+    const existing = map.get(lower);
+    if (existing) {
+      existing.push(value);
+    } else {
+      map.set(lower, [value]);
+    }
     return this;
   }
 
   type(mimeType: string): this {
-    this._headers.set("Content-Type", mimeType);
+    // Express: shorthand like "json" → look up MIME type, full type "a/b" used as-is
+    const resolved = mimeType.includes("/")
+      ? mimeType
+      : getMimeType("x." + mimeType);
+    this.headersMap().set("content-type", resolved);
     return this;
   }
 
@@ -103,23 +178,23 @@ export class BunResponse {
 
   vary(field: string | string[]): this {
     const fields = Array.isArray(field) ? field : [field];
-    const existing = this._headers.get("Vary");
+    const existing = this.get("Vary");
 
     if (existing) {
       const existingFields = existing.split(",").map((f) => f.trim().toLowerCase());
       const newFields = fields.filter((f) => !existingFields.includes(f.toLowerCase()));
       if (newFields.length > 0) {
-        this._headers.set("Vary", `${existing}, ${newFields.join(", ")}`);
+        this.headersMap().set("vary", `${existing}, ${newFields.join(", ")}`);
       }
     } else {
-      this._headers.set("Vary", fields.join(", "));
+      this.headersMap().set("vary", fields.join(", "));
     }
 
     return this;
   }
 
   location(url: string): this {
-    this._headers.set("Location", url);
+    this.headersMap().set("location", url);
     return this;
   }
 
@@ -127,29 +202,28 @@ export class BunResponse {
     const linkHeader = Object.entries(links)
       .map(([rel, url]) => `<${url}>; rel="${rel}"`)
       .join(", ");
-    this._headers.set("Link", linkHeader);
+    this.headersMap().set("link", linkHeader);
     return this;
   }
 
   attachment(filename?: string): this {
     if (filename) {
-      this._headers.set("Content-Disposition", `attachment; filename="${filename}"`);
+      this.headersMap().set("content-disposition", `attachment; filename="${filename}"`);
       // Set Content-Type based on extension (Express behavior)
       const mimeType = getBaseMimeType(filename);
       if (mimeType && mimeType !== "application/octet-stream") {
-        this._headers.set("Content-Type", mimeType);
+        this.headersMap().set("content-type", mimeType);
       }
     } else {
-      this._headers.set("Content-Disposition", "attachment");
+      this.headersMap().set("content-disposition", "attachment");
     }
     return this;
   }
 
   json(data: unknown): this {
-    this._headers.set("Content-Type", "application/json");
-    const body = JSON.stringify(data);
-    this._headers.set("Content-Length", String(new TextEncoder().encode(body).byteLength));
-    this._body = body;
+    const spaces = this._app?.get("json spaces") as number | undefined;
+    this.headersMap().set("content-type", "application/json");
+    this._body = spaces ? JSON.stringify(data, null, spaces) : JSON.stringify(data);
     this._sent = true;
     return this;
   }
@@ -170,14 +244,14 @@ export class BunResponse {
       callback = rawCallback;
     }
 
-    if (!this._headers.has("Content-Type")) {
-      this._headers.set("X-Content-Type-Options", "nosniff");
-      this._headers.set("Content-Type", "application/json");
+    if (!this.hasHeader("Content-Type")) {
+      this.headersMap().set("x-content-type-options", "nosniff");
+      this.headersMap().set("content-type", "application/json");
     }
 
     if (typeof callback === "string" && callback.length !== 0) {
-      this._headers.set("X-Content-Type-Options", "nosniff");
-      this._headers.set("Content-Type", "text/javascript; charset=utf-8");
+      this.headersMap().set("x-content-type-options", "nosniff");
+      this.headersMap().set("content-type", "text/javascript; charset=utf-8");
 
       callback = callback.replace(/[^\[\]\w$.]/g, "");
 
@@ -214,19 +288,17 @@ export class BunResponse {
 
     if (typeof body === "string") {
       // Only set Content-Type if not already set
-      if (!this._headers.has("Content-Type")) {
+      if (!this.hasHeader("Content-Type")) {
         // Express sets text/html for strings
-        this._headers.set("Content-Type", "text/html; charset=utf-8");
+        this.headersMap().set("content-type", "text/html; charset=utf-8");
       }
-      // Set Content-Length
-      this._headers.set("Content-Length", String(new TextEncoder().encode(body).byteLength));
       this._body = body;
     } else if (body instanceof Uint8Array || body instanceof ArrayBuffer) {
-      if (!this._headers.has("Content-Type")) {
-        this._headers.set("Content-Type", "application/octet-stream");
+      if (!this.hasHeader("Content-Type")) {
+        this.headersMap().set("content-type", "application/octet-stream");
       }
       const len = body instanceof Uint8Array ? body.byteLength : body.byteLength;
-      this._headers.set("Content-Length", String(len));
+      this.headersMap().set("content-length", String(len));
       this._body = body;
     } else {
       this._body = body as ResponseBody;
@@ -237,13 +309,13 @@ export class BunResponse {
   }
 
   text(data: string): void {
-    this._headers.set("Content-Type", "text/plain");
+    this.headersMap().set("content-type", "text/plain");
     this._body = data;
     this._sent = true;
   }
 
   html(data: string): void {
-    this._headers.set("Content-Type", "text/html");
+    this.headersMap().set("content-type", "text/html");
     this._body = data;
     this._sent = true;
   }
@@ -275,7 +347,7 @@ export class BunResponse {
       504: "Gateway Timeout",
     };
     this._statusCode = code;
-    this._headers.set("Content-Type", "text/plain; charset=utf-8");
+    this.headersMap().set("content-type", "text/plain; charset=utf-8");
     this._body = STATUS_TEXTS[code] ?? String(code);
     this._sent = true;
   }
@@ -298,7 +370,7 @@ export class BunResponse {
       if (accept.includes(mimeType) || accept.includes("*/*") || accept.includes(type)) {
         const handler = handlers[type];
         if (handler) {
-          this._headers.set("Content-Type", mimeType);
+          this.headersMap().set("content-type", mimeType);
           handler();
           return;
         }
@@ -313,7 +385,7 @@ export class BunResponse {
         if (acceptType === mimeType || acceptType === `${mimeType.split("/")[0]}/*`) {
           const handler = handlers[type];
           if (handler) {
-            this._headers.set("Content-Type", mimeType);
+            this.headersMap().set("content-type", mimeType);
             handler();
             return;
           }
@@ -337,27 +409,44 @@ export class BunResponse {
   redirect(urlOrStatus: string | number, url?: string): void {
     if (typeof urlOrStatus === "number" && url) {
       this._statusCode = urlOrStatus;
-      this._headers.set("Location", url);
+      this.headersMap().set("location", url);
     } else if (typeof urlOrStatus === "string") {
       this._statusCode = 302;
-      this._headers.set("Location", urlOrStatus);
+      this.headersMap().set("location", urlOrStatus);
     }
     this._body = null;
     this._sent = true;
   }
 
-  cookie(name: string, value: string, options: CookieOptions = {}): this {
-    let cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)}`;
+  cookie(name: string, value: string | Record<string, unknown>, options: CookieOptions = {}): this {
+    let strValue: string = typeof value === "object"
+      ? "j:" + JSON.stringify(value)
+      : String(value);
 
-    if (options.maxAge !== undefined) {
-      cookie += `; Max-Age=${options.maxAge}`;
+    if (options.signed) {
+      const secret = this._req?.secret;
+      if (!secret) {
+        throw new Error(
+          'cookieParser("secret") required for signed cookies — mount cookieParser before res.cookie({ signed: true })'
+        );
+      }
+      strValue = "s:" + sign(strValue, secret);
+    }
+
+    let cookie = `${encodeURIComponent(name)}=${encodeURIComponent(strValue)}`;
+
+    if (options.maxAge != null) {
+      const maxAgeMs = options.maxAge;
+      const maxAgeSec = Math.floor(maxAgeMs / 1000);
+      cookie += `; Max-Age=${maxAgeSec}`;
+      if (!options.expires) {
+        cookie += `; Expires=${new Date(Date.now() + maxAgeMs).toUTCString()}`;
+      }
     }
     if (options.expires) {
       cookie += `; Expires=${options.expires.toUTCString()}`;
     }
-    if (options.path) {
-      cookie += `; Path=${options.path}`;
-    }
+    cookie += `; Path=${options.path ?? "/"}`;
     if (options.domain) {
       cookie += `; Domain=${options.domain}`;
     }
@@ -373,13 +462,14 @@ export class BunResponse {
       cookie += `; SameSite=${sameSite}`;
     }
 
-    this._headers.append("Set-Cookie", cookie);
+    this.append("Set-Cookie", cookie);
     return this;
   }
 
   clearCookie(name: string, options: CookieOptions = {}): this {
+    const { maxAge: _dropped, ...rest } = options;
     return this.cookie(name, "", {
-      ...options,
+      ...rest,
       expires: new Date(0),
     });
   }
@@ -430,18 +520,18 @@ export class BunResponse {
 
       const fileSize = stat.size;
       const mimeType = getBaseMimeType(fullPath);
-      this._headers.set("Content-Type", mimeType);
+      this.headersMap().set("content-type", mimeType);
 
       // Add Accept-Ranges if acceptRanges !== false
       if (options.acceptRanges !== false) {
-        this._headers.set("Accept-Ranges", "bytes");
+        this.headersMap().set("accept-ranges", "bytes");
       }
 
       // Add Last-Modified header if lastModified !== false
       if (options.lastModified !== false) {
         const file = Bun.file(fullPath);
         if (file.lastModified) {
-          this._headers.set("Last-Modified", new Date(file.lastModified).toUTCString());
+          this.headersMap().set("last-modified", new Date(file.lastModified).toUTCString());
         }
       }
 
@@ -450,12 +540,12 @@ export class BunResponse {
         const maxAge = options.maxAge !== undefined ? Math.floor(options.maxAge / 1000) : 0;
         let cacheValue = `public, max-age=${maxAge}`;
         if (options.immutable) cacheValue += ", immutable";
-        this._headers.set("Cache-Control", cacheValue);
+        this.headersMap().set("cache-control", cacheValue);
       }
 
       if (options.headers) {
         for (const [key, value] of Object.entries(options.headers)) {
-          this._headers.set(key, value);
+          this.headersMap().set(this.headerKey(key), value);
         }
       }
 
@@ -495,8 +585,8 @@ export class BunResponse {
 
                 const file = Bun.file(fullPath);
                 this._statusCode = 206;
-                this._headers.set("Content-Range", `bytes ${start}-${end}/${fileSize}`);
-                this._headers.set("Content-Length", String(end - start + 1));
+                this.headersMap().set("content-range", `bytes ${start}-${end}/${fileSize}`);
+                this.headersMap().set("content-length", String(end - start + 1));
                 this._body = await file.slice(start, end + 1).arrayBuffer();
                 this._sent = true;
                 if (callback) callback();
@@ -505,7 +595,7 @@ export class BunResponse {
 
               // Unsatisfiable range
               this._statusCode = 416;
-              this._headers.set("Content-Range", `bytes */${fileSize}`);
+              this.headersMap().set("content-range", `bytes */${fileSize}`);
               this._body = null;
               this._sent = true;
               if (callback) callback();
@@ -516,7 +606,7 @@ export class BunResponse {
       }
 
       // No range or non-bytes range — send full file
-      this._headers.set("Content-Length", String(fileSize));
+      this.headersMap().set("content-length", String(fileSize));
       const file = Bun.file(fullPath);
       this._body = await file.arrayBuffer();
       this._sent = true;
@@ -540,6 +630,9 @@ export class BunResponse {
     if (typeof filename === "function") {
       cb = filename as unknown as (err?: Error) => void;
       downloadName = basename(filePath);
+    } else if (typeof filename === "object" && filename !== null) {
+      opts = filename as SendFileOptions;
+      downloadName = basename(filePath);
     } else {
       downloadName = filename || basename(filePath);
       if (typeof options === "function") {
@@ -550,7 +643,7 @@ export class BunResponse {
       }
     }
 
-    this._headers.set("Content-Disposition", `attachment; filename="${downloadName}"`);
+    this.headersMap().set("content-disposition", `attachment; filename="${downloadName}"`);
 
     if (cb) {
       await this.sendFile(filePath, opts, cb);
@@ -741,12 +834,56 @@ export class BunResponse {
   }
 
   toResponse(): Response {
-    // If streaming, we need to handle this differently
-    // The stream is already set up, but we return a placeholder
-    // The actual streaming response is handled by toStreamingResponse()
-    return new Response(this._body, {
+    let body: ResponseBody = this._body;
+
+    // Auto-ETag: add weak ETag for 200 string-body responses when enabled (Express default)
+    if (
+      this._statusCode === 200 &&
+      typeof body === "string" &&
+      body.length > 0 &&
+      !this.hasHeader("etag")
+    ) {
+      const etagSetting = this._app?.get("etag");
+      if (etagSetting !== false) {
+        this.headersMap().set("etag", generateBodyETag(body));
+      }
+    }
+
+    if (
+      this._compressionEncoding &&
+      typeof body === "string" &&
+      body.length >= this._compressionThreshold
+    ) {
+      const contentType = this._headersMap?.get("content-type") || "";
+      if (!this._compressionFilter || this._compressionFilter(contentType)) {
+        const buf = Buffer.from(body, "utf-8");
+        let compressed: Buffer;
+        let encoding = this._compressionEncoding;
+
+        if (encoding === "br" && buf.byteLength > BROTLI_SYNC_MAX_BYTES) {
+          // Brotli's sync cost scales poorly with size and would block the
+          // event loop for too long on large bodies — gzip is far cheaper.
+          encoding = "gzip";
+        }
+
+        if (encoding === "br") {
+          compressed = Buffer.from(brotliCompressSync(buf));
+        } else if (encoding === "gzip") {
+          compressed = Buffer.from(Bun.gzipSync(buf, { level: this._compressionLevel } as Parameters<typeof Bun.gzipSync>[1]));
+        } else {
+          compressed = Buffer.from(Bun.deflateSync(buf, { level: this._compressionLevel } as Parameters<typeof Bun.deflateSync>[1]));
+        }
+
+        body = compressed;
+        this.headersMap().set("content-encoding", encoding);
+        this.headersMap().set("content-length", String(compressed.byteLength));
+        this.headersMap().set("vary", "Accept-Encoding");
+      }
+    }
+
+    return new Response(body, {
       status: this._statusCode,
-      headers: this._headers,
+      headers: this.toHeaders(),
     });
   }
 
@@ -761,12 +898,12 @@ export class BunResponse {
     const stream = await this._streamPromise;
     return new Response(stream, {
       status: this._statusCode,
-      headers: this._headers,
+      headers: this.toHeaders(),
     });
   }
 
   getHeaders(): Headers {
-    return this._headers;
+    return this.toHeaders() ?? new Headers();
   }
 
   isSent(): boolean {
@@ -854,7 +991,7 @@ export class BunResponse {
         }
 
         if (html) {
-          this._headers.set("Content-Type", "text/html");
+          this.headersMap().set("content-type", "text/html");
           this._body = html;
           this._sent = true;
         }

@@ -14,7 +14,7 @@ describe("BunRequest", () => {
 
     it("exposes url", () => {
       const req = createRequest("http://localhost/test?foo=bar");
-      expect(req.url).toBe("http://localhost/test?foo=bar");
+      expect(req.url).toBe("/test?foo=bar");
     });
 
     it("exposes path/pathname", () => {

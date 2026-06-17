@@ -4,11 +4,14 @@ import { useData } from 'vitepress'
 import { computed } from 'vue'
 import LandingNavbar from './LandingNavbar.vue'
 import LandingPage from './components/LandingPage.vue'
+import { useAccordion } from './composables/useAccordion'
 
 const { Layout } = DefaultTheme
 const { frontmatter } = useData()
 
 const isHome = computed(() => frontmatter.value.layout === 'home')
+
+useAccordion()
 </script>
 
 <template>
@@ -27,6 +30,6 @@ const isHome = computed(() => frontmatter.value.layout === 'home')
 <style scoped>
 .landing-wrapper {
   min-height: 100vh;
-  background: #050505;
+  background: #070809;
 }
 </style>

@@ -1,8 +1,10 @@
-import type { UploadedFile } from "../types";
+import type { UploadedFile, AuthUser } from "../types";
 import type { BunResponse } from "./response";
+import type { Session, SessionData, SessionStore } from "../middleware/session";
 import { negotiateAccept, negotiateSimple, languageMatch, typeIs } from "../utils/content-negotiation";
 
 const DEFAULT_BODY_LIMIT = 1024 * 1024;
+const _decoder = new TextDecoder();
 
 /**
  * Parse an IPv4 address into a 32-bit integer.
@@ -74,16 +76,46 @@ export class BunRequest {
   private _rawBody: Uint8Array | null = null;
   private _bodyParsed = false;
   private _cookies: Record<string, string> | null = null;
-  private _signedCookies: Record<string, string> = {};
+  private _signedCookies: Record<string, string | false> = {};
   private _app?: RequestAppContext;
+  private _secret: string | undefined = undefined;
   private _socketIp: string | null = null;
   private _file: UploadedFile | null = null;
   private _files: UploadedFile[] | Record<string, UploadedFile[]> | null = null;
   private _res?: BunResponse;
   private _queryObj: (URLSearchParams & Record<string, string | string[]>) | null = null;
+  private _acceptCache: Map<string, string | false> | null = null;
+  private _acceptCharsetCache: Map<string, string | false> | null = null;
+  private _acceptEncodingCache: Map<string, string | false> | null = null;
+  private _acceptLanguageCache: Map<string, string | false> | null = null;
 
   locals: Record<string, unknown> = {};
   timedout: boolean = false;
+  private _baseUrl: string = "";
+
+  // Populated by session() middleware
+  declare session: Session & SessionData;
+  declare sessionID: string;
+  declare sessionStore: SessionStore;
+  // Populated by jwt(), passport.initialize(), or any auth middleware
+  declare user: AuthUser | undefined;
+  // express-jwt compatibility alias — same reference as req.user
+  declare auth: AuthUser | undefined;
+  // Populated by passport.initialize()
+  declare isAuthenticated: () => boolean;
+  declare isUnauthenticated: () => boolean;
+  declare login: (user: AuthUser, options?: Record<string, unknown>) => Promise<void>;
+  declare logout: (options?: Record<string, unknown>) => Promise<void>;
+  // Populated by csrf() middleware
+  declare csrfToken: () => string;
+
+  get secret(): string | undefined {
+    return this._secret;
+  }
+
+  set secret(value: string | undefined) {
+    this._secret = value;
+  }
 
   /**
    * Create a new BunRequest.
@@ -136,6 +168,10 @@ export class BunRequest {
    */
   setSocketIp(ip: string | null): void {
     this._socketIp = ip;
+  }
+
+  setBaseUrl(baseUrl: string): void {
+    this._baseUrl = baseUrl;
   }
 
   setApp(app: RequestAppContext): void {
@@ -197,7 +233,9 @@ export class BunRequest {
       if (pattern === ip) {
         return true;
       }
-      // Proper CIDR matching for IPv4
+      // Proper CIDR matching for IPv4 only — an IPv6 CIDR (e.g. "2001:db8::/32")
+      // never matches here. Use an exact address or the loopback/linklocal/
+      // uniquelocal keywords above for IPv6 ranges until this is implemented.
       if (pattern.includes("/") && isIPv4InCIDR(ip, pattern)) {
         return true;
       }
@@ -210,7 +248,8 @@ export class BunRequest {
   }
 
   get url(): string {
-    return this._original.url;
+    // Express: req.url is relative to the mount point (prefix stripped)
+    return this._pathname + this.parsedUrl.search;
   }
 
   get path(): string {
@@ -222,8 +261,12 @@ export class BunRequest {
   }
 
   get originalUrl(): string {
-    const search = this.parsedUrl.search;
-    return this._pathname + search;
+    const parsed = this.parsedUrl;
+    return parsed.pathname + parsed.search;
+  }
+
+  get baseUrl(): string {
+    return this._baseUrl;
   }
 
   get query(): URLSearchParams & Record<string, string | string[]> {
@@ -288,11 +331,6 @@ export class BunRequest {
     // e.g., "foo.bar.example.com" -> ["bar", "foo"]
     if (parts.length <= 2) return [];
     return parts.slice(0, -2).reverse();
-  }
-
-  private _baseUrl = "";
-  get baseUrl(): string {
-    return this._baseUrl;
   }
 
   set baseUrl(value: string) {
@@ -445,11 +483,11 @@ export class BunRequest {
     this._cookies = value;
   }
 
-  get signedCookies(): Record<string, string> {
+  get signedCookies(): Record<string, string | false> {
     return this._signedCookies;
   }
 
-  set signedCookies(value: Record<string, string>) {
+  set signedCookies(value: Record<string, string | false>) {
     this._signedCookies = value;
   }
 
@@ -520,19 +558,55 @@ export class BunRequest {
   }
 
   accepts(...types: string[]): string | false {
-    return negotiateAccept(this.get("accept"), types);
+    const key = types.join("\x00");
+    if (this._acceptCache) {
+      const hit = this._acceptCache.get(key);
+      if (hit !== undefined) return hit;
+    } else {
+      this._acceptCache = new Map();
+    }
+    const result = negotiateAccept(this._original.headers.get("accept") ?? undefined, types);
+    this._acceptCache.set(key, result);
+    return result;
   }
 
   acceptsCharsets(...charsets: string[]): string | false {
-    return negotiateSimple(this.get("accept-charset"), charsets);
+    const key = charsets.join("\x00");
+    if (this._acceptCharsetCache) {
+      const hit = this._acceptCharsetCache.get(key);
+      if (hit !== undefined) return hit;
+    } else {
+      this._acceptCharsetCache = new Map();
+    }
+    const result = negotiateSimple(this._original.headers.get("accept-charset") ?? undefined, charsets);
+    this._acceptCharsetCache.set(key, result);
+    return result;
   }
 
   acceptsEncodings(...encodings: string[]): string | false {
-    return negotiateSimple(this.get("accept-encoding"), encodings);
+    const key = encodings.join("\x00");
+    if (this._acceptEncodingCache) {
+      const hit = this._acceptEncodingCache.get(key);
+      if (hit !== undefined) return hit;
+    } else {
+      this._acceptEncodingCache = new Map();
+    }
+    const result = negotiateSimple(this._original.headers.get("accept-encoding") ?? undefined, encodings);
+    this._acceptEncodingCache.set(key, result);
+    return result;
   }
 
   acceptsLanguages(...languages: string[]): string | false {
-    return negotiateSimple(this.get("accept-language"), languages, languageMatch);
+    const key = languages.join("\x00");
+    if (this._acceptLanguageCache) {
+      const hit = this._acceptLanguageCache.get(key);
+      if (hit !== undefined) return hit;
+    } else {
+      this._acceptLanguageCache = new Map();
+    }
+    const result = negotiateSimple(this._original.headers.get("accept-language") ?? undefined, languages, languageMatch);
+    this._acceptLanguageCache.set(key, result);
+    return result;
   }
 
   range(size: number, options?: { combine?: boolean }): RangeResult | undefined {
@@ -621,7 +695,7 @@ export class BunRequest {
 
   async rawText(): Promise<string> {
     const raw = await this.rawBody();
-    return new TextDecoder().decode(raw);
+    return _decoder.decode(raw);
   }
 
   async parseJson(limit = DEFAULT_BODY_LIMIT): Promise<unknown> {
@@ -630,7 +704,7 @@ export class BunRequest {
     if (raw.byteLength > limit) {
       throw Object.assign(new Error("Payload Too Large"), { status: 413 });
     }
-    const text = new TextDecoder().decode(raw);
+    const text = _decoder.decode(raw);
     if (!text) {
       this._body = {};
       this._bodyParsed = true;
@@ -670,7 +744,7 @@ export class BunRequest {
     if (raw.byteLength > limit) {
       throw Object.assign(new Error("Payload Too Large"), { status: 413 });
     }
-    const text = new TextDecoder().decode(raw);
+    const text = _decoder.decode(raw);
     const params = new URLSearchParams(text);
     this._body = Object.fromEntries(params.entries());
     this._bodyParsed = true;
@@ -683,7 +757,7 @@ export class BunRequest {
     if (raw.byteLength > limit) {
       throw Object.assign(new Error("Payload Too Large"), { status: 413 });
     }
-    this._body = new TextDecoder().decode(raw);
+    this._body = _decoder.decode(raw);
     this._bodyParsed = true;
     return this._body as string;
   }

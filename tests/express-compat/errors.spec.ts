@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import bunway, { Router } from "../../src";
-import { buildRequest } from "../utils/testUtils";
+import { buildRequest } from "../utils/test-helpers";
 
 describe("Express Compatibility: Error Handling", () => {
   test("next(err) triggers error handler like Express", async () => {
@@ -171,12 +171,12 @@ describe("Express Compatibility: Error Handling", () => {
     expect(await response.json()).toEqual({ routerError: "router error" });
   });
 
-  test("Normal middleware not called when error occurs like Express", async () => {
+  test("Pre-error middleware runs before the erroring route like Express", async () => {
     const app = bunway();
-    let normalMiddlewareCalled = false;
+    let preCalled = false;
 
     app.use((req, res, next) => {
-      normalMiddlewareCalled = true;
+      preCalled = true;
       next();
     });
 
@@ -189,6 +189,94 @@ describe("Express Compatibility: Error Handling", () => {
     });
 
     await app.handle(buildRequest("/test"));
-    expect(normalMiddlewareCalled).toBe(true);
+    expect(preCalled).toBe(true);
+  });
+
+  test("err.statusCode is used as status when err.status is absent like Express", async () => {
+    const app = bunway();
+
+    app.get("/test", (req, res, next) => {
+      const error: any = new Error("Payment Required");
+      error.statusCode = 402;
+      next(error);
+    });
+
+    app.use((err: any, req: any, res: any, next: any) => {
+      res.status(err.statusCode || err.status || 500).json({ error: err.message });
+    });
+
+    const response = await app.handle(buildRequest("/test"));
+    expect(response.status).toBe(402);
+    expect(await response.json()).toEqual({ error: "Payment Required" });
+  });
+
+  test("err.status takes precedence over err.statusCode like Express", async () => {
+    const app = bunway();
+
+    app.get("/test", (req, res, next) => {
+      const error: any = new Error("Gone");
+      error.status = 410;
+      error.statusCode = 500;
+      next(error);
+    });
+
+    app.use((err: any, req: any, res: any, next: any) => {
+      res.status(err.status || 500).json({ error: err.message });
+    });
+
+    const response = await app.handle(buildRequest("/test"));
+    expect(response.status).toBe(410);
+  });
+
+  test("returns 500 with no error handler registered like Express", async () => {
+    const app = bunway();
+
+    app.get("/test", (req, res, next) => {
+      next(new Error("unhandled error"));
+    });
+
+    const response = await app.handle(buildRequest("/test"));
+    expect(response.status).toBe(500);
+  });
+
+  test("3-arg function is not treated as error handler even with err param name like Express", async () => {
+    const app = bunway();
+    let normalCallCount = 0;
+
+    // Despite the first param being named 'err', a 3-arg function is normal middleware —
+    // it runs once before the route and must NOT be invoked a second time as an error handler
+    // when the route calls next(err).
+    app.use((err: any, req: any, next: any) => {
+      normalCallCount++;
+      next(); // pass control (called as handler(req, res, done): done() continues the pipeline)
+    });
+
+    app.get("/test", (req, res, next) => next(new Error("oops")));
+
+    app.use((err: Error, req: any, res: any, next: any) => {
+      res.status(500).json({ caught: true });
+    });
+
+    const response = await app.handle(buildRequest("/test"));
+    expect(response.status).toBe(500);
+    // called exactly once as pre-route middleware; never invoked again as an error interceptor
+    expect(normalCallCount).toBe(1);
+  });
+
+  test("error from child router reaches parent app error handler like Express", async () => {
+    const app = bunway();
+    const router = new Router();
+
+    router.get("/fail", (req, res, next) => next(new Error("child error")));
+    // no error handler on the router itself
+
+    app.use("/api", router);
+    app.use((err: Error, req: any, res: any, next: any) => {
+      res.status(500).json({ caughtByParent: true, message: err.message });
+    });
+
+    const response = await app.handle(buildRequest("/api/fail"));
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ caughtByParent: true, message: "child error" });
   });
 });

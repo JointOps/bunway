@@ -63,9 +63,10 @@ describe("sse middleware", () => {
   });
 
   it("heartbeat sends ping comment within interval", async () => {
+    const HB = 20; // heartbeat interval
     const app = bunway();
-    app.get("/events", sse({ heartbeatInterval: 20 }), async (_req, res) => {
-      await new Promise((resolve) => setTimeout(resolve, 60));
+    app.get("/events", sse({ heartbeatInterval: HB }), async (_req, res) => {
+      await new Promise((resolve) => setTimeout(resolve, HB * 10)); // 10× — guarantees at least one ping
       res.end();
     });
 
@@ -77,7 +78,7 @@ describe("sse middleware", () => {
   it("heartbeatInterval: 0 disables the ping timer", async () => {
     const app = bunway();
     app.get("/events", sse({ heartbeatInterval: 0 }), async (_req, res) => {
-      await new Promise((resolve) => setTimeout(resolve, 40));
+      await new Promise((resolve) => setTimeout(resolve, 200)); // long enough to see if ping fires
       res.end();
     });
 
@@ -101,5 +102,37 @@ describe("sse middleware", () => {
 
     expect(nextCalled).toBe(true);
     expect(res.isSent()).toBe(true);
+  });
+
+  it("sets Connection: keep-alive header", async () => {
+    const app = bunway();
+    app.get("/events", sse(), (_req, res) => res.end());
+
+    const res = await app.handle(new Request("http://localhost/events"));
+    expect(res.headers.get("connection")).toBe("keep-alive");
+  });
+
+  it("sendEvent with primitive string data JSON-encodes it", async () => {
+    const app = bunway();
+    app.get("/events", sse({ heartbeatInterval: 0 }), (_req, res) => {
+      (res as unknown as { sendEvent: (event: string, data: unknown) => void }).sendEvent("msg", "hello");
+      res.end();
+    });
+
+    const res = await app.handle(new Request("http://localhost/events"));
+    const text = await res.text();
+    expect(text).toContain('data: "hello"\n\n');
+  });
+
+  it("sendEvent with null data JSON-encodes it", async () => {
+    const app = bunway();
+    app.get("/events", sse({ heartbeatInterval: 0 }), (_req, res) => {
+      (res as unknown as { sendEvent: (event: string, data: unknown) => void }).sendEvent("reset", null);
+      res.end();
+    });
+
+    const res = await app.handle(new Request("http://localhost/events"));
+    const text = await res.text();
+    expect(text).toContain("data: null\n\n");
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import bunway, { Router } from "../../../src";
-import { buildRequest } from "../../utils/testUtils";
+import { buildRequest } from "../../utils/test-helpers";
 
 describe("Chainable Routes", () => {
   describe("Basic chaining", () => {

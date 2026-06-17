@@ -1,6 +1,6 @@
 # bunWay
 
-**Express API. Bun speed. Zero dependencies. 19 middleware built in.**
+**Express API. Bun speed. Zero dependencies. 26 middleware built in.**
 
 Stop choosing between rewriting your backend and missing out on Bun's performance. bunWay gives you a third option: **change your import and ship.**
 
@@ -16,7 +16,7 @@ const app = bunway();
 // everything else stays the same.
 ```
 
-Same `(req, res, next)`. Same middleware. Same routing. Same muscle memory. **97% Express API parity** — verified by 1,662 tests.
+Same `(req, res, next)`. Same middleware. Same routing. Same muscle memory. **Broad Express 4.x API parity** — see the [migration guide](https://bunway.jointops.dev/guide/express-migration.html#what-s-different) for the handful of differences.
 
 ---
 
@@ -64,7 +64,6 @@ In Express, that's 8 separate `npm install` commands, 8 packages to audit, 8 set
 | CORS | `cors` | `cors()` |
 | Security headers | `helmet` | `helmet()` |
 | Sessions | `express-session` | `session()` |
-| Authentication | `passport` | `passport()` |
 | Logging | `morgan` | `logger()` — same format strings |
 | CSRF protection | `csurf` | `csrf()` |
 | Compression | `compression` | `compression()` |
@@ -75,8 +74,11 @@ In Express, that's 8 separate `npm install` commands, 8 packages to audit, 8 set
 | HPP protection | `hpp` | `hpp()` |
 | Request validation | `express-validator` | `validate()` |
 | Error handling | Custom middleware | `errorHandler()` |
+| JWT auth | `express-jwt` | `jwt()` / `jwtSign()` / `jwtDecode()` |
+| Passport auth | `passport` | `passportInitialize()` / `passportSession()` / `passportAuthenticate()` |
+| Token rotation | Custom | `tokenVault()` |
 
-**19 middleware. Zero dependencies. One `import` statement.**
+**26 middleware. Zero dependencies. One `import` statement.**
 
 ---
 
@@ -153,9 +155,9 @@ console.log(admin.path());    // "/admin"
 ```ts
 app.post("/users", validate({
   body: {
-    email: { required: true, isEmail: true },
-    age: { required: true, isInt: { min: 18 } },
-    name: { required: true, isLength: { min: 2, max: 50 } },
+    email: { required: true, type: "email" },
+    age:   { required: true, type: "integer", min: 18 },
+    name:  { required: true, type: "string", min: 2, max: 50 },
   }
 }), createUser);
 // Invalid? → 422 with structured error response. No boilerplate.
@@ -194,8 +196,7 @@ process.on("SIGTERM", () => app.close());
 | | Value |
 |---|---|
 | Production dependencies | **0** |
-| Built-in middleware | **19** |
-| Express API parity | **97%+** |
+| Built-in middleware | **26** |
 | Test suite | **1,662 tests** · 3,653 assertions |
 | TypeScript | **Strict mode** · no `any` · types included |
 

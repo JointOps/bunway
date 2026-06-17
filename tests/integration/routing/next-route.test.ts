@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import bunway from "../../../src";
-import { buildRequest } from "../../utils/testUtils";
+import { buildRequest } from "../../utils/test-helpers";
 
 describe("next('route')", () => {
   it("skips remaining handlers in current route definition and falls to next match", async () => {
@@ -54,7 +54,7 @@ describe("next('route')", () => {
     expect(body.log).toContain("first");
   });
 
-  it("next('router') behaves identically to next('route')", async () => {
+  it("next('router') exits the router entirely and returns 404 when no parent", async () => {
     const app = bunway();
     app.get("/router-test", (_req, _res, next) => {
       next("router");
@@ -64,7 +64,6 @@ describe("next('route')", () => {
     });
 
     const res = await app.handle(buildRequest("/router-test"));
-    const body = await res.json();
-    expect(body.ok).toBe(true);
+    expect(res.status).toBe(404);
   });
 });

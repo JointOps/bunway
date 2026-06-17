@@ -1,11 +1,15 @@
 ---
 title: Request Validation
-description: Validate request body, query, and params with the built-in validation middleware.
+description: Validate request body, query parameters, and route params in bunWay with the built-in validate() middleware — no external dependencies required.
 ---
 
 # Request Validation
 
-Validate incoming requests with a declarative schema — no external dependencies.
+`validate()` enforces schemas on incoming requests — body, query parameters, and route params. Returns 422 with structured error details on failure. No external dependencies.
+
+::: tip Coming from Express?
+Replaces `express-validator`. Declarative schema API, same middleware position in the chain.
+:::
 
 ## Quick Start
 
@@ -42,12 +46,12 @@ app.post("/users",
 | Rule | Type | Description |
 |------|------|-------------|
 | `required` | `boolean` | Field must be present and non-empty |
-| `type` | `string` | Type check: `"string"`, `"number"`, `"integer"`, `"boolean"`, `"email"`, `"url"`, `"uuid"` |
+| `type` | `string` | `"string"`, `"number"`, `"integer"`, `"boolean"`, `"email"`, `"url"`, `"uuid"` |
 | `min` | `number` | Min length (strings) or min value (numbers) |
 | `max` | `number` | Max length (strings) or max value (numbers) |
 | `pattern` | `RegExp` | Regex the value must match |
 | `enum` | `unknown[]` | Allowed values list |
-| `custom` | `(value, req) => boolean \| string \| Promise<...>` | Custom validator |
+| `custom` | `(value, req) => boolean \| string \| Promise<...>` | Custom validator function |
 | `message` | `string` | Custom error message |
 | `trim` | `boolean` | Trim whitespace before validation |
 | `toLowerCase` | `boolean` | Convert to lowercase before validation |
@@ -66,7 +70,7 @@ app.get("/users/:id",
 );
 ```
 
-### Query validation
+### Query parameter validation
 
 ```typescript
 app.get("/search",
@@ -124,7 +128,6 @@ app.post("/api",
 app.post("/api",
   validate(schema, {
     onError: (errors, req, res, next) => {
-      // Log or pass to error middleware
       next(errors);
     },
   }),
@@ -134,7 +137,7 @@ app.post("/api",
 
 ## Using with Zod / Yup / Joi
 
-For complex schemas, use the `custom` validator or write your own middleware:
+For complex schemas, use the `custom` validator or write a standalone middleware:
 
 ```typescript
 import { z } from "zod";
@@ -144,17 +147,22 @@ const UserSchema = z.object({
   email: z.string().email(),
 });
 
+// Option A: wrap Zod inside bunWay's custom validator
 app.post("/users",
   validate({
     body: {
-      name: { custom: (val) => typeof val === "string" && val.length >= 2 },
-      email: { custom: (val) => typeof val === "string" && val.includes("@") },
+      _schema: {
+        custom: (_, req) => {
+          const result = UserSchema.safeParse(req.body);
+          return result.success ? true : result.error.issues[0].message;
+        },
+      },
     },
   }),
   handler
 );
 
-// Or use Zod directly in a custom middleware:
+// Option B: standalone Zod middleware
 app.post("/users", (req, res, next) => {
   const result = UserSchema.safeParse(req.body);
   if (!result.success) {
@@ -172,3 +180,9 @@ app.post("/users", (req, res, next) => {
 | `statusCode` | `number` | `422` | HTTP status for validation errors |
 | `errorFormatter` | `(errors) => unknown` | `{ errors: [...] }` | Custom error response shape |
 | `onError` | `(errors, req, res, next) => void` | — | Custom error handler |
+
+## Related
+
+- [Error Handling](./error-handler) — catch validation errors globally
+- [Body Parsing](./body-parsing) — parse request bodies before validating
+- [Timeout](./timeout) — reject slow requests before validation completes

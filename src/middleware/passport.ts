@@ -1,323 +1,239 @@
-import type { Handler } from "../types";
 import type { BunRequest } from "../core/request";
-import type { BunResponse } from "../core/response";
+import { BunResponse } from "../core/response";
+import type { Handler } from "../types";
 
-export interface AuthenticateOptions {
-  session?: boolean;
-  successRedirect?: string;
-  failureRedirect?: string;
-  failureFlash?: boolean | string;
-  successFlash?: boolean | string;
-  assignProperty?: string;
-  failWithError?: boolean;
-  passReqToCallback?: boolean;
+type PassportCallback = (err?: unknown, value?: unknown) => void;
+type PassportLike = {
+  serializeUser(user: unknown, req: BunRequest, done: PassportCallback): void;
+  deserializeUser(obj: unknown, req: BunRequest, done: PassportCallback): void;
+  authenticate(strategyName: string | string[], options: Record<string, unknown>): Handler;
+};
+
+type PassportSession = {
+  passport?: { user?: unknown };
+  save(callback?: (err?: Error) => void): void;
+};
+
+function makeHeadersProxy(req: BunRequest, headers: Headers): Record<string, string> {
+  return new Proxy(Object.create(null) as Record<string, string>, {
+    get(_: Record<string, string>, prop: string | symbol) {
+      if (typeof prop !== "string") return undefined;
+      return req.get(prop) ?? undefined;
+    },
+    has(_: Record<string, string>, prop: string | symbol) {
+      if (typeof prop !== "string") return false;
+      return headers.has(prop);
+    },
+    ownKeys() {
+      return [...headers.keys()];
+    },
+    getOwnPropertyDescriptor(_: Record<string, string>, prop: string | symbol) {
+      if (typeof prop !== "string") return undefined;
+      const val = req.get(prop);
+      if (val === undefined) return undefined;
+      return { value: val, writable: false, enumerable: true, configurable: true };
+    },
+  });
 }
 
-export interface Strategy {
-  name: string;
-  authenticate(req: BunRequest, options?: AuthenticateOptions): void;
-}
+function shimResponse(res: BunResponse): void {
+  const r = res as BunResponse & {
+    _passportShimmed?: boolean;
+    setHeader?: (name: string, value: string | string[]) => void;
+    writeHead?: (status: number, headers?: Record<string, string>) => void;
+  };
+  if (r._passportShimmed) return;
+  r._passportShimmed = true;
 
-export interface SerializeUserFn<TUser = any> {
-  (user: TUser, done: (err: Error | null, id?: any) => void): void;
-}
+  r.setHeader = (name: string, value: string | string[]) => {
+    const v = Array.isArray(value) ? value.join(", ") : value;
+    res.set(name, v);
+  };
 
-export interface DeserializeUserFn<TUser = any> {
-  (id: any, done: (err: Error | null, user?: TUser | false | null) => void): void;
-}
-
-export class Passport {
-  private strategies = new Map<string, Strategy>();
-  private _serializeUser: SerializeUserFn | null = null;
-  private _deserializeUser: DeserializeUserFn | null = null;
-  private _userProperty = "user";
-
-  use(strategy: Strategy): this;
-  use(name: string, strategy: Strategy): this;
-  use(nameOrStrategy: string | Strategy, strategy?: Strategy): this {
-    if (typeof nameOrStrategy === "string") {
-      this.strategies.set(nameOrStrategy, strategy!);
-    } else {
-      this.strategies.set(nameOrStrategy.name, nameOrStrategy);
+  r.writeHead = (status: number, headers?: Record<string, string>) => {
+    res.status(status);
+    if (headers) {
+      for (const [k, v] of Object.entries(headers)) res.set(k, v);
     }
-    return this;
-  }
+  };
 
-  unuse(name: string): this {
-    this.strategies.delete(name);
-    return this;
-  }
+  const statusCodeDescriptor = Object.getOwnPropertyDescriptor(BunResponse.prototype, "statusCode");
+  Object.defineProperty(res, "statusCode", {
+    get: () => statusCodeDescriptor?.get?.call(res) as number,
+    set: (code: number) => { res.status(code); },
+    configurable: true,
+  });
+}
 
-  serializeUser<TUser = any>(fn: SerializeUserFn<TUser>): void {
-    this._serializeUser = fn;
-  }
+export function passportInitialize(passportInstance: PassportLike): Handler {
+  return (req, res, next) => {
+    const pp = passportInstance;
+    const mutableReq = req as BunRequest & Record<string, unknown>;
 
-  deserializeUser<TUser = any>(fn: DeserializeUserFn<TUser>): void {
-    this._deserializeUser = fn;
-  }
-
-  initialize(options?: { userProperty?: string }): Handler {
-    if (options?.userProperty) {
-      this._userProperty = options.userProperty;
-    }
-
-    return (req, _res, next) => {
-      const request = req as any;
-
-      request._passport = {
-        instance: this,
-      };
-
-      request.login = request.logIn = (
-        user: any,
-        options?: { session?: boolean },
-        done?: (err?: Error) => void
-      ) => {
-        if (typeof options === "function") {
-          done = options;
-          options = {};
-        }
-        options = options || {};
-
-        const session = options.session !== false;
-
-        request[this._userProperty] = user;
-
-        if (session && this._serializeUser && request.session) {
-          this._serializeUser(user, (err, serializedUser) => {
-            if (err) {
-              request[this._userProperty] = null;
-              return done?.(err);
-            }
-            request.session.passport = { user: serializedUser };
-            done?.();
-          });
-        } else {
-          done?.();
-        }
-      };
-
-      request.logout = request.logOut = (
-        options?: { keepSessionInfo?: boolean },
-        done?: (err?: Error) => void
-      ) => {
-        if (typeof options === "function") {
-          done = options;
-          options = {};
-        }
-
-        request[this._userProperty] = null;
-
-        if (request.session && request.session.passport) {
-          delete request.session.passport;
-        }
-
-        done?.();
-      };
-
-      request.isAuthenticated = () => {
-        return !!request[this._userProperty];
-      };
-
-      request.isUnauthenticated = () => {
-        return !request.isAuthenticated();
-      };
-
-      next();
-    };
-  }
-
-  session(options?: { pauseStream?: boolean }): Handler {
-    return (req, _res, next) => {
-      const request = req as any;
-
-      if (!request.session) {
-        next();
-        return;
-      }
-
-      if (!request.session.passport || !request.session.passport.user) {
-        next();
-        return;
-      }
-
-      if (!this._deserializeUser) {
-        next();
-        return;
-      }
-
-      const serializedUser = request.session.passport.user;
-
-      this._deserializeUser(serializedUser, (err, user) => {
-        if (err) {
-          next(err);
-          return;
-        }
-
-        if (!user) {
-          delete request.session.passport;
-        } else {
-          request[this._userProperty] = user;
-        }
-
-        next();
+    if (!mutableReq._passportHeadersProxied) {
+      const headers = req.headers;
+      Object.defineProperty(req, "headers", {
+        get: () => makeHeadersProxy(req, headers),
+        configurable: true,
       });
-    };
-  }
-
-  authenticate(
-    strategyOrStrategies: string | string[],
-    options?: AuthenticateOptions | ((err: Error | null, user?: any, info?: any) => void),
-    callback?: (err: Error | null, user?: any, info?: any) => void
-  ): Handler {
-    if (typeof options === "function") {
-      callback = options;
-      options = {};
+      mutableReq._passportHeadersProxied = true;
     }
 
-    const opts: AuthenticateOptions = options || {};
-    const strategies = Array.isArray(strategyOrStrategies)
-      ? strategyOrStrategies
-      : [strategyOrStrategies];
+    const conn = { remoteAddress: req.ip, encrypted: req.secure };
+    mutableReq.connection = conn;
+    mutableReq.socket = conn;
 
-    return (req, res, next) => {
-      const request = req as any;
-      const response = res as BunResponse;
+    mutableReq._passport = { instance: pp };
 
-      let strategyIndex = 0;
-      let failures: Array<{ challenge?: string; status?: number }> = [];
+    // Passport calls req.logIn(user, options, callback) on success — the callback
+    // continuation is how it hands control back to the middleware chain.
+    // Also supports req.logIn(user, callback) (options omitted).
+    mutableReq.login = mutableReq.logIn = async (
+      user: unknown,
+      optionsOrCb: { session?: boolean } | ((err?: unknown) => void) = {},
+      maybeCb?: (err?: unknown) => void
+    ): Promise<void> => {
+      const options: { session?: boolean } =
+        typeof optionsOrCb === "function" ? {} : optionsOrCb;
+      const cb: ((err?: unknown) => void) | undefined =
+        typeof optionsOrCb === "function" ? optionsOrCb : maybeCb;
 
-      const attemptStrategy = () => {
-        if (strategyIndex >= strategies.length) {
-          if (callback) {
-            if (failures.length === 1) {
-              callback(null, false, failures[0]?.challenge);
-            } else {
-              const challenges = failures.map((f) => f.challenge).filter(Boolean);
-              callback(null, false, challenges.length > 0 ? challenges : undefined);
-            }
-            return;
-          }
-
-          if (opts.failureRedirect) {
-            response.redirect(opts.failureRedirect);
-            return;
-          }
-
-          if (opts.failWithError) {
-            const error = new Error("Unauthorized") as any;
-            error.status = 401;
-            next(error);
-            return;
-          }
-
-          response.status(401).json({ error: "Unauthorized" });
-          return;
-        }
-
-        const strategyName = strategies[strategyIndex++];
-        if (!strategyName) {
-          next(new Error("No strategy available"));
-          return;
-        }
-        const strategy = this.strategies.get(strategyName);
-
-        if (!strategy) {
-          next(new Error(`Unknown authentication strategy "${strategyName}"`));
-          return;
-        }
-
-        const strategyPrototype = Object.getPrototypeOf(strategy);
-
-        const actionContext = {
-          success: (user: any, info?: any) => {
-            if (callback) {
-              callback(null, user, info);
-              return;
-            }
-
-            if (opts.assignProperty) {
-              request[opts.assignProperty] = user;
-              next();
-              return;
-            }
-
-            request.login(user, opts, (err?: Error) => {
-              if (err) {
-                next(err);
-                return;
-              }
-
-              if (opts.successFlash && request.session?.flash) {
-                const message = typeof opts.successFlash === "string" ? opts.successFlash : "Welcome!";
-                request.session.flash("success", message);
-              }
-
-              if (opts.successRedirect) {
-                response.redirect(opts.successRedirect);
-                return;
-              }
-
-              next();
+      try {
+        req.user = user as typeof req.user;
+        req.auth = user as typeof req.auth;
+        const passportSession = req.session as PassportSession | undefined;
+        if (passportSession && typeof passportSession.save === "function" && options.session !== false) {
+          await new Promise<void>((resolve, reject) => {
+            pp.serializeUser(user, req, (err, obj) => {
+              if (err) return reject(err);
+              passportSession.passport = { user: obj };
+              passportSession.save((saveErr) => {
+                if (saveErr) return reject(saveErr);
+                resolve();
+              });
             });
-          },
-
-          fail: (challenge?: string | number, status?: number) => {
-            if (typeof challenge === "number") {
-              status = challenge;
-              challenge = undefined;
-            }
-
-            failures.push({ challenge: challenge as string | undefined, status });
-
-            if (opts.failureFlash && request.session?.flash) {
-              const message = typeof opts.failureFlash === "string" ? opts.failureFlash : (challenge as string) || "Authentication failed";
-              request.session.flash("error", message);
-            }
-
-            attemptStrategy();
-          },
-
-          redirect: (url: string, status?: number) => {
-            response.redirect(status || 302, url);
-          },
-
-          pass: () => {
-            next();
-          },
-
-          error: (err: Error) => {
-            if (callback) {
-              callback(err);
-              return;
-            }
-            next(err);
-          },
-        };
-
-        try {
-          if (strategyPrototype.authenticate) {
-            const boundStrategy = Object.create(strategy);
-            Object.assign(boundStrategy, actionContext);
-            boundStrategy.authenticate(req, opts);
-          }
-        } catch (err) {
-          next(err);
+          });
         }
-      };
-
-      attemptStrategy();
+        cb?.(undefined);
+      } catch (err) {
+        cb?.(err);
+      }
     };
-  }
 
-  authorize(
-    strategy: string | string[],
-    options?: AuthenticateOptions,
-    callback?: (err: Error | null, user?: any, info?: any) => void
-  ): Handler {
-    const opts = { ...options, assignProperty: "account" };
-    return this.authenticate(strategy, opts, callback);
-  }
+    // Supports req.logout(callback) and req.logout(options, callback).
+    mutableReq.logout = mutableReq.logOut = async (
+      optionsOrCb?: { keepSessionInfo?: boolean } | ((err?: unknown) => void),
+      maybeCb?: (err?: unknown) => void
+    ): Promise<void> => {
+      const cb: ((err?: unknown) => void) | undefined =
+        typeof optionsOrCb === "function" ? optionsOrCb : maybeCb;
+
+      try {
+        req.user = undefined;
+        req.auth = undefined;
+        const passportSession = req.session as PassportSession | undefined;
+        if (passportSession?.passport) {
+          delete passportSession.passport;
+          await new Promise<void>((resolve, reject) => {
+            passportSession.save((err) => (err ? reject(err) : resolve()));
+          });
+        }
+        cb?.(undefined);
+      } catch (err) {
+        cb?.(err);
+      }
+    };
+
+    req.isAuthenticated = () => !!req.user;
+    req.isUnauthenticated = () => !req.isAuthenticated();
+
+    shimResponse(res);
+
+    next();
+  };
 }
 
-export const passport = new Passport();
+export function passportSession(passportInstance: PassportLike): Handler {
+  return async (req, res, next) => {
+    const pp = passportInstance;
+
+    if (!req.session) {
+      return next();
+    }
+
+    const sessionData = (req.session as PassportSession).passport;
+    if (!sessionData?.user) return next();
+
+    try {
+      const user = await new Promise<unknown>((resolve, reject) => {
+        pp.deserializeUser(sessionData.user, req, (err, u) => {
+          err ? reject(err) : resolve(u);
+        });
+      });
+      req.user = user as typeof req.user;
+      req.auth = user as typeof req.auth;
+    } catch {
+      // Soft-fail intentionally: a broken/corrupt session entry should
+      // degrade to "unauthenticated" rather than 500 every request for
+      // that client, so the error is swallowed here rather than via next(err).
+      req.user = undefined;
+    }
+
+    next();
+  };
+}
+
+export function passportAuthenticate(
+  passportInstance: PassportLike,
+  strategyName: string | string[],
+  options: Record<string, unknown> = {}
+): Handler {
+  return (req, res, next) => {
+    if (!(req as BunRequest & Record<string, unknown>)._passport) {
+      return next(new Error(
+        "passportAuthenticate(): passportInitialize() middleware must be applied before authenticate(). " +
+        "Add app.use(bunway.passportInitialize(passport)) before your route handlers."
+      ));
+    }
+
+    // Passport's success path calls req.logIn() asynchronously (session save) then next().
+    // Its failure path calls res.end() directly without next().
+    // Returning a Promise lets Bunway's runPipeline await either outcome.
+    return new Promise<void>((resolve) => {
+      const r = res as BunResponse & Record<string, unknown>;
+      const origEnd = r.end ? (r.end as (...a: unknown[]) => void).bind(res) : undefined;
+
+      const cleanup = (): void => {
+        if (origEnd) r.end = origEnd;
+      };
+
+      // Failure without failWithError: passport calls res.end() instead of next().
+      r.end = (...args: unknown[]): void => {
+        cleanup();
+        origEnd?.(...args);
+        resolve();
+      };
+
+      const wrappedNext = (err?: unknown): void => {
+        cleanup();
+        resolve();
+        next(err);
+      };
+
+      passportInstance.authenticate(strategyName, options)(req, res, wrappedNext);
+
+      // Synchronous response (e.g., res.redirect() for failureRedirect/successRedirect)
+      // has already fired by this point — resolve immediately so the pipeline can read isSent().
+      if (res.isSent()) {
+        cleanup();
+        resolve();
+      }
+    });
+  };
+}
+
+export const passport = {
+  initialize: passportInitialize,
+  session: passportSession,
+  authenticate: passportAuthenticate,
+};

@@ -23,6 +23,8 @@ function generateToken(): string {
 function createAuthApp() {
   const app = bunway();
 
+  app.use(bunway.json());
+
   // Auth middleware - checks for valid session
   const requireAuth = (req: BunRequest, res: BunResponse, next: NextFunction) => {
     const authHeader = req.get("Authorization");
@@ -166,7 +168,7 @@ describe("Authentication Flow (Acceptance)", () => {
   describe("Complete Login Flow", () => {
     it("should complete full login and access protected resource", async () => {
       const app = createAuthApp();
-      app.use(bunway.json());
+
 
       // Step 1: Try to access protected route without auth
       const unauthorizedRes = await app.handle(
@@ -200,7 +202,7 @@ describe("Authentication Flow (Acceptance)", () => {
 
     it("should reject login with invalid credentials", async () => {
       const app = createAuthApp();
-      app.use(bunway.json());
+
 
       // Wrong password
       const wrongPassRes = await app.handle(
@@ -227,7 +229,7 @@ describe("Authentication Flow (Acceptance)", () => {
 
     it("should reject login with missing fields", async () => {
       const app = createAuthApp();
-      app.use(bunway.json());
+
 
       // Missing password
       const missingPassRes = await app.handle(
@@ -254,7 +256,7 @@ describe("Authentication Flow (Acceptance)", () => {
   describe("Registration Flow", () => {
     it("should register a new user and allow login", async () => {
       const app = createAuthApp();
-      app.use(bunway.json());
+
 
       // Step 1: Register new user
       const registerRes = await app.handle(
@@ -283,7 +285,7 @@ describe("Authentication Flow (Acceptance)", () => {
 
     it("should reject registration with existing username", async () => {
       const app = createAuthApp();
-      app.use(bunway.json());
+
 
       const registerRes = await app.handle(
         new Request("http://localhost/auth/register", {
@@ -299,7 +301,7 @@ describe("Authentication Flow (Acceptance)", () => {
 
     it("should reject registration with weak password", async () => {
       const app = createAuthApp();
-      app.use(bunway.json());
+
 
       const registerRes = await app.handle(
         new Request("http://localhost/auth/register", {
@@ -343,7 +345,7 @@ describe("Authentication Flow (Acceptance)", () => {
 
     it("should allow access to nested protected routes", async () => {
       const app = createAuthApp();
-      app.use(bunway.json());
+
 
       // Login first
       const loginRes = await app.handle(
@@ -371,7 +373,7 @@ describe("Authentication Flow (Acceptance)", () => {
   describe("Logout Flow", () => {
     it("should logout and invalidate session", async () => {
       const app = createAuthApp();
-      app.use(bunway.json());
+
 
       // Step 1: Login
       const loginRes = await app.handle(
@@ -413,7 +415,7 @@ describe("Authentication Flow (Acceptance)", () => {
   describe("Profile Update Flow", () => {
     it("should update user profile", async () => {
       const app = createAuthApp();
-      app.use(bunway.json());
+
 
       // Login
       const loginRes = await app.handle(
@@ -452,7 +454,7 @@ describe("Authentication Flow (Acceptance)", () => {
 
     it("should reject profile update with taken username", async () => {
       const app = createAuthApp();
-      app.use(bunway.json());
+
 
       // Login as john
       const loginRes = await app.handle(
@@ -482,7 +484,7 @@ describe("Authentication Flow (Acceptance)", () => {
   describe("Multi-User Session Isolation", () => {
     it("should maintain separate sessions for different users", async () => {
       const app = createAuthApp();
-      app.use(bunway.json());
+
 
       // Login as john
       const johnLoginRes = await app.handle(

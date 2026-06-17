@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import bunway, { Router } from "../../src";
-import { buildRequest } from "../utils/testUtils";
+import { buildRequest } from "../utils/test-helpers";
 
 describe("Express Compatibility: Routing", () => {
   test("app.get(path, handler) works like Express", async () => {
@@ -123,7 +123,7 @@ describe("Express Compatibility: Routing", () => {
     const response = await app.handle(buildRequest("/api/v1/posts"));
     const data = await response.json();
     expect(data.path).toBe("/posts");
-    expect(data.url).toContain("/api/v1/posts");
+    expect(data.url).toBe("/posts");
   });
 
   test("multiple handlers per route work like Express", async () => {
@@ -192,5 +192,108 @@ describe("Express Compatibility: Routing", () => {
 
     const response = await app.handle(buildRequest("/does-not-exist"));
     expect(response.status).toBe(404);
+  });
+
+  test("app.route() chained builder works like Express", async () => {
+    const app = bunway();
+    app.route("/tasks")
+      .get((req, res) => res.json({ method: "GET" }))
+      .post((req, res) => res.json({ method: "POST" }))
+      .put((req, res) => res.json({ method: "PUT" }));
+
+    const getRes = await app.handle(buildRequest("/tasks"));
+    expect(await getRes.json()).toEqual({ method: "GET" });
+
+    const postRes = await app.handle(buildRequest("/tasks", { method: "POST" }));
+    expect(await postRes.json()).toEqual({ method: "POST" });
+
+    const putRes = await app.handle(buildRequest("/tasks", { method: "PUT" }));
+    expect(await putRes.json()).toEqual({ method: "PUT" });
+  });
+
+  test("app.param() callback is executed for matching route parameter like Express", async () => {
+    const app = bunway();
+    const seen: string[] = [];
+
+    app.param("userId", (req, res, next, value) => {
+      seen.push(value);
+      next();
+    });
+
+    app.get("/users/:userId/posts", (req, res) => {
+      res.json({ userId: req.params.userId });
+    });
+
+    const response = await app.handle(buildRequest("/users/42/posts"));
+    expect(response.status).toBe(200);
+    expect(seen).toEqual(["42"]);
+    expect(await response.json()).toEqual({ userId: "42" });
+  });
+
+  test("next('route') skips remaining handlers in current route like Express", async () => {
+    const app = bunway();
+
+    app.get("/test",
+      (req, res, next) => { next("route"); },
+      (req, res) => { res.json({ handler: "second" }); }
+    );
+
+    app.get("/test", (req, res) => {
+      res.json({ handler: "fallback" });
+    });
+
+    const response = await app.handle(buildRequest("/test"));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ handler: "fallback" });
+  });
+
+  test("app.head() responds to HEAD method like Express", async () => {
+    const app = bunway();
+    app.head("/resource", (req, res) => {
+      res.status(200).set("X-Count", "42").send(null);
+    });
+
+    const response = await app.handle(buildRequest("/resource", { method: "HEAD" }));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("X-Count")).toBe("42");
+  });
+
+  test("app.options() responds to OPTIONS method like Express", async () => {
+    const app = bunway();
+    app.options("/api", (req, res) => {
+      res.set("Allow", "GET,POST,OPTIONS").status(200).send(null);
+    });
+
+    const response = await app.handle(buildRequest("/api", { method: "OPTIONS" }));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Allow")).toContain("GET");
+  });
+
+  test("app.all('*') catch-all works like Express", async () => {
+    const app = bunway();
+    app.get("/known", (req, res) => res.json({ ok: true }));
+    app.all("*", (req, res) => res.status(404).json({ error: "Not Found" }));
+
+    const known = await app.handle(buildRequest("/known"));
+    expect(known.status).toBe(200);
+
+    const unknown = await app.handle(buildRequest("/unknown"));
+    expect(unknown.status).toBe(404);
+  });
+
+  test("app.use([path1, path2], handler) mounts on multiple paths like Express", async () => {
+    const app = bunway();
+    let hitCount = 0;
+    app.use(["/api", "/rest"], (_req, _res, next) => { hitCount++; next(); });
+    app.get("/api", (_req, res) => res.json({}));
+    app.get("/rest", (_req, res) => res.json({}));
+
+    await app.handle(new Request("http://localhost/api"));
+    await app.handle(new Request("http://localhost/rest"));
+    expect(hitCount).toBe(2);
+
+    // Unrelated path should NOT trigger the middleware
+    await app.handle(new Request("http://localhost/other"));
+    expect(hitCount).toBe(2);
   });
 });

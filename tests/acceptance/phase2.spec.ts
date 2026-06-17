@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "bun:test";
+import { describe, it, expect, afterEach, beforeEach } from "bun:test";
 import { mkdirSync, writeFileSync, rmSync } from "fs";
 import bunway from "../../src";
 
@@ -85,5 +85,72 @@ describe("Acceptance: Phase 2 features (full HTTP round-trip)", () => {
     const response = await fetch(`http://localhost:${port}/check`);
     const body = await response.json();
     expect(body.crossRefsOk).toBe(true);
+  });
+
+  it("req.range() parses Range header correctly via real HTTP", async () => {
+    const app = bunway();
+    app.get("/partial", (req, res) => {
+      const range = req.range(16);
+      if (Array.isArray(range) && range.length > 0) {
+        res.json({ type: range.type, start: range[0]!.start, end: range[0]!.end });
+      } else {
+        res.json({ range: null });
+      }
+    });
+
+    server = app.listen({ port: 0 });
+    const port = server.port;
+
+    const response = await fetch(`http://localhost:${port}/partial`, {
+      headers: { Range: "bytes=2-5" },
+    });
+    const body = await response.json() as { type: string; start: number; end: number };
+    expect(body.type).toBe("bytes");
+    expect(body.start).toBe(2);
+    expect(body.end).toBe(5);
+  });
+
+  it("req.range() returns undefined when no Range header via real HTTP", async () => {
+    const app = bunway();
+    app.get("/partial", (req, res) => {
+      const range = req.range(16);
+      res.json({ hasRange: range !== undefined });
+    });
+
+    server = app.listen({ port: 0 });
+    const port = server.port;
+
+    const response = await fetch(`http://localhost:${port}/partial`);
+    const body = await response.json() as { hasRange: boolean };
+    expect(body.hasRange).toBe(false);
+  });
+
+  it("res.sendFile() returns 304 for matching If-None-Match via real HTTP", async () => {
+    mkdirSync(TEST_DIR, { recursive: true });
+    writeFileSync(TEST_FILE, "0123456789ABCDEF");
+
+    const etag = '"static-etag-v1"';
+    const app = bunway();
+    app.get("/file", async (req, res) => {
+      res.set("ETag", etag);
+      if (req.fresh) {
+        res.status(304).end();
+        return;
+      }
+      await res.sendFile(TEST_FILE);
+    });
+
+    server = app.listen({ port: 0 });
+    const port = server.port;
+
+    const first = await fetch(`http://localhost:${port}/file`);
+    expect(first.status).toBe(200);
+
+    const second = await fetch(`http://localhost:${port}/file`, {
+      headers: { "If-None-Match": etag },
+    });
+    expect(second.status).toBe(304);
+
+    rmSync(TEST_DIR, { recursive: true, force: true });
   });
 });

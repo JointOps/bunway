@@ -88,6 +88,27 @@ app.use(rateLimit({
 }));
 ```
 
+### Resetting and Inspecting the Limiter
+
+The handler returned by `rateLimit()` exposes two members for programmatic control:
+
+```ts
+const limiter = rateLimit({ windowMs: 60000, max: 100 });
+
+app.use(limiter);
+
+// Number of IPs currently tracked
+console.log(limiter.size);
+
+// Clear all tracked IPs and reset the interval timer
+limiter.reset();
+```
+
+| Member | Type | Description |
+|--------|------|-------------|
+| `size` | `number` | Number of IPs currently being tracked |
+| `reset()` | `() => void` | Clears all tracked IPs and resets the window interval |
+
 ### Per-Route Limits
 
 ```ts

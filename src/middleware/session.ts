@@ -1,6 +1,18 @@
 import type { Handler } from "../types";
+import type { BunRequest } from "../core/request";
 import { generateSessionId, signSessionId, unsignSessionId } from "../utils/crypto";
+import { createHash } from "crypto";
 
+/**
+ * Extend this interface to add typed session data fields with full autocomplete.
+ * @example
+ * declare module "bunway" {
+ *   interface SessionData {
+ *     user: User;
+ *     cart: CartItem[];
+ *   }
+ * }
+ */
 export interface SessionData {
   [key: string]: unknown;
 }
@@ -30,10 +42,72 @@ export interface SessionStore {
   set(sid: string, session: SessionData, maxAge?: number): Promise<void>;
   destroy(sid: string): Promise<void>;
   touch?(sid: string, session: SessionData): Promise<void>;
+  // Utility methods — optional, never called by session() core
+  all?(): Promise<SessionData[]>;
+  length?(): Promise<number>;
+  clear?(): Promise<void>;
+  // EventEmitter subset — optional, forwarded by fromExpressStore()
+  on?(event: string, listener: (...args: any[]) => void): this;
+  emit?(event: string, ...args: any[]): boolean;
+}
+
+export interface LegacySessionStore {
+  get(sid: string, cb: (err: any, session?: SessionData | null) => void): void;
+  set(sid: string, session: SessionData, cb?: (err?: any) => void): void;
+  destroy(sid: string, cb?: (err?: any) => void): void;
+  touch?(sid: string, session: SessionData, cb?: (err?: any) => void): void;
+}
+
+export function fromExpressStore(store: LegacySessionStore): SessionStore {
+  const adapted: SessionStore = {
+    get: (sid) =>
+      new Promise((resolve, reject) =>
+        store.get(sid, (err, session) => {
+          if (err) reject(err);
+          else resolve(session ?? null);
+        })
+      ),
+    set: (sid, session, _maxAge) =>
+      new Promise((resolve, reject) =>
+        store.set(sid, session, (err) => {
+          if (err) reject(err);
+          else resolve();
+        })
+      ),
+    destroy: (sid) =>
+      new Promise((resolve, reject) =>
+        store.destroy(sid, (err) => {
+          if (err) reject(err);
+          else resolve();
+        })
+      ),
+  };
+
+  if (store.touch) {
+    adapted.touch = (sid, session) =>
+      new Promise((resolve, reject) =>
+        store.touch!(sid, session, (err) => {
+          if (err) reject(err);
+          else resolve();
+        })
+      );
+  }
+
+  if (typeof (store as any).on === "function") {
+    adapted.on = function(this: SessionStore, event: string, listener: (...args: any[]) => void) {
+      (store as any).on(event, listener);
+      return this;
+    };
+  }
+  if (typeof (store as any).emit === "function") {
+    adapted.emit = (event: string, ...args: any[]) => (store as any).emit(event, ...args);
+  }
+
+  return adapted;
 }
 
 export interface SessionOptions {
-  secret: string;
+  secret: string | string[];
   name?: string;
   cookie?: {
     maxAge?: number;
@@ -46,11 +120,21 @@ export interface SessionOptions {
   resave?: boolean;
   saveUninitialized?: boolean;
   rolling?: boolean;
-  genid?: () => string;
+  genid?: (req: BunRequest) => string;
+}
+
+function hashSession(data: SessionData): string {
+  return createHash("sha1")
+    .update(
+      JSON.stringify(data, (key, val) =>
+        key === "_flash" ? undefined : val
+      )
+    )
+    .digest("hex");
 }
 
 export class MemoryStore implements SessionStore {
-  private sessions = new Map<string, { data: SessionData; expires?: number }>();
+  private sessions = new Map<string, { data: SessionData; expires?: number; ttl?: number }>();
 
   async get(sid: string): Promise<SessionData | null> {
     const entry = this.sessions.get(sid);
@@ -66,7 +150,7 @@ export class MemoryStore implements SessionStore {
 
   async set(sid: string, session: SessionData, maxAge?: number): Promise<void> {
     const expires = maxAge ? Date.now() + maxAge : undefined;
-    this.sessions.set(sid, { data: { ...session }, expires });
+    this.sessions.set(sid, { data: { ...session }, expires, ttl: maxAge });
   }
 
   async destroy(sid: string): Promise<void> {
@@ -75,15 +159,32 @@ export class MemoryStore implements SessionStore {
 
   async touch(sid: string, _session: SessionData): Promise<void> {
     const entry = this.sessions.get(sid);
-    if (entry && entry.expires) {
-      const ttl = entry.expires - Date.now();
-      if (ttl > 0) {
-        entry.expires = Date.now() + ttl;
-      }
+    if (entry && entry.ttl) {
+      entry.expires = Date.now() + entry.ttl;
     }
   }
 
-  clear(): void {
+  async all(): Promise<SessionData[]> {
+    const now = Date.now();
+    const result: SessionData[] = [];
+    for (const entry of this.sessions.values()) {
+      if (!entry.expires || now <= entry.expires) {
+        result.push({ ...entry.data });
+      }
+    }
+    return result;
+  }
+
+  async length(): Promise<number> {
+    const now = Date.now();
+    let count = 0;
+    for (const entry of this.sessions.values()) {
+      if (!entry.expires || now <= entry.expires) count++;
+    }
+    return count;
+  }
+
+  async clear(): Promise<void> {
     this.sessions.clear();
   }
 
@@ -136,9 +237,9 @@ export class FileStore implements SessionStore {
 
   async set(sid: string, session: SessionData, maxAge?: number): Promise<void> {
     const filePath = this.getFilePath(sid);
-    const expires = maxAge ? Date.now() + maxAge : Date.now() + this.ttl;
-
-    await Bun.write(filePath, JSON.stringify({ data: session, expires }));
+    const ttl = maxAge ?? this.ttl;
+    const expires = Date.now() + ttl;
+    await Bun.write(filePath, JSON.stringify({ data: session, expires, ttl }));
   }
 
   async destroy(sid: string): Promise<void> {
@@ -147,7 +248,6 @@ export class FileStore implements SessionStore {
       const file = Bun.file(filePath);
 
       if (await file.exists()) {
-        await Bun.write(filePath, ""); // Clear file
         const fs = await import("fs/promises");
         await fs.unlink(filePath);
       }
@@ -157,9 +257,19 @@ export class FileStore implements SessionStore {
   }
 
   async touch(sid: string, session: SessionData): Promise<void> {
-    const existing = await this.get(sid);
-    if (existing) {
-      await this.set(sid, session, this.ttl);
+    const filePath = this.getFilePath(sid);
+    try {
+      const file = Bun.file(filePath);
+      if (!(await file.exists())) return;
+      const content = await file.json() as { data: SessionData; expires?: number; ttl?: number };
+      if (content.expires && Date.now() > content.expires) {
+        await this.destroy(sid);
+        return;
+      }
+      const originalTtl = content.ttl ?? this.ttl;
+      await this.set(sid, session, originalTtl);
+    } catch {
+      // Ignore — session may have been deleted concurrently
     }
   }
 
@@ -191,13 +301,28 @@ export class FileStore implements SessionStore {
 
 export function session(options: SessionOptions): Handler {
   const {
-    secret,
+    secret: secretOrSecrets,
     name = "connect.sid",
     cookie = {},
     store = new MemoryStore(),
+    resave = true,
     saveUninitialized = true,
-    genid = generateSessionId,
+    rolling = false,
+    genid = (_req: BunRequest) => generateSessionId(),
   } = options;
+
+  if (store instanceof MemoryStore && process.env.NODE_ENV === "production") {
+    console.warn(
+      "Warning: bunway session() MemoryStore is not designed for production. " +
+      "It leaks memory and cannot scale beyond a single process. " +
+      "Use a Redis, SQLite, or other persistent store instead."
+    );
+  }
+
+  const secrets = Array.isArray(secretOrSecrets)
+    ? secretOrSecrets
+    : [secretOrSecrets];
+  const secret = secrets[0]!;
 
   const cookieMaxAge = cookie.maxAge ?? 86400000;
   const cookieSecure = cookie.secure ?? false;
@@ -208,7 +333,7 @@ export function session(options: SessionOptions): Handler {
   function setCookie(res: any, sessionId: string) {
     const signedValue = signSessionId(sessionId, secret);
     res.cookie(name, signedValue, {
-      maxAge: Math.floor(cookieMaxAge / 1000),
+      maxAge: cookieMaxAge,
       secure: cookieSecure,
       httpOnly: cookieHttpOnly,
       path: cookiePath,
@@ -217,42 +342,30 @@ export function session(options: SessionOptions): Handler {
   }
 
   return async (req, res, next) => {
-    const cookieHeader = req.get("cookie") || "";
-    const cookies: Record<string, string> = {};
-
-    for (const pair of cookieHeader.split(";")) {
-      const idx = pair.indexOf("=");
-      if (idx !== -1) {
-        const key = pair.slice(0, idx).trim();
-        const value = pair.slice(idx + 1).trim();
-        cookies[key] = value;
-      }
-    }
-
     let sessionId: string | null = null;
     let isNew = false;
 
-    const signedSid = cookies[name];
+    // req.cookies is lazy-parsed and cached by BunRequest — no re-parse needed
+    const signedSid = req.cookies[name];
     if (signedSid) {
-      try {
-        const decoded = decodeURIComponent(signedSid);
-        const unsigned = unsignSessionId(decoded, secret);
-        if (unsigned) {
-          sessionId = unsigned;
-        }
-      } catch {
-        sessionId = null;
+      const unsigned = unsignSessionId(signedSid, secrets);
+      if (unsigned) {
+        sessionId = unsigned;
       }
     }
 
     let sessionData: SessionData | null = null;
 
     if (sessionId) {
-      sessionData = await store.get(sessionId);
+      try {
+        sessionData = await store.get(sessionId);
+      } catch (err) {
+        return next(err);
+      }
     }
 
     if (!sessionData) {
-      sessionId = genid();
+      sessionId = genid(req);
       sessionData = {};
       isNew = true;
     }
@@ -260,14 +373,17 @@ export function session(options: SessionOptions): Handler {
     const flashData: Record<string, string[]> = (sessionData._flash as Record<string, string[]>) || {};
     delete sessionData._flash;
 
-    const internalData: SessionData = { ...sessionData };
+    const internalData: SessionData = sessionData;
+    const originalHash = hashSession(internalData);
     let destroyed = false;
+    let dirty = false;
 
     // Write queue to ensure session writes happen in order
     let pendingWrite: Promise<void> = Promise.resolve();
 
     const queueWrite = () => {
       if (destroyed) return;
+      dirty = true;
 
       const data = { ...internalData };
       if (Object.keys(flashData).length > 0) {
@@ -290,13 +406,15 @@ export function session(options: SessionOptions): Handler {
 
       regenerate(callback?: (err?: Error) => void) {
         store.destroy(sessionId!).then(() => {
-          sessionId = genid();
+          sessionId = genid(req);
           sess.id = sessionId;
+          (req as any).sessionID = sessionId;
           Object.keys(internalData).forEach((k) => delete internalData[k]);
           isNew = true;
           setCookie(res, sessionId);
-          store.set(sessionId, {}, cookieMaxAge).then(() => callback?.());
-        });
+          return store.set(sessionId, {}, cookieMaxAge).then(() => callback?.());
+        })
+          .catch((err: Error) => callback?.(err));
       },
 
       destroy(callback?: (err?: Error) => void): Promise<void> | void {
@@ -331,7 +449,7 @@ export function session(options: SessionOptions): Handler {
       touch() {
         sess.cookie.expires = new Date(Date.now() + cookieMaxAge);
         if (store.touch) {
-          store.touch(sessionId!, {});
+          store.touch(sessionId!, { ...internalData });
         }
       },
 
@@ -393,13 +511,76 @@ export function session(options: SessionOptions): Handler {
 
     (req as any).session = sessionProxy;
     (req as any).sessionID = sessionId;
+    (req as any).sessionStore = store;
 
     if (isNew && saveUninitialized) {
       setCookie(res, sessionId!);
-      await store.set(sessionId!, {}, cookieMaxAge);
-    } else if (!isNew) {
-      setCookie(res, sessionId!);
+      try {
+        await store.set(sessionId!, {}, cookieMaxAge);
+      } catch (err) {
+        return next(err);
+      }
     }
+
+    // Patch toResponse/toStreamingResponse — the real lifecycle termination point in Bunway.
+    // res.end() only sets a flag; the router calls toResponse() after all middleware resolve.
+    const originalToResponse = res.toResponse.bind(res);
+    const originalToStreaming = res.toStreamingResponse.bind(res);
+
+    const postResponse = async (): Promise<void> => {
+      // saveUninitialized: false + new session + mutation → session WAS saved by queueWrite,
+      // but Set-Cookie was skipped at middleware entry. Send it now so the client can retrieve
+      // the session on the next request. Without this, the stored session is unreachable.
+      if (!destroyed && isNew && dirty && !saveUninitialized) {
+        setCookie(res, sessionId!);
+      }
+
+      // resave: true → force-save even if nothing changed (only when data actually differs)
+      if (!destroyed && !isNew && resave && !dirty) {
+        const currentHash = hashSession(internalData);
+        if (currentHash !== originalHash) {
+          // Data changed but queueWrite was somehow not triggered — save now
+          try {
+            await store.set(sessionId!, { ...internalData }, cookieMaxAge);
+          } catch { /* non-fatal at response time */ }
+        } else if (!store.touch) {
+          // No touch() available: resave must save to extend the store TTL
+          try {
+            await store.set(sessionId!, { ...internalData }, cookieMaxAge);
+          } catch { /* non-fatal */ }
+        }
+      }
+
+      // rolling: true → re-send Set-Cookie and extend store TTL on every response
+      if (!destroyed && !isNew && rolling) {
+        setCookie(res, sessionId!);
+        if (store.touch) {
+          try {
+            await store.touch(sessionId!, { ...internalData });
+          } catch { /* non-fatal */ }
+        }
+        return;
+      }
+
+      if (!destroyed && !isNew && !dirty && store.touch) {
+        try {
+          await store.touch(sessionId!, { ...internalData });
+        } catch {
+          // Non-fatal — session will expire naturally in store
+        }
+      }
+    };
+
+    res.toResponse = () => {
+      // Fire-and-forget; errors are non-fatal
+      postResponse();
+      return originalToResponse();
+    };
+
+    res.toStreamingResponse = async () => {
+      await postResponse();
+      return originalToStreaming();
+    };
 
     next();
   };

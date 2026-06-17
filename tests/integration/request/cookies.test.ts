@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import bunway, { cookieParser, signCookie, unsignCookie } from "../../../src";
-import { buildRequest } from "../../utils/testUtils";
+import { buildRequest } from "../../utils/test-helpers";
 
 describe("req.cookies", () => {
   it("parses cookies from request header", async () => {
@@ -143,7 +143,7 @@ describe("cookieParser middleware", () => {
 
     expect(response.status).toBe(200);
     const body = await response.json();
-    expect(body.signedCookies.token).toBeUndefined();
+    expect(body.signedCookies.token).toBe(false);
   });
 });
 

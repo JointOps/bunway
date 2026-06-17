@@ -1,272 +1,48 @@
 ---
-title: Authentication Middleware
-description: Learn how to use bunWay's Passport-compatible authentication middleware for user authentication with various strategies.
+title: Authentication Overview
+description: Choosing between bunWay's built-in authentication middleware — jwt(), passport adapters, and tokenVault() — and how they compose.
 ---
 
-# Authentication Middleware
+# Authentication
 
-bunway includes a Passport-compatible authentication middleware that works with the familiar `passport` API pattern. If you've used Passport.js with Express, you'll feel right at home.
+bunWay ships three building blocks for authentication, each solving a different part of the problem. They're independent — pick the one(s) your app needs — but they're also designed to compose.
 
-::: tip Coming from Express?
-This works exactly like Passport.js. Same API, same strategy pattern, same session integration.
-:::
+| Middleware | Use it when... |
+|---|---|
+| [JWT](./jwt) | You want stateless Bearer-token auth for an API — verify tokens issued by your own server or a third-party identity provider (Auth0, Cognito, etc.) via JWKS. |
+| [Passport](./passport) | You want the real `passport` npm package's strategy ecosystem (local login, OAuth providers, etc.) and/or session-based login. |
+| [Token Vault](./token-vault) | You're issuing your own access/refresh token pairs and want rotation with reuse detection (breach-resistant "remember me" / long-lived sessions). |
 
-## Quick start
+## How they compose
 
-```ts
-import bunway, { passport, session } from "bunway";
-
-const app = bunway();
-
-// Session middleware required for persistent login
-app.use(session({ secret: "keyboard cat" }));
-
-// Initialize passport
-app.use(passport.initialize());
-app.use(passport.session());
-
-// Define how to serialize/deserialize users
-passport.serializeUser((user, done) => {
-  done(null, user.id);
-});
-
-passport.deserializeUser((id, done) => {
-  const user = findUserById(id);
-  done(null, user);
-});
-```
-
-## Using strategies
-
-Register authentication strategies using `passport.use()`:
+**JWT + Token Vault** — the most common pairing for a stateless API: `tokenVault()` issues access tokens that are themselves verified by [`jwt()`](./jwt) on protected routes, plus a rotating refresh token to get new access tokens without re-authenticating.
 
 ```ts
-import { passport } from "bunway";
+import { bunway, jwt, tokenVault } from "bunway";
 
-// Local strategy example
-const LocalStrategy = {
-  name: "local",
-  authenticate(req, options) {
-    const { username, password } = req.body;
-
-    const user = findUser(username, password);
-    if (user) {
-      this.success(user);
-    } else {
-      this.fail("Invalid credentials");
-    }
-  },
-};
-
-passport.use(LocalStrategy);
-```
-
-## Authenticating requests
-
-Use `passport.authenticate()` to protect routes:
-
-```ts
-// Redirect on failure
-app.post(
-  "/login",
-  passport.authenticate("local", {
-    successRedirect: "/dashboard",
-    failureRedirect: "/login",
-  })
-);
-
-// Custom callback
-app.post("/login", (req, res, next) => {
-  passport.authenticate("local", (err, user, info) => {
-    if (err) return next(err);
-    if (!user) return res.status(401).json({ error: info });
-
-    req.login(user, (err) => {
-      if (err) return next(err);
-      res.json({ message: "Logged in", user });
-    });
-  })(req, res, next);
-});
-```
-
-## Session integration
-
-When used with the session middleware, passport automatically:
-
-1. Serializes the user to the session on login
-2. Deserializes the user from the session on each request
-3. Makes `req.user` available in all subsequent handlers
-
-```ts
-// Protected route
-app.get("/profile", (req, res) => {
-  if (!req.isAuthenticated()) {
-    return res.status(401).json({ error: "Not authenticated" });
-  }
-  res.json({ user: req.user });
-});
-```
-
-## Request methods
-
-After `passport.initialize()`, the following methods are available on `req`:
-
-| Method              | Description                          |
-| ------------------- | ------------------------------------ |
-| `req.login(user)`   | Log in the user                      |
-| `req.logout()`      | Log out the user                     |
-| `req.isAuthenticated()` | Check if user is authenticated   |
-| `req.isUnauthenticated()` | Check if user is not authenticated |
-| `req.user`          | The authenticated user (if any)      |
-
-## Authentication options
-
-```ts
-passport.authenticate("local", {
-  session: true, // Save to session (default: true)
-  successRedirect: "/dashboard", // Redirect on success
-  failureRedirect: "/login", // Redirect on failure
-  failureFlash: "Invalid credentials", // Flash message on failure
-  successFlash: "Welcome!", // Flash message on success
-  failWithError: true, // Pass error to next() instead of responding
-});
-```
-
-## Creating custom strategies
-
-Implement the `Strategy` interface:
-
-```ts
-import type { Strategy } from "bunway";
-
-const JWTStrategy: Strategy = {
-  name: "jwt",
-  authenticate(req, options) {
-    const token = req.get("Authorization")?.replace("Bearer ", "");
-
-    if (!token) {
-      this.fail("No token provided", 401);
-      return;
-    }
-
-    try {
-      const decoded = verifyJWT(token);
-      const user = findUserById(decoded.sub);
-
-      if (user) {
-        this.success(user);
-      } else {
-        this.fail("User not found", 401);
-      }
-    } catch (err) {
-      this.error(err);
-    }
-  },
-};
-
-passport.use(JWTStrategy);
-```
-
-### Strategy action methods
-
-Inside `authenticate()`, use these methods:
-
-| Method                | Description                           |
-| --------------------- | ------------------------------------- |
-| `this.success(user)`  | Authentication succeeded              |
-| `this.fail(msg, status)` | Authentication failed              |
-| `this.redirect(url)`  | Redirect to URL                       |
-| `this.pass()`         | Skip this strategy                    |
-| `this.error(err)`     | Internal error occurred               |
-
-## Multiple strategies
-
-Try multiple strategies in order:
-
-```ts
-app.post(
-  "/login",
-  passport.authenticate(["local", "ldap"], {
-    failureRedirect: "/login",
-  })
-);
-```
-
-The first successful strategy wins; failures cascade to the next strategy.
-
-## Authorization (separate from authentication)
-
-Use `passport.authorize()` to connect additional accounts without affecting `req.user`:
-
-```ts
-app.get(
-  "/connect/github",
-  passport.authorize("github", { scope: ["user:email"] })
-);
-
-// Connected account available as req.account
-app.get("/connect/github/callback", passport.authorize("github"), (req, res) => {
-  // req.user is still the logged-in user
-  // req.account is the newly authorized account
-  linkAccounts(req.user, req.account);
-  res.redirect("/profile");
-});
-```
-
-## Example: Complete login flow
-
-```ts
-import bunway, { passport, session, json } from "bunway";
-
-const app = bunway();
-
-app.use(json());
-app.use(session({ secret: "keyboard cat" }));
-app.use(passport.initialize());
-app.use(passport.session());
-
-// Serialize user ID to session
-passport.serializeUser((user, done) => done(null, user.id));
-
-// Deserialize user from session
-passport.deserializeUser((id, done) => {
-  const user = users.find((u) => u.id === id);
-  done(null, user || false);
+const vault = tokenVault({
+  accessSecret: process.env.ACCESS_SECRET!,
+  refreshSecret: process.env.REFRESH_SECRET!,
+  accessExpiresIn: 900,
+  refreshExpiresIn: 604800,
 });
 
-// Local strategy
-passport.use({
-  name: "local",
-  authenticate(req) {
-    const { email, password } = req.body;
-    const user = users.find((u) => u.email === email && u.password === password);
-    if (user) this.success(user);
-    else this.fail("Invalid credentials");
-  },
+app.post("/auth/login", async (req, res) => {
+  // ...verify credentials...
+  res.json(await vault.issue({ sub: "alice" }));
 });
 
-// Routes
-app.post(
-  "/login",
-  passport.authenticate("local", {
-    successRedirect: "/dashboard",
-    failureRedirect: "/login",
-  })
-);
-
-app.get("/logout", (req, res) => {
-  req.logout();
-  res.redirect("/");
-});
-
-app.get("/dashboard", (req, res) => {
-  if (!req.isAuthenticated()) {
-    return res.redirect("/login");
-  }
-  res.json({ message: "Welcome!", user: req.user });
-});
-
-app.listen({ port: 3000 });
+app.use("/api", jwt({ secret: process.env.ACCESS_SECRET! }));
 ```
 
-For type details see `AuthenticateOptions` and `Strategy` in the [API Reference](https://bunway.jointops.dev/api/index.html).
+**Passport + JWT/CSRF** — Passport handles the login strategy (e.g. `passport-local`), while `jwt()` or [`csrf()`](./csrf) protect subsequent API routes. Passport and JWT can run side by side in the same app on different routes — they don't conflict, since both just populate `req.user`/`req.auth`.
+
+**Passport with sessions** — for traditional server-rendered login flows, pair Passport with [`session()`](./session): `session()` → `passportInitialize()` → `passportSession()`, in that order, so `req.user` is restored from the session on every request. `session()` must come first because both `passportSession()` and `req.login()` read and write `req.session`. See the [setup order](./passport#setup-order) note on the Passport page.
+
+## Related
+
+- [JWT](./jwt) — `jwt()`, `jwtSign()`, `jwtDecode()`
+- [Passport](./passport) — `passportInitialize()`, `passportSession()`, `passportAuthenticate()`
+- [Token Vault](./token-vault) — `tokenVault()`, `VaultMemoryStore`
+- [Session](./session) — required for session-based Passport flows
+- [CSRF Protection](./csrf) — pair with any of the above for state-changing routes

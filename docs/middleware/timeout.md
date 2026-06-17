@@ -1,11 +1,15 @@
 ---
 title: Request Timeout
-description: Protect your server from slow requests with the built-in timeout middleware.
+description: Protect your bunWay server from slow or hung requests with the built-in timeout() middleware — automatic 408 responses with req.timedout flag.
 ---
 
 # Request Timeout
 
-Prevent slow requests from holding connections open indefinitely.
+`timeout()` prevents slow requests from holding connections open indefinitely. When the deadline passes, bunWay sends a 408 response and sets `req.timedout` so async handlers can bail cleanly.
+
+::: tip Coming from Express?
+Replaces `connect-timeout`. Same `req.timedout` flag and options.
+:::
 
 ## Quick Start
 
@@ -14,7 +18,7 @@ import bunway, { timeout } from "bunway";
 
 const app = bunway();
 
-// 30 second timeout for all routes
+// 30-second timeout for all routes
 app.use(timeout(30000));
 
 app.get("/api/data", async (req, res) => {
@@ -61,14 +65,14 @@ app.use(timeout(5000, { respond: false }));
 
 app.get("/api", async (req, res) => {
   const result = await longOperation();
-  if (req.timedout) return; // Don't respond if timed out
+  if (req.timedout) return;
   res.json(result);
 });
 ```
 
 ## Checking `req.timedout`
 
-Always check `req.timedout` in async handlers:
+Always check `req.timedout` between async steps:
 
 ```typescript
 app.get("/process", async (req, res) => {
@@ -81,3 +85,9 @@ app.get("/process", async (req, res) => {
   res.json({ done: true });
 });
 ```
+
+## Related
+
+- [Error Handling](./error-handler) — catch timeout errors in your error middleware
+- [Rate Limiting](./rate-limit) — reject abusive clients before they can cause slow requests
+- [Validation](./validation) — reject malformed requests early

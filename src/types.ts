@@ -44,7 +44,7 @@ export interface CookieOptions {
   domain?: string;
   expires?: Date;
   httpOnly?: boolean;
-  maxAge?: number;
+  maxAge?: number;  // milliseconds — res.cookie() converts to seconds in Set-Cookie
   path?: string;
   sameSite?: "strict" | "lax" | "none" | boolean;
   secure?: boolean;
@@ -108,4 +108,20 @@ export interface BunWayLogger {
   warn(message: string, meta?: Record<string, unknown>): void;
   error(message: string, meta?: Record<string, unknown>): void;
   debug?(message: string, meta?: Record<string, unknown>): void;
+}
+
+/**
+ * Extend this interface to type req.user for your application.
+ * @example
+ * declare module "bunway" {
+ *   interface AuthUser {
+ *     id: string;
+ *     email: string;
+ *     role: "admin" | "user";
+ *     scope?: string[];
+ *   }
+ * }
+ */
+export interface AuthUser {
+  [key: string]: unknown;
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import bunway from "../../../src";
-import { buildRequest } from "../../utils/testUtils";
+import { buildRequest } from "../../utils/test-helpers";
 
 describe("app.use(path, handler) — prefix middleware", () => {
   it("runs for all routes under the prefix", async () => {

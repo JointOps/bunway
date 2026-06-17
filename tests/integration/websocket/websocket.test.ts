@@ -167,8 +167,7 @@ describe("WebSocket support", () => {
         };
       });
 
-      // Should reach here because connection failed
-      expect(true).toBe(true);
+      expect(ws.readyState).toBe(WebSocket.CLOSED);
     } finally {
       server.stop();
     }

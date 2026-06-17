@@ -19,12 +19,16 @@ Same TaskAPI, now running on bunway with minimal changes from Express.
 }
 ```
 
-**bunway version dependencies (1 package):**
+**bunway version dependencies (3 packages):**
 ```json
 {
-  "bunway": "^1.0.0"
+  "bunway": "^1.0.0",
+  "passport": "^0.7.0",
+  "passport-local": "^1.0.0"
 }
 ```
+
+bunway provides native session, security, CORS, rate-limiting, cookie-parsing, and upload middleware — no extra packages needed for those. `passport`/`passport-local` are still required because bunway's `passportInitialize`/`passportSession`/`passportAuthenticate` wrap a real Passport.js instance rather than reimplementing it.
 
 ## Code Changes
 
@@ -48,7 +52,8 @@ app.use(express.static("./public"));
 
 **After (bunway):**
 ```typescript
-import bunway from "bunway";
+import bunway, { passportInitialize, passportSession } from "bunway";
+import passport from "passport";
 
 const app = bunway();
 app.use(bunway.helmet());
@@ -56,6 +61,8 @@ app.use(bunway.cors());
 app.use(bunway.json());
 app.use(bunway.cookieParser());
 app.use(bunway.static("./public"));
+app.use(passportInitialize(passport));
+app.use(passportSession(passport));
 ```
 
 **That's it.** Same `(req, res, next)` API. Same patterns. Faster runtime.

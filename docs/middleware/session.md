@@ -31,7 +31,7 @@ app.listen(3000);
 
 ```ts
 interface SessionOptions {
-  secret: string;              // Required: signing secret
+  secret: string | string[];    // Required: signing secret — array enables rotation (first is active)
   name?: string;               // Cookie name (default: 'connect.sid')
   cookie?: {
     maxAge?: number;           // Cookie lifetime in ms (default: 86400000)
@@ -44,9 +44,11 @@ interface SessionOptions {
   resave?: boolean;            // Force save unchanged sessions
   saveUninitialized?: boolean; // Save new empty sessions (default: true)
   rolling?: boolean;           // Reset cookie on each request
-  genid?: () => string;        // Custom session ID generator
+  genid?: (req: BunRequest) => string; // Custom session ID generator
 }
 ```
+
+`resave` force-saves the session to the store when its data hasn't changed (useful for stores without a `touch()` method, to keep the stored TTL fresh). `rolling` re-sends the `Set-Cookie` header and touches the store on every response, extending both the cookie's and the session's lifetime as long as the user stays active.
 
 ## Session Object
 
@@ -115,8 +117,10 @@ app.use(session({
 | `set(sid, data, maxAge?)` | `Promise<void>` | Store session data |
 | `destroy(sid)` | `Promise<void>` | Delete a session |
 | `touch(sid, data)` | `Promise<void>` | Update session expiration |
-| `clear()` | `void` | Clear all sessions |
-| `size` | `number` | Number of active sessions |
+| `all()` | `Promise<SessionData[]>` | Return all non-expired sessions |
+| `length()` | `Promise<number>` | Count non-expired sessions |
+| `clear()` | `Promise<void>` | Clear all sessions |
+| `size` | `number` | Raw map size (includes not-yet-GC'd expired entries) |
 
 ```ts
 // Direct store usage
@@ -124,8 +128,8 @@ const store = new MemoryStore();
 
 await store.set('sess123', { userId: 1 }, 3600000);
 const data = await store.get('sess123');
-console.log(store.size);  // 1
-store.clear();
+console.log(await store.length());  // 1
+await store.clear();
 ```
 
 ::: warning Production Use

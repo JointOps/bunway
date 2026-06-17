@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import bunway, { raw } from "../../../src";
-import { buildRequest } from "../../utils/testUtils";
+import { buildRequest } from "../../utils/test-helpers";
 import crypto from "crypto";
 
 describe("raw() body parser", () => {

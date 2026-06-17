@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import bunway from "../../src";
-import { buildRequest } from "../utils/testUtils";
+import { buildRequest } from "../utils/test-helpers";
 
 describe("Express Compatibility: App Settings", () => {
   test("app.set() and app.get() work like Express", async () => {
@@ -67,5 +67,86 @@ describe("Express Compatibility: App Settings", () => {
 
     const response2 = await app.handle(buildRequest("/test2"));
     expect(await response2.json()).toEqual({ setting: "value" });
+  });
+
+  test("'json spaces' setting formats JSONP output with indentation like Express", async () => {
+    const app = bunway();
+    app.set("json spaces", 2);
+
+    app.get("/data", (req, res) => {
+      res.jsonp({ key: "value" });
+    });
+
+    const response = await app.handle(buildRequest("/data?callback=fn"));
+    const text = await response.text();
+    expect(text).toContain("fn(");
+    expect(text).toContain('"key"');
+  });
+
+  test("'json spaces' setting indents res.json() output like Express", async () => {
+    const app = bunway();
+    app.set("json spaces", 2);
+    app.get("/data", (req, res) => res.json({ key: "value" }));
+
+    const response = await app.handle(buildRequest("/data"));
+    const text = await response.text();
+    expect(text).toBe('{\n  "key": "value"\n}');
+  });
+
+  test("'case sensitive routing' makes routes case-sensitive like Express", async () => {
+    const app = bunway();
+    app.set("case sensitive routing", true);
+    app.get("/Users", (req, res) => res.json({ matched: "Users" }));
+
+    const upper = await app.handle(buildRequest("/Users"));
+    expect(upper.status).toBe(200);
+    expect(await upper.json()).toEqual({ matched: "Users" });
+
+    const lower = await app.handle(buildRequest("/users"));
+    expect(lower.status).toBe(404);
+  });
+
+  test("'strict routing' treats trailing slash as distinct route like Express", async () => {
+    const app = bunway();
+    app.set("strict routing", true);
+    app.get("/users", (req, res) => res.json({ path: "no-slash" }));
+
+    const exact = await app.handle(buildRequest("/users"));
+    expect(exact.status).toBe(200);
+
+    const trailing = await app.handle(buildRequest("/users/"));
+    expect(trailing.status).toBe(404);
+  });
+
+  test("disabling 'x-powered-by' removes the header from responses like Express", async () => {
+    const app = bunway();
+    app.disable("x-powered-by");
+    app.get("/test", (req, res) => res.json({ ok: true }));
+
+    const response = await app.handle(buildRequest("/test"));
+    expect(response.headers.get("X-Powered-By")).toBeNull();
+  });
+
+  test("ETag header is sent on GET responses when etag is enabled like Express", async () => {
+    const app = bunway();
+    app.get("/data", (req, res) => res.json({ v: 1 }));
+
+    const response = await app.handle(buildRequest("/data"));
+    expect(response.headers.get("ETag")).not.toBeNull();
+  });
+
+  test("ETag header is absent when etag is disabled like Express", async () => {
+    const app = bunway();
+    app.set("etag", false);
+    app.get("/data", (req, res) => res.json({ v: 1 }));
+
+    const response = await app.handle(buildRequest("/data"));
+    expect(response.headers.get("ETag")).toBeNull();
+  });
+
+  test("'env' setting reflects NODE_ENV like Express", async () => {
+    const app = bunway();
+    const env = app.get("env") as string;
+    expect(env).toMatch(/^(development|test|production)$/);
   });
 });

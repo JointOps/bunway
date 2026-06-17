@@ -338,4 +338,76 @@ describe("FastMatcher (Unit)", () => {
       expect(result!.params.id).toBe("test");
     });
   });
+
+  describe("addRegexRoute() and matchRegex()", () => {
+    it("matches a regex route with named capture groups", () => {
+      matcher.addRegexRoute("GET", /^\/users\/(?<id>\d+)$/, [], [noop]);
+      const result = matcher.match("GET", "/users/42");
+      expect(result).not.toBeNull();
+      expect(result!.params.id).toBe("42");
+    });
+
+    it("maps positional captures to provided keys", () => {
+      matcher.addRegexRoute("GET", /^\/items\/(\w+)$/, ["slug"], [noop]);
+      const result = matcher.match("GET", "/items/myitem");
+      expect(result).not.toBeNull();
+      expect(result!.params.slug).toBe("myitem");
+    });
+
+    it("exposes regex source as path in match result", () => {
+      const regex = /^\/test$/;
+      matcher.addRegexRoute("GET", regex, [], [noop]);
+      const result = matcher.match("GET", "/test");
+      expect(result).not.toBeNull();
+      expect(result!.path).toBe(regex.source);
+    });
+
+    it("returns null when regex does not match", () => {
+      matcher.addRegexRoute("GET", /^\/users\/\d+$/, [], [noop]);
+      expect(matcher.match("GET", "/users/abc")).toBeNull();
+    });
+
+    it("ALL method regex route matches any HTTP method", () => {
+      matcher.addRegexRoute("ALL", /^\/catch-all$/, [], [noop]);
+      expect(matcher.match("GET", "/catch-all")).not.toBeNull();
+      expect(matcher.match("POST", "/catch-all")).not.toBeNull();
+      expect(matcher.match("DELETE", "/catch-all")).not.toBeNull();
+    });
+
+    it("regex route for specific method does not match other methods", () => {
+      matcher.addRegexRoute("POST", /^\/create$/, [], [noop]);
+      expect(matcher.match("GET", "/create")).toBeNull();
+      expect(matcher.match("POST", "/create")).not.toBeNull();
+    });
+
+    it("hasRoutes() returns true after addRegexRoute()", () => {
+      matcher.addRegexRoute("GET", /^\/any$/, [], [noop]);
+      expect(matcher.hasRoutes()).toBe(true);
+    });
+
+    it("clear() removes regex routes", () => {
+      matcher.addRegexRoute("GET", /^\/any$/, [], [noop]);
+      matcher.clear();
+      expect(matcher.hasRoutes()).toBe(false);
+      expect(matcher.match("GET", "/any")).toBeNull();
+    });
+  });
+
+  describe("getMatchingMethods() with regex routes", () => {
+    it("includes methods from regex routes", () => {
+      matcher.addRegexRoute("GET", /^\/api\/\d+$/, [], [noop]);
+      matcher.addRegexRoute("PUT", /^\/api\/\d+$/, [], [noop]);
+      const methods = matcher.getMatchingMethods("/api/99");
+      expect(methods).toContain("GET");
+      expect(methods).toContain("PUT");
+    });
+
+    it("does not duplicate regex route methods", () => {
+      matcher.addRegexRoute("GET", /^\/dup$/, [], [noop]);
+      matcher.addRegexRoute("GET", /^\/dup$/, [], [noop]);
+      const methods = matcher.getMatchingMethods("/dup");
+      const getCount = methods.filter((m) => m === "GET").length;
+      expect(getCount).toBe(1);
+    });
+  });
 });

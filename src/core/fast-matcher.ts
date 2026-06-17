@@ -70,6 +70,13 @@ export class FastMatcher {
   // Flag to track if routes have changed since last compilation
   private needsRebuild = true;
 
+  // Strict routing: when true, /users and /users/ are distinct
+  private _strict = false;
+
+  setStrict(strict: boolean): void {
+    this._strict = strict;
+  }
+
   /**
    * Add a route to the matcher
    */
@@ -243,9 +250,14 @@ export class FastMatcher {
     const route = methodRoutes.get(pathname);
     if (route) return { handlers: route.handlers, params: {}, path: route.path, keys: [] };
 
-    const alt = pathname.endsWith("/") ? pathname.slice(0, -1) : pathname + "/";
-    const altRoute = methodRoutes.get(alt);
-    if (altRoute) return { handlers: altRoute.handlers, params: {}, path: altRoute.path, keys: [] };
+    // Only try trailing-slash alt when strict routing is off and path is non-root
+    if (!this._strict && pathname.length > 1) {
+      const alt = pathname.charCodeAt(pathname.length - 1) === 47  // '/'
+        ? pathname.slice(0, -1)
+        : pathname + "/";
+      const altRoute = methodRoutes.get(alt);
+      if (altRoute) return { handlers: altRoute.handlers, params: {}, path: altRoute.path, keys: [] };
+    }
 
     return null;
   }

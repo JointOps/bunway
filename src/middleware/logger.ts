@@ -31,6 +31,12 @@ export type FormatFn = (
   meta: RequestMeta
 ) => string;
 
+// Pre-compiled format segment
+interface FormatSegment {
+  type: "literal" | "token";
+  value: string;
+}
+
 // Token registry interface
 export interface TokenRegistry {
   method: TokenFn;
@@ -112,15 +118,50 @@ function createTokens(): TokenRegistry {
   };
 }
 
-// Compile format string to format function
-function compileFormat(format: string, tokens: TokenRegistry): FormatFn {
-  return (t, req, res, meta) => {
-    return format.replace(/:(\w+[-\w]*)/g, (match, name) => {
-      const token = t[name];
-      if (!token) return match;
-      return token(req, res, meta);
-    });
-  };
+// Parse format string once at registration time into literal/token segments
+function parseFormatString(format: string): FormatSegment[] {
+  const segments: FormatSegment[] = [];
+  let last = 0;
+  const re = /:(\w+[-\w]*)/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = re.exec(format)) !== null) {
+    if (match.index > last) {
+      segments.push({ type: "literal", value: format.slice(last, match.index) });
+    }
+    segments.push({ type: "token", value: match[1]! });
+    last = match.index + match[0].length;
+  }
+  if (last < format.length) {
+    segments.push({ type: "literal", value: format.slice(last) });
+  }
+  return segments;
+}
+
+// Per-request: iterate pre-compiled segments — no regex, no String.replace
+function buildLogLine(
+  segments: FormatSegment[],
+  tokens: TokenRegistry,
+  req: BunRequest,
+  res: BunResponse,
+  meta: RequestMeta
+): string {
+  let line = "";
+  for (const seg of segments) {
+    if (seg.type === "literal") {
+      line += seg.value;
+    } else {
+      const token = tokens[seg.value];
+      line += token ? token(req, res, meta) : `:${seg.value}`;
+    }
+  }
+  return line;
+}
+
+// Compile format string to format function — regex runs once here, not per-request
+function compileFormat(format: string): FormatFn {
+  const segments = parseFormatString(format);
+  return (t, req, res, meta) => buildLogLine(segments, t, req, res, meta);
 }
 
 // Get ANSI color code for status
@@ -192,7 +233,7 @@ export function logger(
     formatFn = format;
   } else {
     const formatStr: string = format ? (FORMATS[format] ?? format) : FORMATS.dev!;
-    formatFn = compileFormat(formatStr, tokens);
+    formatFn = compileFormat(formatStr);
   }
 
   return (req, res, next) => {

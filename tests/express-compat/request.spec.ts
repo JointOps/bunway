@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import bunway, { Router } from "../../src";
-import { buildRequest } from "../utils/testUtils";
+import { buildRequest } from "../utils/test-helpers";
 
 describe("Express Compatibility: Request Object", () => {
   test("req.method works like Express", async () => {
@@ -17,7 +17,7 @@ describe("Express Compatibility: Request Object", () => {
 
     const response = await app.handle(buildRequest("/test?foo=bar"));
     const data = await response.json();
-    expect(data.url).toContain("/test?foo=bar");
+    expect(data.url).toBe("/test?foo=bar");
   });
 
   test("req.path works like Express", async () => {
@@ -319,5 +319,261 @@ describe("Express Compatibility: Request Object", () => {
       headers: { "X-Forwarded-Proto": "https" },
     }));
     expect(await response.json()).toEqual({ secure: true });
+  });
+
+  test("req.ip returns socket IP when trust proxy is false (Express pattern)", async () => {
+    const app = bunway();
+    app.get("/test", (req, res) => {
+      res.json({ ip: req.ip });
+    });
+
+    const response = await app.handle(buildRequest("/test", {
+      headers: { "X-Forwarded-For": "1.2.3.4" },
+    }));
+    // trust proxy false means X-Forwarded-For must be ignored
+    expect(await response.json()).not.toEqual({ ip: "1.2.3.4" });
+  });
+
+  test("req.ip returns X-Forwarded-For client IP with trust proxy true (Express pattern)", async () => {
+    const app = bunway();
+    app.set("trust proxy", true);
+    app.get("/test", (req, res) => {
+      res.json({ ip: req.ip });
+    });
+
+    const response = await app.handle(buildRequest("/test", {
+      headers: { "X-Forwarded-For": "1.2.3.4, 10.0.0.1" },
+    }));
+    expect(await response.json()).toEqual({ ip: "1.2.3.4" });
+  });
+
+  test("req.ips returns empty array when trust proxy is false (Express pattern)", async () => {
+    const app = bunway();
+    app.get("/test", (req, res) => {
+      res.json({ ips: req.ips });
+    });
+
+    const response = await app.handle(buildRequest("/test", {
+      headers: { "X-Forwarded-For": "1.2.3.4, 10.0.0.1" },
+    }));
+    expect(await response.json()).toEqual({ ips: [] });
+  });
+
+  test("req.subdomains returns subdomain parts like Express", async () => {
+    const app = bunway();
+    app.get("/test", (req, res) => {
+      res.json({ subdomains: req.subdomains });
+    });
+
+    const response = await app.handle(buildRequest("http://foo.bar.example.com/test"));
+    expect(await response.json()).toEqual({ subdomains: ["bar", "foo"] });
+  });
+
+  test("req.subdomains is empty for plain domain like Express", async () => {
+    const app = bunway();
+    app.get("/test", (req, res) => {
+      res.json({ subdomains: req.subdomains });
+    });
+
+    const response = await app.handle(buildRequest("http://example.com/test"));
+    expect(await response.json()).toEqual({ subdomains: [] });
+  });
+
+  test("req.subdomains is empty for IP address like Express", async () => {
+    const app = bunway();
+    app.get("/test", (req, res) => {
+      res.json({ subdomains: req.subdomains });
+    });
+
+    const response = await app.handle(buildRequest("http://192.168.1.1/test"));
+    expect(await response.json()).toEqual({ subdomains: [] });
+  });
+
+  test("req.query.foo plain-object access works like Express", async () => {
+    const app = bunway();
+    app.get("/search", (req, res) => {
+      res.json({ name: req.query["name"], page: req.query["page"] });
+    });
+
+    const response = await app.handle(buildRequest("/search?name=bunway&page=2"));
+    expect(await response.json()).toEqual({ name: "bunway", page: "2" });
+  });
+
+  test("req.fresh is true when ETag matches like Express", async () => {
+    const app = bunway();
+    app.get("/test", (req, res) => {
+      res.set("ETag", '"v1"');
+      res.json({ fresh: req.fresh });
+    });
+
+    const response = await app.handle(buildRequest("/test", {
+      headers: { "If-None-Match": '"v1"' },
+    }));
+    expect(await response.json()).toEqual({ fresh: true });
+  });
+
+  test("req.fresh is false when ETag does not match like Express", async () => {
+    const app = bunway();
+    app.get("/test", (req, res) => {
+      res.set("ETag", '"v2"');
+      res.json({ fresh: req.fresh });
+    });
+
+    const response = await app.handle(buildRequest("/test", {
+      headers: { "If-None-Match": '"v1"' },
+    }));
+    expect(await response.json()).toEqual({ fresh: false });
+  });
+
+  test("req.fresh is true via Last-Modified/If-Modified-Since when not modified like Express", async () => {
+    const app = bunway();
+    const modDate = "Mon, 01 Jan 2024 00:00:00 GMT";
+    app.get("/test", (req, res) => {
+      res.set("Last-Modified", modDate);
+      res.json({ fresh: req.fresh });
+    });
+
+    const response = await app.handle(buildRequest("/test", {
+      headers: { "If-Modified-Since": modDate },
+    }));
+    expect(await response.json()).toEqual({ fresh: true });
+  });
+
+  test("req.fresh is false via If-Modified-Since when resource was modified after like Express", async () => {
+    const app = bunway();
+    app.get("/test", (req, res) => {
+      res.set("Last-Modified", "Tue, 02 Jan 2024 00:00:00 GMT");
+      res.json({ fresh: req.fresh });
+    });
+
+    const response = await app.handle(buildRequest("/test", {
+      headers: { "If-Modified-Since": "Mon, 01 Jan 2024 00:00:00 GMT" },
+    }));
+    expect(await response.json()).toEqual({ fresh: false });
+  });
+
+  test("req.stale is inverse of req.fresh like Express", async () => {
+    const app = bunway();
+    app.get("/test", (req, res) => {
+      res.set("ETag", '"v2"');
+      res.json({ stale: req.stale, fresh: req.fresh });
+    });
+
+    const response = await app.handle(buildRequest("/test", {
+      headers: { "If-None-Match": '"v1"' },
+    }));
+    const data = await response.json() as { stale: boolean; fresh: boolean };
+    expect(data.stale).toBe(true);
+    expect(data.fresh).toBe(false);
+  });
+
+  test("req.stale is false when resource is not modified like Express", async () => {
+    const app = bunway();
+    app.get("/test", (req, res) => {
+      res.set("ETag", '"v1"');
+      res.json({ stale: req.stale });
+    });
+
+    const response = await app.handle(buildRequest("/test", {
+      headers: { "If-None-Match": '"v1"' },
+    }));
+    expect(await response.json()).toEqual({ stale: false });
+  });
+
+  test("req.fresh returns true on ETag match like Express", async () => {
+    const app = bunway();
+    app.get("/resource", (req, res) => {
+      res.set("ETag", '"abc123"');
+      if (req.fresh) { res.status(304).end(); return; }
+      res.json({ data: "value" });
+    });
+
+    const response = await app.handle(new Request("http://localhost/resource", {
+      headers: { "If-None-Match": '"abc123"' },
+    }));
+    expect(response.status).toBe(304);
+  });
+
+  test("req.fresh returns false for stale resource like Express", async () => {
+    const app = bunway();
+    app.get("/resource", (req, res) => {
+      res.set("ETag", '"current"');
+      res.json({ fresh: req.fresh });
+    });
+
+    const response = await app.handle(new Request("http://localhost/resource", {
+      headers: { "If-None-Match": '"old"' },
+    }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.fresh).toBe(false);
+  });
+
+  test("req.range() parses Range header like Express", async () => {
+    const app = bunway();
+    let result: unknown;
+    app.get("/video", (req, res) => { result = req.range(10000); res.json({ ok: true }); });
+
+    await app.handle(new Request("http://localhost/video", {
+      headers: { Range: "bytes=0-999" },
+    }));
+    expect(Array.isArray(result)).toBe(true);
+    if (Array.isArray(result)) expect(result[0]).toEqual({ start: 0, end: 999 });
+  });
+
+  test("req.res / res.req cross-references work like Express", async () => {
+    const app = bunway();
+    let reqHasRes = false;
+    let resHasReq = false;
+    app.get("/test", (req, res) => {
+      reqHasRes = req.res === res;
+      resHasReq = res.req === req;
+      res.json({ ok: true });
+    });
+
+    await app.handle(new Request("http://localhost/test"));
+    expect(reqHasRes).toBe(true);
+    expect(resHasReq).toBe(true);
+  });
+
+  test("req.baseUrl is set to the router mount prefix like Express", async () => {
+    const app = bunway();
+    const router = new Router();
+    router.get("/posts", (req, res) => {
+      res.json({ baseUrl: req.baseUrl, path: req.path, originalUrl: req.originalUrl });
+    });
+    app.use("/api", router);
+
+    const response = await app.handle(buildRequest("/api/posts"));
+    expect(await response.json()).toEqual({
+      baseUrl: "/api",
+      path: "/posts",
+      originalUrl: "/api/posts",
+    });
+  });
+
+  test("req.fresh is always false for POST requests like Express", async () => {
+    const app = bunway();
+    app.post("/test", (req, res) => {
+      res.set("ETag", '"v1"');
+      res.json({ fresh: req.fresh });
+    });
+
+    const response = await app.handle(buildRequest("/test", {
+      method: "POST",
+      headers: { "If-None-Match": '"v1"' },
+    }));
+    expect(await response.json()).toEqual({ fresh: false });
+  });
+
+  test("req.range() returns -1 for unsatisfiable range like Express", async () => {
+    const app = bunway();
+    let result: unknown;
+    app.get("/video", (req, res) => { result = req.range(100); res.json({ ok: true }); });
+
+    await app.handle(new Request("http://localhost/video", {
+      headers: { Range: "bytes=200-300" },
+    }));
+    expect(result).toBe(-1);
   });
 });

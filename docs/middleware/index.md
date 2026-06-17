@@ -7,6 +7,10 @@ description: All built-in middleware in bunWay—sessions, security, logging, ra
 
 bunWay ships with a complete set of Express-compatible middleware—no npm hunting required. Same APIs you know, just faster.
 
+::: tip Authentication
+Choosing between JWT, Passport, and Token Vault? See the [Authentication overview](./auth) for how they compare and compose.
+:::
+
 ## Built-in Middleware
 
 | bunWay | Express Equivalent | Description |
@@ -18,17 +22,19 @@ bunWay ships with a complete set of Express-compatible middleware—no npm hunti
 | [`cors()`](cors.md) | `cors` | Handle CORS headers and preflight |
 | [`helmet()`](security.md) | `helmet` | Set security headers |
 | [`session()`](session.md) | `express-session` | Session management with stores |
-| [`passport()`](auth.md) | `passport` | Authentication strategies |
 | [`logger()`](logger.md) | `morgan` | Request logging with formats |
-| [`csrf()`](security.md#csrf-protection) | `csurf` | CSRF protection |
+| [`csrf()`](csrf.md) | `csurf` | CSRF protection |
+| [`jwt()`](jwt.md) / [`jwtSign()`](jwt.md) / [`jwtDecode()`](jwt.md) | `express-jwt` | Bearer JWT verification, signing, decoding |
+| [`passportInitialize()`](passport.md) / [`passportSession()`](passport.md) / [`passportAuthenticate()`](passport.md) | `passport` | Adapters for the real `passport` package |
+| [`tokenVault()`](token-vault.md) | Custom | Access/refresh token issuance with rotation & reuse detection |
 | [`rateLimit()`](rate-limit.md) | `express-rate-limit` | Rate limiting |
 | [`serveStatic()`](static.md) | `express.static()` | Serve static files |
 | [`cookieParser()`](cookies.md) | `cookie-parser` | Parse and sign cookies |
 | [`compression()`](compression.md)           | `compression` | Gzip/Brotli/deflate response compression |
 | [`upload()`](file-uploads.md) | `multer` | File uploads (multipart/form-data) |
-| [`timeout()`](/guide/middleware/timeout)     | `connect-timeout`     | Request timeout with `req.timedout` |
-| [`hpp()`](/guide/middleware/hpp)             | `hpp`                 | HTTP Parameter Pollution protection |
-| [`validate()`](/guide/middleware/validation) | `express-validator`   | Schema-based request validation     |
+| [`timeout()`](./timeout)     | `connect-timeout`     | Request timeout with `req.timedout` |
+| [`hpp()`](./hpp)             | `hpp`                 | HTTP Parameter Pollution protection |
+| [`validate()`](./validation) | `express-validator`   | Schema-based request validation     |
 | [`sse()`](sse.md)                            | `express-sse`         | Server-Sent Events with heartbeat   |
 | [`responseTime()`](response-time.md)         | `response-time`       | X-Response-Time header              |
 | [`requestId()`](request-id.md)               | `express-request-id`  | X-Request-Id generation             |
@@ -56,7 +62,7 @@ app.use(text());
 import { helmet, csrf, rateLimit } from 'bunway';
 
 app.use(helmet());
-app.use(csrf({ cookie: { secure: true } }));
+app.use(csrf({ secret: process.env.CSRF_SECRET!, cookie: { secure: true } }));
 app.use(rateLimit({ windowMs: 60000, max: 100 }));
 ```
 
@@ -79,32 +85,6 @@ app.get('/profile', (req, res) => {
 ```
 
 [Full documentation →](session.md)
-
-### Authentication
-
-```ts
-import { passport, session } from 'bunway';
-
-app.use(session({ secret: 'my-secret' }));
-app.use(passport.initialize());
-app.use(passport.session());
-
-passport.use({
-  name: 'local',
-  authenticate(req) {
-    const user = findUser(req.body.email, req.body.password);
-    if (user) this.success(user);
-    else this.fail('Invalid credentials');
-  }
-});
-
-app.post('/login', passport.authenticate('local', {
-  successRedirect: '/dashboard',
-  failureRedirect: '/login'
-}));
-```
-
-[Full documentation →](auth.md)
 
 ### Logging
 

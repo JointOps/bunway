@@ -191,6 +191,14 @@ describe("Content Negotiation Utils", () => {
     it("respects q=0 exclusion", () => {
       expect(negotiateAccept("text/html;q=0, application/json", ["html", "json"])).toBe("json");
     });
+
+    it("returns false when types array is empty", () => {
+      expect(negotiateAccept("application/json", [])).toBe(false);
+    });
+
+    it("bare * entry matches any candidate like */*", () => {
+      expect(negotiateAccept("*", ["gzip"])).toBe("gzip");
+    });
   });
 
   describe("negotiateSimple", () => {
@@ -208,6 +216,19 @@ describe("Content Negotiation Utils", () => {
 
     it("returns false when no match", () => {
       expect(negotiateSimple("br", ["gzip", "deflate"])).toBe(false);
+    });
+
+    it("returns false when candidates array is empty", () => {
+      expect(negotiateSimple("gzip", [])).toBe(false);
+    });
+
+    it("uses matchFn for custom matching logic", () => {
+      const result = negotiateSimple(
+        "en-US, fr;q=0.8",
+        ["fr", "en"],
+        (candidate, entry) => entry.startsWith(candidate + "-")
+      );
+      expect(result).toBe("en");
     });
   });
 
@@ -260,6 +281,19 @@ describe("Content Negotiation Utils", () => {
 
     it("handles urlencoded type check", () => {
       expect(typeIs("application/x-www-form-urlencoded", ["urlencoded"])).toBe("urlencoded");
+    });
+
+    it("matches */* wildcard pattern against any Content-Type", () => {
+      expect(typeIs("application/json", ["*/*"])).toBe("*/*");
+    });
+  });
+
+  describe("parseAcceptHeader edge cases", () => {
+    it("skips param segment with no = sign", () => {
+      const result = parseAcceptHeader("text/html;charset, application/json");
+      const htmlEntry = result.find((e) => e.value === "text/html");
+      expect(htmlEntry).toBeDefined();
+      expect(htmlEntry!.quality).toBe(1);
     });
   });
 });

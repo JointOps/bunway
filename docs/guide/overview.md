@@ -21,7 +21,7 @@ bunway uses the exact same `(req, res, next)` handler signature as Express. Your
 
 - **Express-compatible** – same `(req, res, next)` signature, familiar middleware patterns
 - **Bun-native** – built on Bun's Fetch primitives (`Request`, `Response`, `Bun.serve`)
-- **Batteries included** – 24 middleware covering most production needs
+- **Batteries included** – 26 middleware covering most production needs
 - **Zero dependencies** – pure Bun, no Node polyfills
 
 ## Current capabilities
@@ -54,7 +54,6 @@ bunway ships with everything you need for production apps:
 | `serveStatic()`  | Static file serving            | `express.static()`    |
 | `rateLimit()`    | Rate limiting                  | `express-rate-limit`  |
 | `csrf()`         | CSRF protection                | `csurf`               |
-| `passport()`     | Authentication                 | `passport`            |
 | `logger()`       | Request logging                | `morgan`              |
 | `upload()`       | File uploads (multipart)       | `multer`              |
 | `timeout()`        | Request timeout                    | `connect-timeout`     |
@@ -67,6 +66,9 @@ bunway ships with everything you need for production apps:
 | `requestId()`      | X-Request-Id generation            | `express-request-id`  |
 | `methodOverride()` | PUT/DELETE/PATCH from HTML forms   | `method-override`     |
 | `favicon()`        | Serve favicon.ico with ETag        | `serve-favicon`       |
+| `jwt()` / `jwtSign()` / `jwtDecode()` | Bearer JWT verification, signing, decoding | `express-jwt` |
+| `passportInitialize()` / `passportSession()` / `passportAuthenticate()` | Adapters for the real `passport` package | `passport` |
+| `tokenVault()`     | Access/refresh token issuance with rotation & reuse detection | Custom |
 
 ## Quick example
 

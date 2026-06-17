@@ -1,4 +1,5 @@
 import type { Handler } from "../types";
+import { HttpError } from "../core/errors";
 
 const DEFAULT_LIMIT = 1024 * 1024;
 
@@ -25,7 +26,15 @@ export interface RawOptions {
 }
 
 function matchesType(contentType: string, matcher: string | RegExp | ((ct: string) => boolean)): boolean {
-  if (typeof matcher === "string") return contentType.includes(matcher);
+  if (typeof matcher === "string") {
+    if (!matcher.includes("*")) return contentType.includes(matcher);
+    const baseType = contentType.split(";")[0]!.trim();
+    const [matchType, matchSub] = matcher.split("/");
+    const [ctType, ctSub] = baseType.split("/");
+    if (matchType !== "*" && matchType !== ctType) return false;
+    if (matchSub === "*") return true;
+    return matchSub === ctSub;
+  }
   if (matcher instanceof RegExp) return matcher.test(contentType);
   return matcher(contentType);
 }
@@ -59,8 +68,8 @@ export function json(options: JsonOptions = {}): Handler {
       return;
     }
 
-    const contentType = req.get("content-type") || "";
-    if (!matchesType(contentType, typeMatcher)) {
+    const contentType = req.get("content-type");
+    if (!contentType || !matchesType(contentType, typeMatcher)) {
       next();
       return;
     }
@@ -71,7 +80,7 @@ export function json(options: JsonOptions = {}): Handler {
     } catch (err) {
       const status = (err as { status?: number }).status || 400;
       const message = err instanceof Error ? err.message : "Invalid JSON";
-      res.status(status).json({ error: message });
+      next(new HttpError(status, message));
     }
   };
 }
@@ -86,8 +95,8 @@ export function urlencoded(options: UrlencodedOptions = {}): Handler {
       return;
     }
 
-    const contentType = req.get("content-type") || "";
-    if (!matchesType(contentType, typeMatcher)) {
+    const contentType = req.get("content-type");
+    if (!contentType || !matchesType(contentType, typeMatcher)) {
       next();
       return;
     }
@@ -98,7 +107,7 @@ export function urlencoded(options: UrlencodedOptions = {}): Handler {
     } catch (err) {
       const status = (err as { status?: number }).status || 400;
       const message = err instanceof Error ? err.message : "Invalid form data";
-      res.status(status).json({ error: message });
+      next(new HttpError(status, message));
     }
   };
 }
@@ -113,8 +122,8 @@ export function text(options: TextOptions = {}): Handler {
       return;
     }
 
-    const contentType = req.get("content-type") || "";
-    if (!matchesType(contentType, typeMatcher)) {
+    const contentType = req.get("content-type");
+    if (!contentType || !matchesType(contentType, typeMatcher)) {
       next();
       return;
     }
@@ -125,7 +134,7 @@ export function text(options: TextOptions = {}): Handler {
     } catch (err) {
       const status = (err as { status?: number }).status || 400;
       const message = err instanceof Error ? err.message : "Invalid text";
-      res.status(status).json({ error: message });
+      next(new HttpError(status, message));
     }
   };
 }
@@ -141,8 +150,8 @@ export function raw(options: RawOptions = {}): Handler {
       return;
     }
 
-    const contentType = req.get("content-type") || "";
-    if (!matchesType(contentType, typeMatcher)) {
+    const contentType = req.get("content-type");
+    if (!contentType || !matchesType(contentType, typeMatcher)) {
       next();
       return;
     }
@@ -151,7 +160,7 @@ export function raw(options: RawOptions = {}): Handler {
       const rawBody = await req.rawBody();
 
       if (rawBody.length > limit) {
-        res.status(413).json({ error: "Payload too large" });
+        next(new HttpError(413, "Payload too large"));
         return;
       }
 
@@ -162,7 +171,7 @@ export function raw(options: RawOptions = {}): Handler {
           verify(req, res, buffer, "binary");
         } catch (verifyErr) {
           const message = verifyErr instanceof Error ? verifyErr.message : "Verification failed";
-          res.status(403).json({ error: message });
+          next(new HttpError(403, message));
           return;
         }
       }
@@ -171,7 +180,7 @@ export function raw(options: RawOptions = {}): Handler {
       next();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to parse raw body";
-      res.status(400).json({ error: message });
+      next(new HttpError(400, message));
     }
   };
 }

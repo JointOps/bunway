@@ -30,10 +30,11 @@ export function rateLimit(options: RateLimitOptions = {}): RateLimitHandler {
     message = { error: "Too many requests, please try again later." },
     statusCode = 429,
     headers = true,
-    keyGenerator = (req) => req.ip,
-    skip,
-    onLimitReached,
   } = options;
+
+  const defaultKeyGen = options.keyGenerator ?? ((r: { ip: string }) => r.ip);
+  const skipFn = options.skip ?? null;
+  const onLimitReached = options.onLimitReached ?? null;
 
   const store = new Map<string, RateLimitEntry>();
 
@@ -54,14 +55,13 @@ export function rateLimit(options: RateLimitOptions = {}): RateLimitHandler {
 
   const handler: RateLimitHandler = Object.assign(
     (req: Parameters<Handler>[0], res: Parameters<Handler>[1], next: Parameters<Handler>[2]) => {
-      const reqInfo = { ip: req.ip, path: req.path, method: req.method };
-
-      if (skip && skip(reqInfo)) {
+      // Use req directly — BunRequest structurally satisfies { ip, path, method }
+      if (skipFn && skipFn(req)) {
         next();
         return;
       }
 
-      const key = keyGenerator(reqInfo);
+      const key = defaultKeyGen(req);
       const now = Date.now();
 
       let entry = store.get(key);
@@ -87,7 +87,7 @@ export function rateLimit(options: RateLimitOptions = {}): RateLimitHandler {
 
       if (entry.count > max) {
         if (onLimitReached) {
-          onLimitReached(reqInfo);
+          onLimitReached(req);
         }
 
         if (headers) {

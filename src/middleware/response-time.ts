@@ -11,6 +11,10 @@ export function responseTime(options: ResponseTimeOptions = {}): Handler {
   const digits = options.digits ?? 3;
   const suffix = options.suffix !== false;
 
+  if (digits < 0) {
+    throw new RangeError(`responseTime: digits must be >= 0, got ${digits}`);
+  }
+
   return (_req, res, next) => {
     const start = performance.now();
     const originalToResponse = res.toResponse.bind(res);

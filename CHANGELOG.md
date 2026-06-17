@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-06-16
+
+### Breaking
+- **`csrf`**: now requires an `options.secret` string and throws if omitted — the cookie token is signed with HMAC instead of stored raw, closing a subdomain-cookie forgery hole; `csrfToken()` returns the signed value, invalid/missing tokens now reach error-handling middleware via `next(err)` instead of writing the response directly
+
+### Added
+- **`jwt(options)`** — verifies `Authorization: Bearer` JWTs against an HMAC secret or remote JWKS endpoint, with role/scope gating and revocation hooks; standalone `jwtSign()` / `jwtDecode()` helpers
+- **`passportInitialize()` / `passportSession()` / `passportAuthenticate()`** — thin adapters that drive a real `passport` instance against bunWay's req/res instead of reimplementing Passport
+- **`tokenVault(options)`** — access/refresh token issuance with rotation and reuse detection
+- **`req.user`, `req.auth`** (express-jwt-compatible alias), **`req.isAuthenticated()` / `isUnauthenticated()`**, **`req.login()` / `logout()`** — populated by whichever auth middleware is mounted
+- **`session`**: `secret` option now accepts `string | string[]` for secret rotation; `fromExpressStore()` adapter wraps any callback-style (express-session compatible) store; `resave` and `rolling` options are now implemented via a `postResponse` lifecycle hook tied to true response termination
+- **`session`**: `MemoryStore` gains `all()`, `length()`, async `clear()`; `req.sessionStore` is now populated so handlers can evict or inspect sessions; warns when `MemoryStore` is used in `NODE_ENV=production`
+- **`cookie-parser`**: JSON cookie support, `decode` option, `signed: false` exposure, idempotent re-parsing
+- **`response`**: signed + JSON cookies, `maxAge` synced to `Expires`, auto-ETag for 200 string bodies (Express `etag` setting), `res.json()` respects `json spaces`, `res.type()` resolves MIME shorthand (`"json"` → `application/json`), cookie `path` defaults to `"/"`, `res.set(obj)` accepts a header map
+- **`router`**: strict routing (`app.set("strict routing", true)`) now works in both the fast-matcher and regex fallback; errors thrown in child routers bubble to the nearest parent error handler; post-route `app.use()` middleware is kept separate from pre-route middleware to match Express ordering; `app.param()` callbacks are deduplicated per request; `req.baseUrl` is set correctly on child-router requests
+
+### Fixed
+- **`body-parser`**: parse errors are forwarded to `next()` instead of writing the response directly
+- **`response`**: large Brotli payloads now fall back to gzip instead of failing
+- **`response-time`**: validates `digits >= 0` at middleware creation time
+- **`router`**: removed dead post-route middleware tracking; `res.setReq(req)` is now called on all request dispatch paths
+- **`crypto`**: `unsignSessionId()` accepts `string | string[]` for secret rotation
+- accept an options object in `download()` and a positional secret in `cookieParser()`
+- `next('router')` is now distinguished from `next('route')` via a separate signal
+- wildcard patterns are supported in the `body-parser` `type` option
+
+### Performance
+- **Routing**: eliminated the dual-route dispatch path — `dispatchFromMatch()` consumes the fast-matcher's result directly instead of re-scanning routes with regex; `runPipeline` detects all-sync middleware chains at runtime and skips Promise allocation entirely
+- Lazy header map and multi-value header append in `response`; dropped redundant `TextEncoder` allocation
+- Pre-computed 404/405 responses, memoized `accepts()`, removed redundant `toUpperCase()` calls on the hot path
+- Pre-computed Helmet headers and CORS static-wildcard path; TTL stat cache for static file serving; flag-based compression skip
+- Avoided cookie re-parsing, session object spreading, and array joins on the session/crypto hot path
+- Pre-compiled logger format strings at registration time
+- Performance test floor raised to 57k req/s with new fair-comparison benchmark suite
+
+### Documentation
+- New middleware guide pages for `jwt`, `passport`, and `token-vault`; old duplicate hpp/timeout/validation guide pages consolidated into their canonical `docs/middleware/` pages
+- Docs theme overhaul: fonts, nav, prev/next links, hero stats grid; express-migration page redesigned with diff view, swap cards, and accordions; sidebar restructured into collapsible middleware groups
+- README and docs updated for the jump from 23 to 26 built-in middleware; express-migration example updated to use the new Passport adapters
+- Clarified CORS preflight behaviour, session `resave`/`rolling` semantics, and corrected a stale validation-zod note; CONTRIBUTING now references `bun` instead of `npm`/`node`
+
+### Testing
+- Added unit, integration, and acceptance coverage for `jwt`, `passport`, `tokenVault`, and a combined-auth flow
+- Expanded coverage for session, cookie-parser, crypto, response, response-time, router param handling, and WebSocket close states
+- Consolidated test utilities into a single helper module; dissolved phase2/3 compat files into domain-based specs
+
 ## [1.0.8] - 2026-05-21
 
 ### Fixed
@@ -301,7 +347,9 @@ This release completes Phase 1 (Core Migration Blockers).
    - Creates GitHub release with auto-generated notes
    - Tags the release
 
-[Unreleased]: https://github.com/JointOps/bunway/compare/v1.0.7...HEAD
+[Unreleased]: https://github.com/JointOps/bunway/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/JointOps/bunway/compare/v1.0.8...v1.1.0
+[1.0.8]: https://github.com/JointOps/bunway/compare/v1.0.7...v1.0.8
 [1.0.7]: https://github.com/JointOps/bunway/compare/v1.0.6...v1.0.7
 [1.0.6]: https://github.com/JointOps/bunway/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/JointOps/bunway/compare/v1.0.4...v1.0.5

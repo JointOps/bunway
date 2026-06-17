@@ -11,8 +11,8 @@ Professional, fair, and reproducible benchmarks for comparing web framework perf
 brew install oha
 
 # Run benchmarks
-bun run benchmark:fair:quick    # ~3 minutes
-bun run benchmark:fair          # ~20 minutes (full suite)
+bun run benchmark:quick    # ~3 minutes
+bun run benchmark          # ~20 minutes (full suite)
 ```
 
 Results are saved to `benchmark/results/FAIR_COMPARISON.md`.
@@ -76,7 +76,7 @@ If no external tool is installed, the benchmark falls back to an internal implem
 ### Quick Benchmark (~3 minutes)
 
 ```bash
-bun run benchmark:fair:quick
+bun run benchmark:quick
 ```
 
 - 10 seconds per endpoint
@@ -86,7 +86,7 @@ bun run benchmark:fair:quick
 ### Full Benchmark (~20 minutes)
 
 ```bash
-bun run benchmark:fair
+bun run benchmark
 ```
 
 - 30 seconds per endpoint
@@ -111,14 +111,14 @@ bun benchmark/fair-bench.ts --install
 ### Sample Output
 
 ```
-BUN FRAMEWORKS:
-  🥇 Elysia        119,816 req/s (CV: 0.3%)
-  🥈 Hono           98,437 req/s (CV: 0.3%)
-  🥉 bunWay         95,207 req/s (CV: 0.2%)
+BUN FRAMEWORKS (darwin arm64, Bun 1.3.10, oha, c=100, 30s×3):
+  🥇 Elysia         80,607 req/s (CV: 0.3%)
+  🥈 Hono           72,263 req/s (CV: 0.3%)
+  🥉 bunWay         66,515 req/s (CV: 0.2%)
 
-NODE.JS FRAMEWORKS:
-  🥇 Fastify        64,432 req/s (CV: 0.4%)
-  🥈 Express        39,856 req/s (CV: 0.1%)
+NODE.JS FRAMEWORKS (Node.js v24.3.0, oha, c=100, 30s×3):
+  🥇 Fastify        58,360 req/s (CV: 0.4%)
+  🥈 Express        41,157 req/s (CV: 0.1%)
 ```
 
 ### What the Metrics Mean
@@ -187,9 +187,9 @@ For consistent, reproducible results:
 
 ```bash
 # Run 3 times and compare
-bun run benchmark:fair:quick
-bun run benchmark:fair:quick
-bun run benchmark:fair:quick
+bun run benchmark:quick
+bun run benchmark:quick
+bun run benchmark:quick
 ```
 
 ---
@@ -315,16 +315,6 @@ cargo install oha       # Linux/Windows with Rust
 
 ---
 
-## Legacy Benchmark
-
-The original benchmark runner is still available:
-
-```bash
-bun run benchmark         # Uses internal Bun fetch
-bun run benchmark:quick   # Quick mode
-```
-
-Note: The legacy benchmark may show inflated numbers for Bun servers due to client-side bottlenecks. Use `benchmark:fair` for accurate comparisons.
 
 ---
 

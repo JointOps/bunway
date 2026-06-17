@@ -1,9 +1,9 @@
 ---
-title: Request & Response
+title: Request & Response Primitives
 description: Explore bunWay's BunRequest and BunResponse helpers to understand how Express-compatible handlers work with Bun-native primitives.
 ---
 
-# Request & Response
+# Request & Response Primitives
 
 bunway decorates Bun's Fetch primitives with Express-compatible helpers. Understanding these building blocks makes it easier to compose middleware and handlers.
 
@@ -50,14 +50,14 @@ app.get("/users/:id", async (req, res) => {
 | Property       | Type                     | Description                           |
 | -------------- | ------------------------ | ------------------------------------- |
 | `params`       | `Record<string, string>` | Route parameters (`:id`, `:slug`)     |
-| `query`        | `URLSearchParams`        | Query string (`?foo=bar`)             |
+| `query`        | `URLSearchParams & Record<string, string \| string[]>` | Query string (`?foo=bar`) — supports both `req.query.get('foo')` and `req.query.foo` |
 | `body`         | `unknown`                | Parsed request body                   |
 | `locals`       | `Record<string, any>`    | Per-request storage for middleware    |
 | `path`         | `string`                 | URL pathname                          |
 | `method`       | `string`                 | HTTP method                           |
 | `headers`      | `Headers`                | Request headers                       |
 | `cookies`      | `Record<string, string>` | Parsed cookies (with `cookieParser()`) |
-| `signedCookies`| `Record<string, string>` | Verified signed cookies               |
+| `signedCookies`| `Record<string, string \| false>` | Verified signed cookies (`false` if a cookie was tampered with) |
 | `session`      | `Session`                | Session data (with `session()`)       |
 | `original`     | `Request`                | Original Bun Request object           |
 

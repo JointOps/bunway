@@ -65,4 +65,66 @@ describe("requestId middleware", () => {
     expect(res.headers.get("x-trace-id")).toBe("trace-1");
     expect(body.id).toBe("trace-1");
   });
+
+  it("empty-string X-Request-Id is kept as-is (nullish coalescing, not falsy check)", async () => {
+    const app = bunway();
+    app.use(requestId({ generator: () => "generated" }));
+    app.get("/id", (req, res) => res.json({ id: (req as unknown as { id: string }).id }));
+
+    const res = await app.handle(new Request("http://localhost/id", {
+      headers: { "X-Request-Id": "" },
+    }));
+    const body = await res.json();
+    expect(body.id).toBe("");
+  });
+
+  it("custom header with setHeader: false sets req.id but omits response header", async () => {
+    const app = bunway();
+    app.use(requestId({ header: "X-Trace-Id", setHeader: false }));
+    app.get("/id", (req, res) => res.json({ id: (req as unknown as { id: string }).id }));
+
+    const res = await app.handle(new Request("http://localhost/id"));
+    expect(res.headers.has("x-trace-id")).toBe(false);
+    const body = await res.json();
+    expect(typeof body.id).toBe("string");
+    expect(body.id.length).toBeGreaterThan(0);
+  });
+
+  it("two sequential requests receive unique IDs", async () => {
+    const app = bunway();
+    app.use(requestId());
+    app.get("/id", (_req, res) => res.json({ ok: true }));
+
+    const r1 = await app.handle(new Request("http://localhost/id"));
+    const r2 = await app.handle(new Request("http://localhost/id"));
+    const id1 = r1.headers.get("x-request-id");
+    const id2 = r2.headers.get("x-request-id");
+    expect(id1).toBeTruthy();
+    expect(id2).toBeTruthy();
+    expect(id1).not.toBe(id2);
+  });
+
+  it("generated UUID matches UUID v4 format", async () => {
+    const app = bunway();
+    app.use(requestId());
+    app.get("/id", (_req, res) => res.json({ ok: true }));
+
+    const response = await app.handle(new Request("http://localhost/id"));
+    const id = response.headers.get("x-request-id") ?? "";
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+
+  it("generator that throws propagates through the pipeline as a 500", async () => {
+    const app = bunway();
+    app.use(requestId({ generator: () => { throw new Error("id-gen failed"); } }));
+    app.get("/id", (_req, res) => res.json({ ok: true }));
+    app.use((_err: Error, _req: any, res: any, _next: any) => {
+      res.status(500).json({ caught: true });
+    });
+
+    const response = await app.handle(new Request("http://localhost/id"));
+    expect(response.status).toBe(500);
+    const body = await response.json();
+    expect(body.caught).toBe(true);
+  });
 });
