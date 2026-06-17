@@ -72,6 +72,7 @@ interface CsrfOptions {
     secure?: boolean;    // HTTPS only (default: true)
     httpOnly?: boolean;  // HTTP only — must be false for double-submit pattern
     sameSite?: 'strict' | 'lax' | 'none';  // (default: 'strict')
+    maxAge?: number;      // Cookie max-age in ms (omit to use session cookie)
   };
   ignoreMethods?: string[];  // Methods to skip (default: ['GET', 'HEAD', 'OPTIONS'])
   headerName?: string;       // Header name (default: 'x-csrf-token')

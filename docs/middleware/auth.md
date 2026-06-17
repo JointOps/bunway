@@ -37,7 +37,7 @@ app.use("/api", jwt({ secret: process.env.ACCESS_SECRET! }));
 
 **Passport + JWT/CSRF** — Passport handles the login strategy (e.g. `passport-local`), while `jwt()` or [`csrf()`](./csrf) protect subsequent API routes. Passport and JWT can run side by side in the same app on different routes — they don't conflict, since both just populate `req.user`/`req.auth`.
 
-**Passport with sessions** — for traditional server-rendered login flows, pair Passport with [`session()`](./session): `passportInitialize()` → `session()` → `passportSession()`, in that order, so `req.user` is restored from the session on every request. See the [setup order](./passport#setup-order) note on the Passport page.
+**Passport with sessions** — for traditional server-rendered login flows, pair Passport with [`session()`](./session): `session()` → `passportInitialize()` → `passportSession()`, in that order, so `req.user` is restored from the session on every request. `session()` must come first because both `passportSession()` and `req.login()` read and write `req.session`. See the [setup order](./passport#setup-order) note on the Passport page.
 
 ## Related
 

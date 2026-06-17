@@ -66,8 +66,8 @@ bunWay ships all of that in a single import with zero dependencies.
 |--------|-------|
 | Production dependencies | **0** |
 | Built-in middleware | **26** |
-| Test suite | **2,417 tests**, 4,827 assertions |
-| TypeScript | **100%** strict mode, no `any` |
+| Test suite | **2,423 tests**, 4,837 assertions |
+| TypeScript | **100%** strict mode |
 
 ---
 
@@ -1391,7 +1391,10 @@ src/
     ├── request-id.ts     # X-Request-Id generation
     ├── response-time.ts  # X-Response-Time header
     ├── sse.ts            # Server-Sent Events with heartbeat
-    └── error-handler.ts  # Error handling middleware
+    ├── error-handler.ts  # Error handling middleware
+    ├── jwt.ts            # JWT verification, jwtSign(), jwtDecode()
+    ├── passport.ts       # Passport.js adapters (initialize/session/authenticate)
+    └── token-vault.ts    # Access/refresh token issuance with rotation
 ```
 
 ---
@@ -1443,7 +1446,7 @@ The constant `BUNWAY_DEFAULT_PORT` (value: `3000`) is also exported.
 ## Testing
 
 ```
-2,417 tests | 4,827 assertions | 113 test files | ~10s on M-series Mac
+2,423 tests | 4,837 assertions | 113 test files | ~10s on M-series Mac
 ```
 
 Test categories:
@@ -1486,7 +1489,7 @@ bunWay is open source and community-driven. All contributions are welcome.
 1. **Stay Bun-native** — No Node.js-only dependencies
 2. **Test everything** — Add tests for new features, maintain coverage
 3. **Keep Express compatibility** — Same patterns, same API signatures
-4. **TypeScript strict** — Full type safety, no `any` escapes
+4. **TypeScript strict** — Full type safety; avoid `any` except at necessary third-party boundaries
 
 See the [Contributing Guide](https://bunway.jointops.dev/community/build-together.html) for details.
 

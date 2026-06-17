@@ -347,7 +347,8 @@ This release completes Phase 1 (Core Migration Blockers).
    - Creates GitHub release with auto-generated notes
    - Tags the release
 
-[Unreleased]: https://github.com/JointOps/bunway/compare/v1.0.8...HEAD
+[Unreleased]: https://github.com/JointOps/bunway/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/JointOps/bunway/compare/v1.0.8...v1.1.0
 [1.0.8]: https://github.com/JointOps/bunway/compare/v1.0.7...v1.0.8
 [1.0.7]: https://github.com/JointOps/bunway/compare/v1.0.6...v1.0.7
 [1.0.6]: https://github.com/JointOps/bunway/compare/v1.0.5...v1.0.6

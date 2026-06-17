@@ -299,7 +299,16 @@ Unmatched routes return:
 ```json
 HTTP/1.1 404 Not Found
 Content-Type: application/json
-{"error":"Not Found"}
+{"error":"Not Found","message":"Cannot GET /path"}
+```
+
+When a path exists but the method doesn't match, the router returns `405 Method Not Allowed` with an `Allow` header listing the accepted methods:
+
+```json
+HTTP/1.1 405 Method Not Allowed
+Content-Type: application/json
+Allow: GET, POST
+{"error":"Method Not Allowed","message":"DELETE is not allowed for /path","allowedMethods":"GET, POST"}
 ```
 
 Customize by adding a catch-all route at the end:

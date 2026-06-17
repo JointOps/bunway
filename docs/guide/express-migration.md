@@ -21,13 +21,13 @@ You already know bunWay. Same `(req, res, next)` signature, same middleware name
   <div class="migration-step">
     <span class="step-num">3</span>
     <span class="step-title">Delete npm middleware</span>
-    <span class="step-desc">23 built-ins ship with bunWay — no installs needed</span>
+    <span class="step-desc">26 built-ins ship with bunWay — no installs needed</span>
   </div>
 </div>
 
 <div class="stats-strip">
   <div class="stat-item">
-    <span class="stat-number">23</span>
+    <span class="stat-number">26</span>
     <span class="stat-label">Built-in middleware</span>
   </div>
   <div class="stat-item">
